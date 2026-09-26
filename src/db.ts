@@ -74,25 +74,42 @@ export async function seedIfEmpty() {
   ])
 }
 
-// One-time update so existing installs pick up the new default Pre-Trade
-// checklist. Only replaces it if the user hasn't edited it (createdAt === updatedAt).
+// One-time update so existing installs pick up the current default Pre-Trade
+// checklist. Bump SEED_VERSION whenever the default routine changes.
+const SEED_VERSION = 3
+const DEFAULT_PRETRADE_ITEMS = [
+  'Check bias (HTF directional bias — bullish / bearish)',
+  'Mark key zones: session highs/lows and previous day high/low',
+  'Check for a Market Structure Shift (MSS / BOS)',
+  'Look for an Order Block or Fair Value Gap (FVG) for the entry',
+]
+
 export async function migrateDefaults() {
   const KEY = 'fx-seed-version'
   const current = Number(localStorage.getItem(KEY) || '1')
-  if (current >= 2) return
-  const pre = (await db.checklists.toArray()).find((c) => c.name === 'Pre-Trade Checklist')
-  if (pre && pre.createdAt === pre.updatedAt) {
+  if (current >= SEED_VERSION) return
+
+  const all = await db.checklists.toArray()
+  const pre = all.find((c) => c.name === 'Pre-Trade Checklist')
+  const items = DEFAULT_PRETRADE_ITEMS.map((text) => ({ id: crypto.randomUUID(), text }))
+  const now = Date.now()
+
+  if (pre) {
     pre.description = 'My step-by-step routine before entering any position.'
-    pre.items = [
-      { id: crypto.randomUUID(), text: 'Check bias (HTF directional bias — bullish / bearish)' },
-      { id: crypto.randomUUID(), text: 'Mark key zones: session highs/lows and previous day high/low' },
-      { id: crypto.randomUUID(), text: 'Check for a Market Structure Shift (MSS / BOS)' },
-      { id: crypto.randomUUID(), text: 'Look for an Order Block or Fair Value Gap (FVG) for the entry' },
-    ]
-    pre.updatedAt = Date.now()
+    pre.items = items
+    pre.updatedAt = now
     await db.checklists.put(pre)
+  } else {
+    await db.checklists.put({
+      id: crypto.randomUUID(),
+      name: 'Pre-Trade Checklist',
+      description: 'My step-by-step routine before entering any position.',
+      items,
+      createdAt: now,
+      updatedAt: now,
+    })
   }
-  localStorage.setItem(KEY, '2')
+  localStorage.setItem(KEY, String(SEED_VERSION))
 }
 
 // ---------- Backup / restore ----------
