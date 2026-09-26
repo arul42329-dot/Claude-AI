@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import { ToastProvider } from './components/Toast'
 import { SplashIntro } from './components/SplashIntro'
+import { AccountSwitcher } from './components/AccountSwitcher'
 import {
   IconDashboard,
   IconPreTrade,
@@ -31,6 +32,9 @@ function AppShell() {
   const location = useLocation()
   return (
     <div className="app">
+      <div className="aurora" aria-hidden="true">
+        <span /><span /><span />
+      </div>
       <aside className="sidebar">
         <div className="brand">
           <span className="logo-shell">
@@ -41,6 +45,7 @@ function AppShell() {
             <small>Trade your edge</small>
           </div>
         </div>
+        <AccountSwitcher />
         <div className="nav-group">
           {NAV.map((n, i) => (
             <NavLink
@@ -56,7 +61,7 @@ function AppShell() {
           ))}
         </div>
         <div className="sidebar-footer">
-          <span className="dot-live" /> v1.2.3 · Local &amp; private
+          <span className="dot-live" /> v1.2.4 · Local &amp; private
           <br />
           Your data never leaves this device.
         </div>
@@ -68,6 +73,9 @@ function AppShell() {
           <img className="logo-img" src={logoUrl} alt="Edgefolio" />
         </span>
         <span className="topbar-name">Edgefolio</span>
+        <div style={{ marginLeft: 'auto' }}>
+          <AccountSwitcher />
+        </div>
       </header>
 
       <main className="main">

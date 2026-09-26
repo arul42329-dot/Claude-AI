@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { db, getSettings } from '../db'
+import { db } from '../db'
 import { useLiveQuery, fmtMoney, fmtNum, fmtPct } from '../util'
+import { useAccountScope, scopeTrades } from '../accounts'
 import { computeStats, equityCurve, tradeDate } from '../stats'
 import { StatCard } from '../components/StatCard'
 import { TradeForm } from '../components/TradeForm'
@@ -11,37 +12,38 @@ import {
 } from 'recharts'
 
 export default function Dashboard() {
-  const trades = useLiveQuery(() => db.trades.toArray(), [], [])
-  const settings = useLiveQuery(() => getSettings(), [], undefined)
+  const allTrades = useLiveQuery(() => db.trades.toArray(), [], [])
+  const { activeId, account, currency, startingBalance } = useAccountScope()
   const [showForm, setShowForm] = useState(false)
   const toast = useToast()
 
-  const currency = settings?.accountCurrency ?? 'USD'
-  const startBal = settings?.startingBalance ?? 10000
-  const stats = computeStats(trades ?? [])
-  const curve = equityCurve(trades ?? [], startBal)
+  const trades = scopeTrades(allTrades ?? [], activeId)
+  const startBal = startingBalance
+  const stats = computeStats(trades)
+  const curve = equityCurve(trades, startBal)
   const currentBalance = curve.length ? curve[curve.length - 1].balance : startBal
-  const recent = [...(trades ?? [])].sort((a, b) => tradeDate(b).getTime() - tradeDate(a).getTime()).slice(0, 6)
+  const recent = [...trades].sort((a, b) => tradeDate(b).getTime() - tradeDate(a).getTime()).slice(0, 6)
+  const scopeName = activeId === 'all' ? 'All accounts (combined)' : account?.name ?? 'Account'
 
   return (
     <>
       <div className="page-head">
         <div>
           <h1>Dashboard</h1>
-          <p>Your trading performance at a glance</p>
+          <p>{scopeName} · performance at a glance</p>
         </div>
         <button className="btn primary" onClick={() => setShowForm(true)}>＋ New trade</button>
       </div>
 
       <div className="grid stat-grid" style={{ marginBottom: 20 }}>
-        <StatCard label="Net P/L" value={fmtMoney(stats.netPnl, currency)} tone={stats.netPnl > 0 ? 'pos' : stats.netPnl < 0 ? 'neg' : 'neutral'} sub={`${stats.closedTrades} closed trades`} />
-        <StatCard label="Win rate" value={fmtPct(stats.winRate)} sub={`${stats.wins}W / ${stats.losses}L / ${stats.breakeven}BE`} />
-        <StatCard label="Profit factor" value={fmtNum(stats.profitFactor, 2)} tone={stats.profitFactor >= 1 ? 'pos' : 'neg'} sub="Gross profit ÷ gross loss" />
-        <StatCard label="Account balance" value={fmtMoney(currentBalance, currency)} tone={currentBalance >= startBal ? 'pos' : 'neg'} sub={`Start ${fmtMoney(startBal, currency)}`} />
-        <StatCard label="Expectancy" value={fmtMoney(stats.expectancy, currency)} tone={stats.expectancy >= 0 ? 'pos' : 'neg'} sub="Avg P/L per trade" />
-        <StatCard label="Avg R:R" value={fmtNum(stats.avgRr, 2)} sub="Planned risk:reward" />
-        <StatCard label="Best / Worst" value={fmtMoney(stats.bestTrade, currency)} tone="pos" sub={`Worst ${fmtMoney(stats.worstTrade, currency)}`} />
-        <StatCard label="Win streak" value={String(stats.maxWinStreak)} sub={`Max loss streak ${stats.maxLossStreak}`} />
+        <StatCard label="Net P/L" numeric={stats.netPnl} format={(n) => fmtMoney(n, currency)} tone={stats.netPnl > 0 ? 'pos' : stats.netPnl < 0 ? 'neg' : 'neutral'} sub={`${stats.closedTrades} closed trades`} />
+        <StatCard label="Win rate" numeric={stats.winRate} format={(n) => fmtPct(n)} sub={`${stats.wins}W / ${stats.losses}L / ${stats.breakeven}BE`} />
+        <StatCard label="Profit factor" numeric={stats.profitFactor === Infinity ? 999 : stats.profitFactor} format={(n) => (stats.profitFactor === Infinity ? '∞' : fmtNum(n, 2))} tone={stats.profitFactor >= 1 ? 'pos' : 'neg'} sub="Gross profit ÷ gross loss" />
+        <StatCard label="Account balance" numeric={currentBalance} format={(n) => fmtMoney(n, currency)} tone={currentBalance >= startBal ? 'pos' : 'neg'} sub={`Start ${fmtMoney(startBal, currency)}`} />
+        <StatCard label="Expectancy" numeric={stats.expectancy} format={(n) => fmtMoney(n, currency)} tone={stats.expectancy >= 0 ? 'pos' : 'neg'} sub="Avg P/L per trade" />
+        <StatCard label="Avg R:R" numeric={stats.avgRr} format={(n) => fmtNum(n, 2)} sub="Planned risk:reward" />
+        <StatCard label="Best / Worst" numeric={stats.bestTrade} format={(n) => fmtMoney(n, currency)} tone="pos" sub={`Worst ${fmtMoney(stats.worstTrade, currency)}`} />
+        <StatCard label="Win streak" numeric={stats.maxWinStreak} format={(n) => String(Math.round(n))} sub={`Max loss streak ${stats.maxLossStreak}`} />
       </div>
 
       <div className="card" style={{ marginBottom: 20 }}>
@@ -53,18 +55,18 @@ export default function Dashboard() {
             <AreaChart data={curve} margin={{ top: 6, right: 10, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="eq" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#4f8cff" stopOpacity={0.5} />
-                  <stop offset="100%" stopColor="#4f8cff" stopOpacity={0} />
+                  <stop offset="0%" stopColor="#e8b458" stopOpacity={0.42} />
+                  <stop offset="100%" stopColor="#e8b458" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#263258" />
-              <XAxis dataKey="label" stroke="#6b7699" fontSize={11} tickLine={false} />
-              <YAxis stroke="#6b7699" fontSize={11} tickLine={false} width={64} tickFormatter={(v) => fmtMoney(v, currency)} />
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+              <XAxis dataKey="label" stroke="#6a7180" fontSize={11} tickLine={false} />
+              <YAxis stroke="#6a7180" fontSize={11} tickLine={false} width={64} tickFormatter={(v) => fmtMoney(v, currency)} />
               <Tooltip
-                contentStyle={{ background: '#1b2545', border: '1px solid #263258', borderRadius: 10, color: '#e7ecf7' }}
+                contentStyle={{ background: '#171a22', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, color: '#f3f5f9' }}
                 formatter={(v: number) => [fmtMoney(v, currency), 'Balance']}
               />
-              <Area type="monotone" dataKey="balance" stroke="#4f8cff" strokeWidth={2} fill="url(#eq)" />
+              <Area type="monotone" dataKey="balance" stroke="#f2cd7f" strokeWidth={2.4} fill="url(#eq)" />
             </AreaChart>
           </ResponsiveContainer>
         )}

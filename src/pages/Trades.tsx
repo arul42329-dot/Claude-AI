@@ -1,25 +1,29 @@
 import { useMemo, useState } from 'react'
 import { db } from '../db'
 import { useLiveQuery, fmtMoney, fmtNum } from '../util'
+import { useAccountScope, scopeTrades } from '../accounts'
 import type { Trade } from '../types'
 import { TradeForm } from '../components/TradeForm'
 import { useToast } from '../components/Toast'
-import { getSettings } from '../db'
 import { format } from 'date-fns'
 import { tradeDate } from '../stats'
 
 export default function Trades() {
-  const trades = useLiveQuery(() => db.trades.toArray(), [], [])
-  const settings = useLiveQuery(() => getSettings(), [], undefined)
-  const currency = settings?.accountCurrency ?? 'USD'
+  const allTrades = useLiveQuery(() => db.trades.toArray(), [], [])
+  const { accounts, activeId, account, currency } = useAccountScope()
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<Trade | undefined>(undefined)
   const [search, setSearch] = useState('')
   const [outcome, setOutcome] = useState('all')
   const toast = useToast()
 
+  const trades = scopeTrades(allTrades ?? [], activeId)
+  const showAccountCol = activeId === 'all' && accounts.length > 1
+  const acctMap = useMemo(() => new Map(accounts.map((a) => [a.id, a])), [accounts])
+  const scopeName = activeId === 'all' ? 'All accounts' : account?.name ?? 'Account'
+
   const filtered = useMemo(() => {
-    let list = [...(trades ?? [])]
+    let list = [...trades]
     if (outcome !== 'all') list = list.filter((t) => t.outcome === outcome)
     if (search.trim()) {
       const q = search.toLowerCase()
@@ -32,7 +36,8 @@ export default function Trades() {
       )
     }
     return list.sort((a, b) => tradeDate(b).getTime() - tradeDate(a).getTime())
-  }, [trades, search, outcome])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allTrades, activeId, search, outcome])
 
   async function remove(id: string, e: React.MouseEvent) {
     e.stopPropagation()
@@ -55,7 +60,7 @@ export default function Trades() {
       <div className="page-head">
         <div>
           <h1>Trades</h1>
-          <p>{trades?.length ?? 0} logged · your full trade journal</p>
+          <p>{scopeName} · {trades.length} logged</p>
         </div>
         <button className="btn primary" onClick={openNew}>＋ New trade</button>
       </div>
@@ -83,6 +88,7 @@ export default function Trades() {
             <thead>
               <tr>
                 <th>#</th>
+                {showAccountCol && <th>Account</th>}
                 <th>Date</th>
                 <th>Pair</th>
                 <th>Dir</th>
@@ -103,6 +109,14 @@ export default function Trades() {
                 return (
                   <tr key={t.id} onClick={() => openEdit(t)}>
                     <td><strong>{t.serial ? '#' + t.serial : '—'}</strong></td>
+                    {showAccountCol && (
+                      <td>
+                        <span className="acct-tag">
+                          <span className="acct-dot sm" style={{ background: acctMap.get(t.accountId ?? '')?.color || 'var(--text-faint)' }} />
+                          {acctMap.get(t.accountId ?? '')?.name ?? '—'}
+                        </span>
+                      </td>
+                    )}
                     <td>{format(tradeDate(t), 'dd MMM yy')}</td>
                     <td><strong>{t.pair}</strong></td>
                     <td><span className={t.direction === 'long' ? 'dir-buy' : 'dir-sell'}>{t.direction === 'long' ? '▲' : '▼'}</span></td>

@@ -1,10 +1,11 @@
 import Dexie, { type Table } from 'dexie'
-import type { Trade, Checklist, Settings, ChecklistEntry } from './types'
+import type { Trade, Checklist, Settings, ChecklistEntry, Account } from './types'
 
 export class JournalDB extends Dexie {
   trades!: Table<Trade, string>
   checklists!: Table<Checklist, string>
   checklistEntries!: Table<ChecklistEntry, string>
+  accounts!: Table<Account, string>
   settings!: Table<Settings, string>
 
   constructor() {
@@ -21,10 +22,77 @@ export class JournalDB extends Dexie {
       checklistEntries: 'id, serial, date, pair, linkedTradeId, createdAt',
       settings: 'id',
     })
+    // v3 adds multiple trading accounts; trades gain an accountId index.
+    this.version(3).stores({
+      trades: 'id, date, pair, outcome, session, strategy, createdAt, serial, checklistSerial, accountId',
+      checklists: 'id, name, createdAt',
+      checklistEntries: 'id, serial, date, pair, linkedTradeId, createdAt',
+      accounts: 'id, name, type, createdAt, archived',
+      settings: 'id',
+    })
   }
 }
 
 export const db = new JournalDB()
+
+// ---------- Accounts ----------
+// Ensure at least one account exists and that every trade is assigned to one.
+// Robust for both fresh installs and upgrades from v1/v2.
+export async function ensureAccounts(): Promise<void> {
+  const count = await db.accounts.count()
+  let defaultId: string
+
+  if (count === 0) {
+    const s = await getSettings()
+    const acc: Account = {
+      id: crypto.randomUUID(),
+      name: 'Main',
+      type: 'live',
+      startingBalance: s.startingBalance ?? 10000,
+      color: '#e8b458',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    }
+    await db.accounts.add(acc)
+    defaultId = acc.id
+  } else {
+    const first = await db.accounts.orderBy('createdAt').first()
+    defaultId = first!.id
+  }
+
+  // Backfill any trades that don't yet have an accountId.
+  const orphans = await db.trades.filter((t) => !t.accountId).toArray()
+  if (orphans.length) {
+    await db.trades.bulkPut(orphans.map((t) => ({ ...t, accountId: defaultId })))
+  }
+
+  // Make sure settings has an active-account selection.
+  const s = await getSettings()
+  if (!s.activeAccountId) {
+    await saveSettings({ ...s, activeAccountId: 'all' })
+  }
+}
+
+export async function listAccounts(): Promise<Account[]> {
+  return db.accounts.orderBy('createdAt').toArray()
+}
+
+export async function saveAccount(a: Account): Promise<void> {
+  await db.accounts.put({ ...a, updatedAt: Date.now() })
+}
+
+// Deletes an account and ALL trades journalled under it.
+export async function deleteAccount(id: string): Promise<void> {
+  await db.transaction('rw', db.trades, db.accounts, async () => {
+    await db.trades.where('accountId').equals(id).delete()
+    await db.accounts.delete(id)
+  })
+}
+
+export async function setActiveAccount(id: string): Promise<void> {
+  const s = await getSettings()
+  await saveSettings({ ...s, activeAccountId: id })
+}
 
 // ---------- Serial numbers ----------
 export async function nextChecklistSerial(): Promise<number> {
@@ -42,6 +110,7 @@ export const DEFAULT_SETTINGS: Settings = {
   id: 'app',
   accountCurrency: 'USD',
   startingBalance: 10000,
+  activeAccountId: 'all',
   theme: 'dark',
 }
 
@@ -134,24 +203,27 @@ export async function migrateDefaults() {
 
 // ---------- Backup / restore ----------
 export async function exportAll() {
-  const [trades, checklists, checklistEntries, settings] = await Promise.all([
+  const [trades, checklists, checklistEntries, accounts, settings] = await Promise.all([
     db.trades.toArray(),
     db.checklists.toArray(),
     db.checklistEntries.toArray(),
+    db.accounts.toArray(),
     db.settings.toArray(),
   ])
-  return { version: 2, exportedAt: new Date().toISOString(), trades, checklists, checklistEntries, settings }
+  return { version: 3, exportedAt: new Date().toISOString(), trades, checklists, checklistEntries, accounts, settings }
 }
 
 export async function importAll(data: any, mode: 'merge' | 'replace' = 'merge') {
   if (!data || !Array.isArray(data.trades)) throw new Error('Invalid backup file')
-  await db.transaction('rw', db.trades, db.checklists, db.checklistEntries, db.settings, async () => {
+  await db.transaction('rw', db.trades, db.checklists, db.checklistEntries, db.accounts, db.settings, async () => {
     if (mode === 'replace') {
-      await Promise.all([db.trades.clear(), db.checklists.clear(), db.checklistEntries.clear()])
+      await Promise.all([db.trades.clear(), db.checklists.clear(), db.checklistEntries.clear(), db.accounts.clear()])
     }
     if (Array.isArray(data.trades)) await db.trades.bulkPut(data.trades)
     if (Array.isArray(data.checklists)) await db.checklists.bulkPut(data.checklists)
     if (Array.isArray(data.checklistEntries)) await db.checklistEntries.bulkPut(data.checklistEntries)
+    if (Array.isArray(data.accounts)) await db.accounts.bulkPut(data.accounts)
     if (Array.isArray(data.settings)) await db.settings.bulkPut(data.settings)
   })
+  await ensureAccounts()
 }

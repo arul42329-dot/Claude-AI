@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { db, nextTradeSerial } from '../db'
 import { useLiveQuery } from '../util'
+import { useAccountScope } from '../accounts'
 import type { Trade, Direction, Outcome, Session } from '../types'
 import { Modal } from './Modal'
 import { useToast } from './Toast'
@@ -35,8 +36,18 @@ export function TradeForm({
 }) {
   const toast = useToast()
   const entries = useLiveQuery(() => db.checklistEntries.orderBy('serial').reverse().toArray(), [], [])
+  const { accounts, activeId } = useAccountScope()
   const [t, setT] = useState<Trade>(initial ? structuredClone(initial) : emptyTrade())
   const [tagInput, setTagInput] = useState('')
+
+  // Default a new trade to the account currently in view (or the first account).
+  useEffect(() => {
+    if (!t.accountId && accounts.length) {
+      const def = activeId !== 'all' ? activeId : accounts[0].id
+      setT((prev) => ({ ...prev, accountId: def }))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accounts.length, activeId])
 
   function set<K extends keyof Trade>(key: K, value: Trade[K]) {
     setT((prev) => ({ ...prev, [key]: value }))
@@ -94,8 +105,10 @@ export function TradeForm({
       ? [{ checklistId: chosen.checklistId, checklistName: `${chosen.checklistName} · #${chosen.serial}`, items: chosen.items }]
       : []
 
+    const accountId = t.accountId || (activeId !== 'all' ? activeId : accounts[0]?.id)
     const payload: Trade = {
       ...t,
+      accountId,
       serial,
       riskReward: autoRr ?? t.riskReward,
       checklists,
@@ -175,6 +188,13 @@ export function TradeForm({
       {/* Basics */}
       <h3 style={{ margin: '10px 0 12px' }}>Trade details</h3>
       <div className="form-grid">
+        <div className="field">
+          <label>Account</label>
+          <select className="select" value={t.accountId ?? ''} onChange={(e) => set('accountId', e.target.value)}>
+            {accounts.length === 0 && <option value="">— No accounts —</option>}
+            {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </select>
+        </div>
         <div className="field">
           <label>Date</label>
           <input className="input" type="date" value={t.date} onChange={(e) => set('date', e.target.value)} />

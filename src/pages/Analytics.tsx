@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
-import { db, getSettings } from '../db'
+import { db } from '../db'
 import { useLiveQuery, fmtMoney, fmtNum, fmtPct } from '../util'
+import { useAccountScope, scopeTrades } from '../accounts'
 import { computeStats, groupByPeriod, type Period } from '../stats'
 import { StatCard } from '../components/StatCard'
 import {
@@ -17,13 +18,13 @@ const SCOPES: { value: Scope; label: string }[] = [
 ]
 
 export default function Analytics() {
-  const trades = useLiveQuery(() => db.trades.toArray(), [], [])
-  const settings = useLiveQuery(() => getSettings(), [], undefined)
-  const currency = settings?.accountCurrency ?? 'USD'
+  const allTrades = useLiveQuery(() => db.trades.toArray(), [], [])
+  const { activeId, account, currency } = useAccountScope()
   const [scope, setScope] = useState<Scope>('overall')
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
 
-  const all = trades ?? []
+  const all = useMemo(() => scopeTrades(allTrades ?? [], activeId), [allTrades, activeId])
+  const scopeName = activeId === 'all' ? 'All accounts' : account?.name ?? 'Account'
 
   // The granularity that drives the chart + breakdown table
   const chartPeriod: Period = scope === 'overall' ? 'monthly' : scope
@@ -88,7 +89,7 @@ export default function Analytics() {
       <div className="page-head">
         <div>
           <h1>Analytics</h1>
-          <p>Overall, or zoom into a single day, week or month</p>
+          <p>{scopeName} · overall, or zoom into a single day, week or month</p>
         </div>
         <div className="seg">
           {SCOPES.map((s) => (
@@ -123,13 +124,13 @@ export default function Analytics() {
           </div>
 
           <div className="grid stat-grid" style={{ marginBottom: 20 }}>
-            <StatCard label="Total trades" value={String(stats.totalTrades)} sub={`${stats.open} still open`} />
-            <StatCard label="Net P/L" value={fmtMoney(stats.netPnl, currency)} tone={stats.netPnl >= 0 ? 'pos' : 'neg'} />
-            <StatCard label="Win rate" value={fmtPct(stats.winRate)} sub={`${stats.wins}W / ${stats.losses}L`} />
-            <StatCard label="Profit factor" value={stats.profitFactor === Infinity ? '∞' : fmtNum(stats.profitFactor, 2)} tone={stats.profitFactor >= 1 ? 'pos' : 'neg'} />
-            <StatCard label="Total pips" value={fmtNum(stats.totalPips, 1)} tone={stats.totalPips >= 0 ? 'pos' : 'neg'} />
-            <StatCard label="Expectancy" value={fmtMoney(stats.expectancy, currency)} tone={stats.expectancy >= 0 ? 'pos' : 'neg'} sub="per trade" />
-            <StatCard label="Best trade" value={fmtMoney(stats.bestTrade, currency)} tone="pos" />
+            <StatCard label="Total trades" numeric={stats.totalTrades} format={(n) => String(Math.round(n))} sub={`${stats.open} still open`} />
+            <StatCard label="Net P/L" numeric={stats.netPnl} format={(n) => fmtMoney(n, currency)} tone={stats.netPnl >= 0 ? 'pos' : 'neg'} />
+            <StatCard label="Win rate" numeric={stats.winRate} format={(n) => fmtPct(n)} sub={`${stats.wins}W / ${stats.losses}L`} />
+            <StatCard label="Profit factor" numeric={stats.profitFactor === Infinity ? 999 : stats.profitFactor} format={(n) => (stats.profitFactor === Infinity ? '∞' : fmtNum(n, 2))} tone={stats.profitFactor >= 1 ? 'pos' : 'neg'} />
+            <StatCard label="Total pips" numeric={stats.totalPips} format={(n) => fmtNum(n, 1)} tone={stats.totalPips >= 0 ? 'pos' : 'neg'} />
+            <StatCard label="Expectancy" numeric={stats.expectancy} format={(n) => fmtMoney(n, currency)} tone={stats.expectancy >= 0 ? 'pos' : 'neg'} sub="per trade" />
+            <StatCard label="Best trade" numeric={stats.bestTrade} format={(n) => fmtMoney(n, currency)} tone="pos" />
             <StatCard label="Avg execution" value={stats.avgRating ? fmtNum(stats.avgRating, 1) + ' ★' : '—'} />
           </div>
 
