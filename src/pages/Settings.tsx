@@ -6,6 +6,10 @@ import { Modal } from '../components/Modal'
 import { ACCOUNT_TYPES, ACCOUNT_COLORS, accountTypeLabel } from '../accounts'
 import type { Settings, Trade, Account, AccountType } from '../types'
 import { format, subDays } from 'date-fns'
+import {
+  getDriveState, requestDeviceCode, pollForToken, runBackup, disconnect,
+  type DriveState, type DeviceCode,
+} from '../drive'
 
 const CURRENCIES = ['USD', 'EUR', 'GBP', 'JPY', 'INR', 'AUD', 'CAD', 'CHF', 'NZD', 'SGD', 'AED', 'ZAR']
 
@@ -153,6 +157,8 @@ export default function SettingsPage() {
           </div>
         </div>
 
+        <DriveBackup />
+
         <div className="card">
           <h3>Data tools</h3>
           <div className="row">
@@ -180,6 +186,128 @@ export default function SettingsPage() {
         />
       )}
     </>
+  )
+}
+
+function DriveBackup() {
+  const toast = useToast()
+  const [st, setSt] = useState<DriveState>(() => getDriveState())
+  const refresh = () => setSt(getDriveState())
+  const [cid, setCid] = useState(st.clientId)
+  const [secret, setSecret] = useState(st.clientSecret)
+  const [guide, setGuide] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [dc, setDc] = useState<DeviceCode | null>(null)
+  const [secsLeft, setSecsLeft] = useState(0)
+
+  async function connect() {
+    if (!cid.trim() || !secret.trim()) { toast('Enter your Client ID and Client secret first'); return }
+    setBusy(true)
+    try {
+      const code = await requestDeviceCode(cid)
+      setDc(code); setSecsLeft(code.expires_in)
+      await pollForToken(cid, secret, code, (s) => setSecsLeft(s))
+      setDc(null); refresh()
+      toast('Google Drive connected ✓')
+      try { await runBackup(); refresh() } catch { /* first backup best-effort */ }
+    } catch (e: any) {
+      setDc(null)
+      toast(e?.message || 'Connection failed')
+    } finally { setBusy(false) }
+  }
+
+  async function backupNow() {
+    setBusy(true)
+    try { await runBackup(); refresh(); toast('Backed up to Google Drive ✓') }
+    catch (e: any) { refresh(); toast(e?.message || 'Backup failed') }
+    finally { setBusy(false) }
+  }
+
+  async function doDisconnect() {
+    if (!confirm('Disconnect Google Drive?\n\nDaily auto-backup will stop. The backup file already in your Drive is kept.')) return
+    setBusy(true)
+    try { await disconnect(); refresh(); setCid(''); setSecret(''); toast('Disconnected from Google Drive') }
+    finally { setBusy(false) }
+  }
+
+  const mins = Math.floor(secsLeft / 60), ss = secsLeft % 60
+
+  return (
+    <div className="card">
+      <h3>☁️ Google Drive backup</h3>
+
+      {st.connected ? (
+        <>
+          <div className="drive-status">
+            <span className="live-dot" /> Connected · auto-backup daily when you open the app
+          </div>
+          <p className="muted" style={{ fontSize: 13, marginTop: 10 }}>
+            Your journal is saved to a single file (<strong>edgefolio-backup.json</strong>) in your Drive, replaced on each backup.
+          </p>
+          <div className="chips" style={{ margin: '4px 0 14px' }}>
+            <span className="chip">Last backup: {st.lastBackupAt ? format(new Date(st.lastBackupAt), 'd MMM yyyy, HH:mm') : 'not yet'}</span>
+          </div>
+          {st.lastError && <p style={{ color: 'var(--red)', fontSize: 12.5, marginTop: -4 }}>{st.lastError}</p>}
+          <div className="row">
+            <button className="btn primary" onClick={backupNow} disabled={busy}>{busy ? 'Backing up…' : '☁️ Back up now'}</button>
+            <button className="btn danger" onClick={doDisconnect} disabled={busy}>Disconnect</button>
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="muted" style={{ marginTop: -6, fontSize: 13 }}>
+            Connect once and Edgefolio will back up your whole journal to your own Google Drive automatically — once a day when you open the app — always replacing the same file.
+          </p>
+
+          <button className="link-btn" onClick={() => setGuide((g) => !g)} style={{ margin: '6px 0 4px' }}>
+            {guide ? '▾ Hide setup steps' : '▸ First time? How to get your Client ID (2 min)'}
+          </button>
+          {guide && (
+            <ol className="drive-guide">
+              <li>Open the <a href="https://console.cloud.google.com/" target="_blank" rel="noreferrer">Google Cloud Console</a> and create a free project.</li>
+              <li>In <em>APIs &amp; Services → Library</em>, search <strong>Google Drive API</strong> and click <strong>Enable</strong>.</li>
+              <li>In <em>OAuth consent screen</em>, choose <strong>External</strong>, fill the basics, and add your own Gmail under <strong>Test users</strong>.</li>
+              <li>In <em>Credentials → Create credentials → OAuth client ID</em>, set Application type to <strong>TVs and Limited Input devices</strong>.</li>
+              <li>Copy the <strong>Client ID</strong> and <strong>Client secret</strong> it shows, and paste them below.</li>
+            </ol>
+          )}
+
+          <div className="form-grid" style={{ marginTop: 10 }}>
+            <div className="field">
+              <label>Client ID</label>
+              <input className="input" value={cid} onChange={(e) => setCid(e.target.value)} placeholder="1234…apps.googleusercontent.com" autoComplete="off" />
+            </div>
+            <div className="field">
+              <label>Client secret</label>
+              <input className="input" value={secret} onChange={(e) => setSecret(e.target.value)} placeholder="GOCSPX-…" autoComplete="off" />
+            </div>
+          </div>
+          <div className="row" style={{ marginTop: 12 }}>
+            <button className="btn primary" onClick={connect} disabled={busy}>{busy ? 'Connecting…' : 'Connect Google Drive'}</button>
+          </div>
+          <p className="muted" style={{ fontSize: 11.5, marginTop: 10 }}>
+            Your Client ID/secret and the login stay on this device. Edgefolio only ever touches the one backup file it creates (drive.file scope).
+          </p>
+        </>
+      )}
+
+      {dc && (
+        <Modal title="Approve on Google" onClose={() => { setDc(null); setBusy(false) }}>
+          <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>
+            On your phone or any device, open the link below and enter this code to approve Edgefolio:
+          </p>
+          <div className="drive-code">{dc.user_code}</div>
+          <div className="row" style={{ justifyContent: 'center', marginTop: 4 }}>
+            <button className="btn sm" onClick={() => { navigator.clipboard?.writeText(dc.user_code).then(() => toast('Code copied'), () => {}) }}>Copy code</button>
+            <a className="btn primary sm" href={dc.verification_url} target="_blank" rel="noreferrer">Open {dc.verification_url.replace('https://', '')}</a>
+          </div>
+          <p className="muted" style={{ textAlign: 'center', marginTop: 16, fontSize: 12.5 }}>
+            <span className="refresh-ic spin" style={{ marginRight: 6 }}>⟳</span>
+            Waiting for approval… {mins}:{String(ss).padStart(2, '0')} left
+          </p>
+        </Modal>
+      )}
+    </div>
   )
 }
 
