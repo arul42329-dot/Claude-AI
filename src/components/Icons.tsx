@@ -68,6 +68,12 @@ export const IconChecklists = (p: IconProps) => (
   </Base>
 )
 
+export const IconMarkets = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M3 12h4l3-8 4 16 3-8h4" />
+  </Base>
+)
+
 export const IconSettings = (p: IconProps) => (
   <Base {...p}>
     <circle cx="12" cy="12" r="3" />

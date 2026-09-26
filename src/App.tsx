@@ -9,6 +9,7 @@ import {
   IconTrades,
   IconAnalytics,
   IconChecklists,
+  IconMarkets,
   IconSettings,
 } from './components/Icons'
 import logoUrl from './assets/logo.png'
@@ -17,10 +18,12 @@ import Trades from './pages/Trades'
 import PreTrade from './pages/PreTrade'
 import Checklists from './pages/Checklists'
 import Analytics from './pages/Analytics'
+import Markets from './pages/Markets'
 import SettingsPage from './pages/Settings'
 
 const NAV = [
   { to: '/', label: 'Dashboard', Icon: IconDashboard, end: true },
+  { to: '/markets', label: 'Markets', Icon: IconMarkets, end: false },
   { to: '/pre-trade', label: 'Pre-Trade', Icon: IconPreTrade, end: false },
   { to: '/trades', label: 'Trades', Icon: IconTrades, end: false },
   { to: '/analytics', label: 'Analytics', Icon: IconAnalytics, end: false },
@@ -61,7 +64,7 @@ function AppShell() {
           ))}
         </div>
         <div className="sidebar-footer">
-          <span className="dot-live" /> v1.2.4 · Local &amp; private
+          <span className="dot-live" /> v1.2.5 · Local &amp; private
           <br />
           Your data never leaves this device.
         </div>
@@ -85,6 +88,7 @@ function AppShell() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/pre-trade" element={<PreTrade />} />
             <Route path="/trades" element={<Trades />} />
+            <Route path="/markets" element={<Markets />} />
             <Route path="/analytics" element={<Analytics />} />
             <Route path="/checklists" element={<Checklists />} />
             <Route path="/settings" element={<SettingsPage />} />
