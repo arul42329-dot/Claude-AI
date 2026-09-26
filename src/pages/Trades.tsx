@@ -82,6 +82,7 @@ export default function Trades() {
           <table>
             <thead>
               <tr>
+                <th>#</th>
                 <th>Date</th>
                 <th>Pair</th>
                 <th>Dir</th>
@@ -101,6 +102,7 @@ export default function Trades() {
                 const pct = items.length ? Math.round((done / items.length) * 100) : null
                 return (
                   <tr key={t.id} onClick={() => openEdit(t)}>
+                    <td><strong>{t.serial ? '#' + t.serial : '—'}</strong></td>
                     <td>{format(tradeDate(t), 'dd MMM yy')}</td>
                     <td><strong>{t.pair}</strong></td>
                     <td><span className={t.direction === 'long' ? 'dir-buy' : 'dir-sell'}>{t.direction === 'long' ? '▲' : '▼'}</span></td>
@@ -111,7 +113,11 @@ export default function Trades() {
                     <td style={{ textAlign: 'right' }} className={(t.pnl ?? 0) > 0 ? 'pos' : (t.pnl ?? 0) < 0 ? 'neg' : ''}>
                       {t.pnl != null ? fmtMoney(t.pnl, currency) : '—'}
                     </td>
-                    <td>{pct != null ? `${pct}%` : '—'}</td>
+                    <td className="muted">
+                      {t.checklistSerial != null
+                        ? <>Chk #{t.checklistSerial}{pct != null ? ` · ${pct}%` : ''}</>
+                        : (pct != null ? `${pct}%` : '—')}
+                    </td>
                     <td><button className="icon-btn" onClick={(e) => remove(t.id, e)} title="Delete">🗑️</button></td>
                   </tr>
                 )

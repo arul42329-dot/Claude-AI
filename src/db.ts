@@ -1,9 +1,10 @@
 import Dexie, { type Table } from 'dexie'
-import type { Trade, Checklist, Settings } from './types'
+import type { Trade, Checklist, Settings, ChecklistEntry } from './types'
 
 export class JournalDB extends Dexie {
   trades!: Table<Trade, string>
   checklists!: Table<Checklist, string>
+  checklistEntries!: Table<ChecklistEntry, string>
   settings!: Table<Settings, string>
 
   constructor() {
@@ -13,10 +14,29 @@ export class JournalDB extends Dexie {
       checklists: 'id, name, createdAt',
       settings: 'id',
     })
+    // v2 adds pre-trade checklist entries + serial indexes for linking.
+    this.version(2).stores({
+      trades: 'id, date, pair, outcome, session, strategy, createdAt, serial, checklistSerial',
+      checklists: 'id, name, createdAt',
+      checklistEntries: 'id, serial, date, pair, linkedTradeId, createdAt',
+      settings: 'id',
+    })
   }
 }
 
 export const db = new JournalDB()
+
+// ---------- Serial numbers ----------
+export async function nextChecklistSerial(): Promise<number> {
+  const last = await db.checklistEntries.orderBy('serial').last()
+  return (last?.serial ?? 0) + 1
+}
+
+export async function nextTradeSerial(): Promise<number> {
+  const all = await db.trades.toArray()
+  const max = all.reduce((m, t) => Math.max(m, t.serial ?? 0), 0)
+  return max + 1
+}
 
 export const DEFAULT_SETTINGS: Settings = {
   id: 'app',
@@ -114,22 +134,24 @@ export async function migrateDefaults() {
 
 // ---------- Backup / restore ----------
 export async function exportAll() {
-  const [trades, checklists, settings] = await Promise.all([
+  const [trades, checklists, checklistEntries, settings] = await Promise.all([
     db.trades.toArray(),
     db.checklists.toArray(),
+    db.checklistEntries.toArray(),
     db.settings.toArray(),
   ])
-  return { version: 1, exportedAt: new Date().toISOString(), trades, checklists, settings }
+  return { version: 2, exportedAt: new Date().toISOString(), trades, checklists, checklistEntries, settings }
 }
 
 export async function importAll(data: any, mode: 'merge' | 'replace' = 'merge') {
   if (!data || !Array.isArray(data.trades)) throw new Error('Invalid backup file')
-  await db.transaction('rw', db.trades, db.checklists, db.settings, async () => {
+  await db.transaction('rw', db.trades, db.checklists, db.checklistEntries, db.settings, async () => {
     if (mode === 'replace') {
-      await Promise.all([db.trades.clear(), db.checklists.clear()])
+      await Promise.all([db.trades.clear(), db.checklists.clear(), db.checklistEntries.clear()])
     }
     if (Array.isArray(data.trades)) await db.trades.bulkPut(data.trades)
     if (Array.isArray(data.checklists)) await db.checklists.bulkPut(data.checklists)
+    if (Array.isArray(data.checklistEntries)) await db.checklistEntries.bulkPut(data.checklistEntries)
     if (Array.isArray(data.settings)) await db.settings.bulkPut(data.settings)
   })
 }

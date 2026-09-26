@@ -29,8 +29,34 @@ export interface ChecklistResponse {
   }[]
 }
 
+// A pre-trade checklist entry: filled and SAVED before a trade is taken.
+// It gets a serial number so a later trade log can be linked to it.
+export interface ChecklistEntry {
+  id: string
+  serial: number // human-facing serial, e.g. 1, 2, 3…
+  date: string
+  time?: string
+  pair: string
+  direction?: Direction
+  bias?: string
+  checklistId: string
+  checklistName: string
+  items: {
+    itemId: string
+    text: string
+    checked: boolean
+  }[]
+  notes?: string
+  linkedTradeId?: string // set once a trade log is linked to this entry
+  createdAt: number
+  updatedAt: number
+}
+
 export interface Trade {
   id: string
+  serial?: number // human-facing serial for the trade log
+  // Link to a pre-trade checklist entry by its serial number
+  checklistSerial?: number
   // When the trade was opened (ISO date string yyyy-mm-dd) + optional time
   date: string
   time?: string

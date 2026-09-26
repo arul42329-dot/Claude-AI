@@ -3,15 +3,17 @@ import { ToastProvider } from './components/Toast'
 import logoUrl from './assets/logo.png'
 import Dashboard from './pages/Dashboard'
 import Trades from './pages/Trades'
+import PreTrade from './pages/PreTrade'
 import Checklists from './pages/Checklists'
 import Analytics from './pages/Analytics'
 import SettingsPage from './pages/Settings'
 
 const NAV = [
   { to: '/', label: 'Dashboard', icon: '📊', end: true },
+  { to: '/pre-trade', label: 'Pre-Trade', icon: '✅', end: false },
   { to: '/trades', label: 'Trades', icon: '📝', end: false },
   { to: '/analytics', label: 'Analytics', icon: '📈', end: false },
-  { to: '/checklists', label: 'Checklists', icon: '✅', end: false },
+  { to: '/checklists', label: 'Checklists', icon: '📋', end: false },
   { to: '/settings', label: 'Settings', icon: '⚙️', end: false },
 ]
 
@@ -43,6 +45,7 @@ export default function App() {
         <main className="main">
           <Routes>
             <Route path="/" element={<Dashboard />} />
+            <Route path="/pre-trade" element={<PreTrade />} />
             <Route path="/trades" element={<Trades />} />
             <Route path="/analytics" element={<Analytics />} />
             <Route path="/checklists" element={<Checklists />} />

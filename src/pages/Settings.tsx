@@ -10,17 +10,27 @@ const CURRENCIES = ['USD', 'EUR', 'GBP', 'JPY', 'INR', 'AUD', 'CAD', 'CHF', 'NZD
 export default function SettingsPage() {
   const settings = useLiveQuery(() => getSettings(), [], undefined)
   const [form, setForm] = useState<Settings | null>(null)
+  const [balanceStr, setBalanceStr] = useState('')
+  const loadedRef = useRef(false)
   const fileRef = useRef<HTMLInputElement>(null)
   const toast = useToast()
   const tradeCount = useLiveQuery(() => db.trades.count(), [], 0)
   const clCount = useLiveQuery(() => db.checklists.count(), [], 0)
 
-  useEffect(() => { if (settings) setForm(settings) }, [settings])
+  // Load the form ONCE — don't overwrite what the user is typing on later emissions.
+  useEffect(() => {
+    if (settings && !loadedRef.current) {
+      setForm(settings)
+      setBalanceStr(String(settings.startingBalance ?? 0))
+      loadedRef.current = true
+    }
+  }, [settings])
 
   if (!form) return null
 
   async function save() {
-    await saveSettings(form!)
+    const startingBalance = Number(balanceStr)
+    await saveSettings({ ...form!, startingBalance: Number.isFinite(startingBalance) ? startingBalance : 0 })
     toast('Settings saved')
   }
 
@@ -50,8 +60,8 @@ export default function SettingsPage() {
   }
 
   async function wipe() {
-    if (!confirm('Delete ALL trades and checklists permanently? This cannot be undone.')) return
-    await Promise.all([db.trades.clear(), db.checklists.clear()])
+    if (!confirm('Delete ALL trades, pre-trade checks and checklists permanently? This cannot be undone.')) return
+    await Promise.all([db.trades.clear(), db.checklists.clear(), db.checklistEntries.clear()])
     toast('All data cleared')
   }
 
@@ -74,8 +84,15 @@ export default function SettingsPage() {
             </select>
           </div>
           <div className="field" style={{ marginBottom: 16 }}>
-            <label>Starting balance</label>
-            <input className="input" type="number" value={form.startingBalance} onChange={(e) => setForm({ ...form, startingBalance: Number(e.target.value) })} />
+            <label>Account size / starting balance</label>
+            <input
+              className="input"
+              type="text"
+              inputMode="decimal"
+              placeholder="e.g. 10000"
+              value={balanceStr}
+              onChange={(e) => setBalanceStr(e.target.value.replace(/[^0-9.]/g, ''))}
+            />
           </div>
           <button className="btn primary" onClick={save}>Save settings</button>
         </div>

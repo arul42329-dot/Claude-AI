@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
-import { db } from '../db'
+import { db, nextTradeSerial } from '../db'
 import { useLiveQuery } from '../util'
-import type { Trade, ChecklistResponse, Direction, Outcome, Session } from '../types'
+import type { Trade, Direction, Outcome, Session } from '../types'
 import { Modal } from './Modal'
 import { useToast } from './Toast'
 import { CURRENCY_PAIRS, SESSIONS } from '../util'
@@ -34,7 +34,7 @@ export function TradeForm({
   onSaved: () => void
 }) {
   const toast = useToast()
-  const allChecklists = useLiveQuery(() => db.checklists.toArray(), [], [])
+  const entries = useLiveQuery(() => db.checklistEntries.orderBy('serial').reverse().toArray(), [], [])
   const [t, setT] = useState<Trade>(initial ? structuredClone(initial) : emptyTrade())
   const [tagInput, setTagInput] = useState('')
 
@@ -55,30 +55,9 @@ export function TradeForm({
     return Math.round((reward / risk) * 100) / 100
   }, [t.entryPrice, t.stopLoss, t.takeProfit])
 
-  function attachChecklist(id: string) {
-    const cl = allChecklists?.find((c) => c.id === id)
-    if (!cl) return
-    if (t.checklists.some((c) => c.checklistId === id)) return
-    const resp: ChecklistResponse = {
-      checklistId: cl.id,
-      checklistName: cl.name,
-      items: cl.items.map((it) => ({ itemId: it.id, text: it.text, checked: false })),
-    }
-    set('checklists', [...t.checklists, resp])
-  }
-  function detachChecklist(id: string) {
-    set('checklists', t.checklists.filter((c) => c.checklistId !== id))
-  }
-  function toggleItem(clId: string, itemId: string) {
-    set(
-      'checklists',
-      t.checklists.map((c) =>
-        c.checklistId !== clId
-          ? c
-          : { ...c, items: c.items.map((it) => (it.itemId === itemId ? { ...it, checked: !it.checked } : it)) },
-      ),
-    )
-  }
+  // Entries that can be linked: still pending, or already linked to THIS trade.
+  const linkable = (entries ?? []).filter((e) => !e.linkedTradeId || e.linkedTradeId === t.id)
+  const selectedEntry = t.checklistSerial != null ? (entries ?? []).find((e) => e.serial === t.checklistSerial) : undefined
 
   function addTag() {
     const v = tagInput.trim()
@@ -100,27 +79,41 @@ export function TradeForm({
 
   async function save() {
     if (!t.pair) return alert('Choose a currency pair.')
+    const serial = t.serial ?? (await nextTradeSerial())
+
+    // Snapshot the linked pre-trade checklist onto the trade so analytics keep working.
+    const chosen = t.checklistSerial != null ? (entries ?? []).find((e) => e.serial === t.checklistSerial) : undefined
+    const checklists = chosen
+      ? [{ checklistId: chosen.checklistId, checklistName: `${chosen.checklistName} · #${chosen.serial}`, items: chosen.items }]
+      : []
+
     const payload: Trade = {
       ...t,
+      serial,
       riskReward: t.riskReward ?? autoRr,
+      checklists,
       updatedAt: Date.now(),
     }
     await db.trades.put(payload)
+
+    // Maintain the two-way link between trade and pre-trade checklist entry.
+    for (const e of entries ?? []) {
+      if (e.linkedTradeId === t.id && e.serial !== t.checklistSerial) {
+        await db.checklistEntries.update(e.id, { linkedTradeId: undefined })
+      }
+    }
+    if (chosen) await db.checklistEntries.update(chosen.id, { linkedTradeId: t.id })
+
     onSaved()
   }
 
-  const compliance = useMemo(() => {
-    const all = t.checklists.flatMap((c) => c.items)
-    if (all.length === 0) return null
-    const done = all.filter((i) => i.checked).length
-    return { done, total: all.length, pct: Math.round((done / all.length) * 100) }
-  }, [t.checklists])
-
-  const availableToAttach = (allChecklists ?? []).filter((c) => !t.checklists.some((x) => x.checklistId === c.id))
+  const selPct = selectedEntry && selectedEntry.items.length
+    ? Math.round((selectedEntry.items.filter((i) => i.checked).length / selectedEntry.items.length) * 100)
+    : null
 
   return (
     <Modal
-      title={initial ? 'Edit trade' : 'New trade'}
+      title={initial ? `Edit trade${t.serial ? ' #' + t.serial : ''}` : 'New trade log'}
       onClose={onClose}
       footer={
         <>
@@ -129,7 +122,51 @@ export function TradeForm({
         </>
       }
     >
+      {/* Link to pre-trade checklist — first, so it's front and centre */}
+      <h3 style={{ margin: '0 0 12px' }}>Link pre-trade checklist</h3>
+      {linkable.length === 0 ? (
+        <p className="muted" style={{ fontSize: 13 }}>
+          No pre-trade checks available to link. Run a checklist on the <strong>Pre-Trade</strong> tab before your trade, then link it here by its serial #.
+        </p>
+      ) : (
+        <div className="field" style={{ marginBottom: 12 }}>
+          <label>Which pre-trade check does this trade belong to?</label>
+          <select
+            className="select"
+            value={t.checklistSerial ?? ''}
+            onChange={(e) => set('checklistSerial', e.target.value === '' ? undefined : Number(e.target.value))}
+          >
+            <option value="">— Not linked —</option>
+            {linkable.map((e) => {
+              const pct = e.items.length ? Math.round((e.items.filter((i) => i.checked).length / e.items.length) * 100) : 0
+              return (
+                <option key={e.id} value={e.serial}>
+                  #{e.serial} · {e.pair} · {e.checklistName} ({pct}%)
+                </option>
+              )
+            })}
+          </select>
+        </div>
+      )}
+
+      {selectedEntry && (
+        <div className="card" style={{ marginBottom: 20, padding: 14 }}>
+          <div className="row" style={{ justifyContent: 'space-between', marginBottom: 8 }}>
+            <strong>#{selectedEntry.serial} · {selectedEntry.checklistName}</strong>
+            {selPct != null && <span className="muted" style={{ fontSize: 13 }}>{selPct}% completed</span>}
+          </div>
+          {selectedEntry.items.map((it) => (
+            <div className="check-row" key={it.itemId} style={{ cursor: 'default' }}>
+              <div className={'checkbox' + (it.checked ? ' checked' : '')}>{it.checked ? '✓' : ''}</div>
+              <span style={{ flex: 1, color: it.checked ? 'var(--text)' : 'var(--text-faint)' }}>{it.text}</span>
+            </div>
+          ))}
+          <p className="muted" style={{ fontSize: 12, marginBottom: 0 }}>Recorded on the Pre-Trade tab (read-only here).</p>
+        </div>
+      )}
+
       {/* Basics */}
+      <h3 style={{ margin: '10px 0 12px' }}>Trade details</h3>
       <div className="form-grid">
         <div className="field">
           <label>Date</label>
@@ -203,42 +240,6 @@ export function TradeForm({
         </div>
         <div className="field"><label>Emotion</label><input className="input" value={t.emotion ?? ''} onChange={(e) => set('emotion', e.target.value)} placeholder="Calm, FOMO, fearful…" /></div>
       </div>
-
-      {/* Checklists */}
-      <h3 style={{ margin: '22px 0 12px' }}>Checklists</h3>
-      {availableToAttach.length > 0 && (
-        <div className="row" style={{ marginBottom: 12 }}>
-          <select className="select" style={{ maxWidth: 260 }} value="" onChange={(e) => e.target.value && attachChecklist(e.target.value)}>
-            <option value="">＋ Attach a checklist…</option>
-            {availableToAttach.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-          {compliance && (
-            <div className="row" style={{ gap: 8, flex: 1, minWidth: 160 }}>
-              <div className="compliance-bar" style={{ flex: 1 }}><div style={{ width: compliance.pct + '%' }} /></div>
-              <span className="muted" style={{ fontSize: 13 }}>{compliance.pct}%</span>
-            </div>
-          )}
-        </div>
-      )}
-      {t.checklists.length === 0 && (
-        <p className="muted" style={{ fontSize: 13 }}>
-          No checklist attached. {(!allChecklists || allChecklists.length === 0) && 'Create checklists on the Checklists page first.'}
-        </p>
-      )}
-      {t.checklists.map((c) => (
-        <div className="card" key={c.checklistId} style={{ marginBottom: 12, padding: 14 }}>
-          <div className="row" style={{ justifyContent: 'space-between', marginBottom: 8 }}>
-            <strong>{c.checklistName}</strong>
-            <button className="icon-btn" onClick={() => detachChecklist(c.checklistId)} title="Remove">✕</button>
-          </div>
-          {c.items.map((it) => (
-            <div className="check-row" key={it.itemId} onClick={() => toggleItem(c.checklistId, it.itemId)} style={{ cursor: 'pointer' }}>
-              <div className={'checkbox' + (it.checked ? ' checked' : '')}>{it.checked ? '✓' : ''}</div>
-              <span style={{ flex: 1 }}>{it.text}</span>
-            </div>
-          ))}
-        </div>
-      ))}
 
       {/* Notes / tags / screenshot */}
       <h3 style={{ margin: '22px 0 12px' }}>Notes</h3>
