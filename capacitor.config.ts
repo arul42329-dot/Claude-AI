@@ -4,7 +4,7 @@ const config: CapacitorConfig = {
   appId: 'com.edgefolio.app',
   appName: 'Edgefolio',
   webDir: 'dist',
-  backgroundColor: '#0b1020',
+  backgroundColor: '#08090c',
   android: {
     allowMixedContent: false,
   },
