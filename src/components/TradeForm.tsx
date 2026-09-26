@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { db, nextTradeSerial } from '../db'
 import { useLiveQuery } from '../util'
 import type { Trade, Direction, Outcome, Session } from '../types'
@@ -55,6 +55,13 @@ export function TradeForm({
     return Math.round((reward / risk) * 100) / 100
   }, [t.entryPrice, t.stopLoss, t.takeProfit])
 
+  // Keep the stored riskReward in sync with the auto calculation as inputs change.
+  useEffect(() => {
+    if (autoRr != null && autoRr !== t.riskReward) {
+      setT((prev) => ({ ...prev, riskReward: autoRr }))
+    }
+  }, [autoRr])
+
   // Entries that can be linked: still pending, or already linked to THIS trade.
   const linkable = (entries ?? []).filter((e) => !e.linkedTradeId || e.linkedTradeId === t.id)
   const selectedEntry = t.checklistSerial != null ? (entries ?? []).find((e) => e.serial === t.checklistSerial) : undefined
@@ -90,7 +97,7 @@ export function TradeForm({
     const payload: Trade = {
       ...t,
       serial,
-      riskReward: t.riskReward ?? autoRr,
+      riskReward: autoRr ?? t.riskReward,
       checklists,
       updatedAt: Date.now(),
     }
@@ -212,8 +219,16 @@ export function TradeForm({
         <div className="field"><label>Lot size</label><input className="input" type="number" step="any" value={t.lotSize ?? ''} onChange={(e) => setNum('lotSize', e.target.value)} /></div>
         <div className="field"><label>Risk %</label><input className="input" type="number" step="any" value={t.riskPercent ?? ''} onChange={(e) => setNum('riskPercent', e.target.value)} /></div>
         <div className="field">
-          <label>Risk : Reward {autoRr != null && t.riskReward == null ? `(auto ${autoRr})` : ''}</label>
-          <input className="input" type="number" step="any" value={t.riskReward ?? ''} placeholder={autoRr != null ? String(autoRr) : ''} onChange={(e) => setNum('riskReward', e.target.value)} />
+          <label>Risk : Reward (auto)</label>
+          <input
+            className="input"
+            type="text"
+            readOnly
+            value={autoRr != null ? `1 : ${autoRr}` : (t.riskReward != null ? `1 : ${t.riskReward}` : '—')}
+            title="Automatically calculated from Entry, Stop loss and Take profit"
+            style={{ background: 'var(--bg-2)', cursor: 'default', fontWeight: 700 }}
+          />
+          <span className="muted" style={{ fontSize: 11 }}>Calculated from Entry, Stop loss &amp; Take profit</span>
         </div>
       </div>
 
