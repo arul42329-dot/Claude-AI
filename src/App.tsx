@@ -1,5 +1,6 @@
 import { NavLink, Route, Routes } from 'react-router-dom'
 import { ToastProvider } from './components/Toast'
+import logoUrl from './assets/logo.png'
 import Dashboard from './pages/Dashboard'
 import Trades from './pages/Trades'
 import Checklists from './pages/Checklists'
@@ -20,10 +21,10 @@ export default function App() {
       <div className="app">
         <aside className="sidebar">
           <div className="brand">
-            <div className="logo">FX</div>
+            <img className="logo-img" src={logoUrl} alt="Edgefolio" />
             <div className="name">
-              FX Journal
-              <small>Trade smarter</small>
+              Edgefolio
+              <small>Trade your edge</small>
             </div>
           </div>
           {NAV.map((n) => (

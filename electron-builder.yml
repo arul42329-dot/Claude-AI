@@ -1,5 +1,5 @@
-appId: com.claudeai.fxjournal
-productName: FX Journal
+appId: com.edgefolio.app
+productName: Edgefolio
 copyright: Copyright © 2026
 directories:
   output: release
@@ -21,6 +21,6 @@ nsis:
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
-  shortcutName: FX Journal
+  shortcutName: Edgefolio
 portable:
   artifactName: ${productName}-Portable-${version}.${ext}

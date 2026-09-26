@@ -11,7 +11,7 @@ function createWindow() {
     minHeight: 600,
     backgroundColor: '#0b1020',
     autoHideMenuBar: true,
-    title: 'FX Journal',
+    title: 'Edgefolio',
     icon: path.join(__dirname, 'icon.png'),
     webPreferences: {
       contextIsolation: true,

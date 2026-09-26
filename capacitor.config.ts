@@ -1,8 +1,8 @@
 import type { CapacitorConfig } from '@capacitor/cli'
 
 const config: CapacitorConfig = {
-  appId: 'com.claudeai.fxjournal',
-  appName: 'FX Journal',
+  appId: 'com.edgefolio.app',
+  appName: 'Edgefolio',
   webDir: 'dist',
   backgroundColor: '#0b1020',
   android: {

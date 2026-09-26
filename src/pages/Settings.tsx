@@ -26,7 +26,7 @@ export default function SettingsPage() {
 
   async function doExport() {
     const data = await exportAll()
-    downloadJson(`fx-journal-backup-${format(new Date(), 'yyyy-MM-dd')}.json`, data)
+    downloadJson(`edgefolio-backup-${format(new Date(), 'yyyy-MM-dd')}.json`, data)
     toast('Backup downloaded')
   }
 
@@ -107,7 +107,7 @@ export default function SettingsPage() {
         <div className="card">
           <h3>About</h3>
           <p className="muted" style={{ fontSize: 13 }}>
-            <strong>FX Journal v1.0</strong> — a private, offline Forex trade journal.<br />
+            <strong>Edgefolio v1.0</strong> — a private, offline Forex trade journal.<br />
             Log trades, build custom checklists, and analyse your edge daily, weekly and monthly.<br /><br />
             Available for Android and Windows. Your data never leaves your device.
           </p>

@@ -1,7 +1,7 @@
 {
-  "name": "forex-trade-journal",
+  "name": "edgefolio",
   "version": "1.0.0",
-  "description": "Forex Trade Entry Journal with daily/weekly/monthly analytics and custom checklists. Runs on Android and Windows.",
+  "description": "Edgefolio — Forex Trade Entry Journal with daily/weekly/monthly analytics and custom checklists. Runs on Android and Windows.",
   "author": "Claude-AI",
   "license": "MIT",
   "main": "electron/main.cjs",
