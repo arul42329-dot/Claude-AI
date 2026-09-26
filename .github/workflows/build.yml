@@ -46,6 +46,26 @@ jobs:
       - name: Sync Capacitor
         run: npx cap sync android
 
+      - name: Brand Android launcher icon (same logo as Windows)
+        run: |
+          set -e
+          RES=android/app/src/main/res
+          # per density: legacy icon px | adaptive layer px (108dp scaled)
+          for pair in "mdpi 48 108" "hdpi 72 162" "xhdpi 96 216" "xxhdpi 144 324" "xxxhdpi 192 432"; do
+            set -- $pair
+            d=$1; leg=$2; adp=$3
+            mkdir -p "$RES/mipmap-$d"
+            convert assets/icon-only.png -resize ${leg}x${leg} "$RES/mipmap-$d/ic_launcher.png"
+            convert assets/icon-only.png -resize ${leg}x${leg} "$RES/mipmap-$d/ic_launcher_round.png"
+            convert assets/icon-foreground.png -resize ${adp}x${adp} "$RES/mipmap-$d/ic_launcher_foreground.png"
+            convert assets/icon-background.png -resize ${adp}x${adp} "$RES/mipmap-$d/ic_launcher_background.png"
+          done
+          # Adaptive icon (API 26+): our foreground mark over our navy background
+          mkdir -p "$RES/mipmap-anydpi-v26"
+          printf '<?xml version="1.0" encoding="utf-8"?>\n<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">\n    <background android:drawable="@mipmap/ic_launcher_background"/>\n    <foreground android:drawable="@mipmap/ic_launcher_foreground"/>\n</adaptive-icon>\n' > "$RES/mipmap-anydpi-v26/ic_launcher.xml"
+          cp "$RES/mipmap-anydpi-v26/ic_launcher.xml" "$RES/mipmap-anydpi-v26/ic_launcher_round.xml"
+          echo "Android launcher icons branded (matches Windows)."
+
       - name: Set up Android SDK (use pre-installed SDK on runner)
         run: |
           SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
