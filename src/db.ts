@@ -48,17 +48,14 @@ export async function seedIfEmpty() {
     {
       id: crypto.randomUUID(),
       name: 'Pre-Trade Checklist',
-      description: 'Confirm before entering any position.',
+      description: 'My step-by-step routine before entering any position.',
       createdAt: now,
       updatedAt: now,
       items: [
-        { id: crypto.randomUUID(), text: 'Higher timeframe trend identified' },
-        { id: crypto.randomUUID(), text: 'Key support/resistance marked' },
-        { id: crypto.randomUUID(), text: 'Clear entry trigger present' },
-        { id: crypto.randomUUID(), text: 'Stop loss placed at logical level' },
-        { id: crypto.randomUUID(), text: 'Risk is <= 1-2% of account' },
-        { id: crypto.randomUUID(), text: 'Risk:Reward is at least 1:2' },
-        { id: crypto.randomUUID(), text: 'No high-impact news imminent' },
+        { id: crypto.randomUUID(), text: 'Check bias (HTF directional bias — bullish / bearish)' },
+        { id: crypto.randomUUID(), text: 'Mark key zones: session highs/lows and previous day high/low' },
+        { id: crypto.randomUUID(), text: 'Check for a Market Structure Shift (MSS / BOS)' },
+        { id: crypto.randomUUID(), text: 'Look for an Order Block or Fair Value Gap (FVG) for the entry' },
       ],
     },
     {
@@ -75,6 +72,27 @@ export async function seedIfEmpty() {
       ],
     },
   ])
+}
+
+// One-time update so existing installs pick up the new default Pre-Trade
+// checklist. Only replaces it if the user hasn't edited it (createdAt === updatedAt).
+export async function migrateDefaults() {
+  const KEY = 'fx-seed-version'
+  const current = Number(localStorage.getItem(KEY) || '1')
+  if (current >= 2) return
+  const pre = (await db.checklists.toArray()).find((c) => c.name === 'Pre-Trade Checklist')
+  if (pre && pre.createdAt === pre.updatedAt) {
+    pre.description = 'My step-by-step routine before entering any position.'
+    pre.items = [
+      { id: crypto.randomUUID(), text: 'Check bias (HTF directional bias — bullish / bearish)' },
+      { id: crypto.randomUUID(), text: 'Mark key zones: session highs/lows and previous day high/low' },
+      { id: crypto.randomUUID(), text: 'Check for a Market Structure Shift (MSS / BOS)' },
+      { id: crypto.randomUUID(), text: 'Look for an Order Block or Fair Value Gap (FVG) for the entry' },
+    ]
+    pre.updatedAt = Date.now()
+    await db.checklists.put(pre)
+  }
+  localStorage.setItem(KEY, '2')
 }
 
 // ---------- Backup / restore ----------
