@@ -285,3 +285,89 @@ tbody tr:hover { background: var(--surface); }
 @media (max-width: 480px) {
   .stat-grid { grid-template-columns: 1fr 1fr; }
 }
+
+/* ============================================================
+   Animations & motion polish
+   ============================================================ */
+@keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
+@keyframes rise { from { opacity: 0; transform: translateY(14px) } to { opacity: 1; transform: none } }
+@keyframes slideInLeft { from { opacity: 0; transform: translateX(-14px) } to { opacity: 1; transform: none } }
+@keyframes pageIn { from { opacity: 0; transform: translateY(10px) } to { opacity: 1; transform: none } }
+@keyframes modalIn { from { opacity: 0; transform: translateY(16px) scale(0.98) } to { opacity: 1; transform: none } }
+@keyframes ringPulse { 0% { transform: scale(0.8); opacity: 0.7 } 70% { transform: scale(1.35); opacity: 0 } 100% { opacity: 0 } }
+@keyframes logoPop { 0% { opacity: 0; transform: scale(0.4) rotate(-8deg) } 60% { opacity: 1; transform: scale(1.08) rotate(2deg) } 100% { transform: scale(1) rotate(0) } }
+@keyframes floaty { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-6px) } }
+@keyframes letterUp { from { opacity: 0; transform: translateY(14px) } to { opacity: 1; transform: none } }
+@keyframes glowDrift { 0% { transform: translate(-10%, -6%) scale(1) } 50% { transform: translate(8%, 6%) scale(1.15) } 100% { transform: translate(-10%, -6%) scale(1) } }
+
+/* ---- Launch intro / splash ---- */
+.splash {
+  position: fixed; inset: 0; z-index: 1000;
+  display: grid; place-items: center;
+  background: radial-gradient(1000px 600px at 50% 30%, #1a2447 0%, #0b1020 60%), var(--bg);
+  animation: fadeIn 0.4s ease both;
+  overflow: hidden; cursor: pointer;
+}
+.splash-leave { animation: fadeIn 0.5s ease reverse both; }
+.splash-glow {
+  position: absolute; width: 520px; height: 520px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(124,92,255,0.35), transparent 60%);
+  filter: blur(30px); animation: glowDrift 6s ease-in-out infinite;
+}
+.splash-inner { position: relative; text-align: center; }
+.splash-logo-wrap { position: relative; display: inline-grid; place-items: center; margin-bottom: 22px; }
+.splash-logo {
+  width: 118px; height: 118px; object-fit: contain;
+  filter: drop-shadow(0 12px 40px rgba(79,140,255,0.55));
+  animation: logoPop 0.9s cubic-bezier(0.22, 1, 0.36, 1) both, floaty 3s ease-in-out 0.9s infinite;
+}
+.splash-ring {
+  position: absolute; width: 118px; height: 118px; border-radius: 30px;
+  border: 2px solid rgba(124,92,255,0.6);
+  animation: ringPulse 1.6s ease-out 0.6s infinite;
+}
+.splash-name {
+  margin: 0; font-size: 42px; font-weight: 800; letter-spacing: -0.5px;
+  background: linear-gradient(135deg, #cfe0ff, #a98cff);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.splash-name span { display: inline-block; animation: letterUp 0.5s ease both; }
+.splash-tag {
+  margin: 10px 0 0; color: var(--text-dim); font-size: 15px; letter-spacing: 3px;
+  text-transform: uppercase; opacity: 0; animation: fadeIn 0.6s ease 1.15s both;
+}
+
+/* ---- Page + element entrances ---- */
+.page-fade { animation: pageIn 0.4s ease both; }
+.nav-enter { animation: slideInLeft 0.4s ease both; }
+
+.main .stat { animation: rise 0.5s ease both; }
+.main .stat-grid .stat:nth-child(1) { animation-delay: 0.02s }
+.main .stat-grid .stat:nth-child(2) { animation-delay: 0.06s }
+.main .stat-grid .stat:nth-child(3) { animation-delay: 0.10s }
+.main .stat-grid .stat:nth-child(4) { animation-delay: 0.14s }
+.main .stat-grid .stat:nth-child(5) { animation-delay: 0.18s }
+.main .stat-grid .stat:nth-child(6) { animation-delay: 0.22s }
+.main .stat-grid .stat:nth-child(7) { animation-delay: 0.26s }
+.main .stat-grid .stat:nth-child(8) { animation-delay: 0.30s }
+.main .card { animation: rise 0.55s ease both; }
+
+/* ---- Interactive polish ---- */
+.btn { transition: all 0.15s ease, transform 0.08s ease; }
+.btn:active { transform: scale(0.96); }
+.stat, .card { transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease; }
+.stat:hover { transform: translateY(-3px); border-color: #33437a; }
+.nav-link { transition: all 0.15s ease, transform 0.08s ease; }
+.nav-link:active { transform: scale(0.97); }
+.checkbox { transition: transform 0.12s ease, background 0.12s ease, border-color 0.12s ease; }
+.check-row:active .checkbox { transform: scale(0.88); }
+.compliance-bar > div { transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1); }
+tbody tr { transition: background 0.12s ease, transform 0.08s ease; }
+.modal { animation: modalIn 0.24s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.modal-backdrop { animation: fadeIn 0.2s ease both; }
+.badge { transition: transform 0.12s ease; }
+
+/* Respect reduced-motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.001s !important; animation-iteration-count: 1 !important; transition-duration: 0.001s !important; }
+}

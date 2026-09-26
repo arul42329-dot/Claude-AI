@@ -68,6 +68,10 @@ jobs:
           mkdir -p "$RES/mipmap-anydpi-v26"
           printf '<?xml version="1.0" encoding="utf-8"?>\n<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">\n    <background android:drawable="@mipmap/ic_launcher_background"/>\n    <foreground android:drawable="@mipmap/ic_launcher_foreground"/>\n</adaptive-icon>\n' > "$RES/mipmap-anydpi-v26/ic_launcher.xml"
           cp "$RES/mipmap-anydpi-v26/ic_launcher.xml" "$RES/mipmap-anydpi-v26/ic_launcher_round.xml"
+          # Navy launch/splash background (avoid a white flash on cold start)
+          for splash in $(find "$RES" -name 'splash.png'); do
+            convert assets/icon-background.png -resize 1080x1920^ -gravity center -extent 1080x1920 "$splash" || true
+          done
           echo "Android launcher icons branded (matches Windows)."
 
       - name: Set up Android SDK (use pre-installed SDK on runner)

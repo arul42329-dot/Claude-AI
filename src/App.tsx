@@ -1,5 +1,7 @@
-import { NavLink, Route, Routes } from 'react-router-dom'
+import { useState } from 'react'
+import { NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import { ToastProvider } from './components/Toast'
+import { SplashIntro } from './components/SplashIntro'
 import logoUrl from './assets/logo.png'
 import Dashboard from './pages/Dashboard'
 import Trades from './pages/Trades'
@@ -17,33 +19,41 @@ const NAV = [
   { to: '/settings', label: 'Settings', icon: '⚙️', end: false },
 ]
 
-export default function App() {
+function AppShell() {
+  const location = useLocation()
   return (
-    <ToastProvider>
-      <div className="app">
-        <aside className="sidebar">
-          <div className="brand">
-            <img className="logo-img" src={logoUrl} alt="Edgefolio" />
-            <div className="name">
-              Edgefolio
-              <small>Trade your edge</small>
-            </div>
+    <div className="app">
+      <aside className="sidebar">
+        <div className="brand">
+          <img className="logo-img" src={logoUrl} alt="Edgefolio" />
+          <div className="name">
+            Edgefolio
+            <small>Trade your edge</small>
           </div>
-          {NAV.map((n) => (
-            <NavLink key={n.to} to={n.to} end={n.end} className={({ isActive }) => 'nav-link' + (isActive ? ' active' : '')}>
-              <span className="ic">{n.icon}</span>
-              <span className="txt">{n.label}</span>
-            </NavLink>
-          ))}
-          <div className="sidebar-footer">
-            v1.0 · Local &amp; private
-            <br />
-            Your data never leaves this device.
-          </div>
-        </aside>
+        </div>
+        {NAV.map((n, i) => (
+          <NavLink
+            key={n.to}
+            to={n.to}
+            end={n.end}
+            style={{ animationDelay: `${0.05 * i}s` }}
+            className={({ isActive }) => 'nav-link nav-enter' + (isActive ? ' active' : '')}
+          >
+            <span className="ic">{n.icon}</span>
+            <span className="txt">{n.label}</span>
+          </NavLink>
+        ))}
+        <div className="sidebar-footer">
+          v1.2 · Local &amp; private
+          <br />
+          Your data never leaves this device.
+        </div>
+      </aside>
 
-        <main className="main">
-          <Routes>
+      <main className="main">
+        {/* key on pathname re-triggers the entrance animation per page */}
+        <div className="page-fade" key={location.pathname}>
+          <Routes location={location}>
             <Route path="/" element={<Dashboard />} />
             <Route path="/pre-trade" element={<PreTrade />} />
             <Route path="/trades" element={<Trades />} />
@@ -51,17 +61,27 @@ export default function App() {
             <Route path="/checklists" element={<Checklists />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Routes>
-        </main>
+        </div>
+      </main>
 
-        <nav className="mobile-nav">
-          {NAV.map((n) => (
-            <NavLink key={n.to} to={n.to} end={n.end} className={({ isActive }) => 'nav-link' + (isActive ? ' active' : '')}>
-              <span className="ic">{n.icon}</span>
-              <span className="txt">{n.label}</span>
-            </NavLink>
-          ))}
-        </nav>
-      </div>
+      <nav className="mobile-nav">
+        {NAV.map((n) => (
+          <NavLink key={n.to} to={n.to} end={n.end} className={({ isActive }) => 'nav-link' + (isActive ? ' active' : '')}>
+            <span className="ic">{n.icon}</span>
+            <span className="txt">{n.label}</span>
+          </NavLink>
+        ))}
+      </nav>
+    </div>
+  )
+}
+
+export default function App() {
+  const [showIntro, setShowIntro] = useState(true)
+  return (
+    <ToastProvider>
+      {showIntro && <SplashIntro onDone={() => setShowIntro(false)} />}
+      <AppShell />
     </ToastProvider>
   )
 }
