@@ -7,7 +7,10 @@ import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Cell,
 } from 'recharts'
 
-const PERIODS: { value: Period; label: string }[] = [
+type Scope = 'overall' | Period
+
+const SCOPES: { value: Scope; label: string }[] = [
+  { value: 'overall', label: 'Overall' },
   { value: 'daily', label: 'Daily' },
   { value: 'weekly', label: 'Weekly' },
   { value: 'monthly', label: 'Monthly' },
@@ -17,21 +20,47 @@ export default function Analytics() {
   const trades = useLiveQuery(() => db.trades.toArray(), [], [])
   const settings = useLiveQuery(() => getSettings(), [], undefined)
   const currency = settings?.accountCurrency ?? 'USD'
-  const [period, setPeriod] = useState<Period>('weekly')
+  const [scope, setScope] = useState<Scope>('overall')
+  const [selectedKey, setSelectedKey] = useState<string | null>(null)
 
   const all = trades ?? []
-  const stats = computeStats(all)
-  const buckets = useMemo(() => groupByPeriod(all, period), [all, period])
-  const chartData = buckets.map((b) => ({ label: b.label, pnl: Math.round(b.stats.netPnl * 100) / 100, trades: b.stats.totalTrades, winRate: Math.round(b.stats.winRate) }))
 
-  // Breakdown by pair / session / strategy
-  const byPair = useMemo(() => groupBy(all, (t) => t.pair, currency), [all, currency])
-  const bySession = useMemo(() => groupBy(all, (t) => t.session, currency), [all, currency])
-  const byStrategy = useMemo(() => groupBy(all, (t) => t.strategy || 'Unspecified', currency), [all, currency])
+  // The granularity that drives the chart + breakdown table
+  const chartPeriod: Period = scope === 'overall' ? 'monthly' : scope
+  const buckets = useMemo(() => groupByPeriod(all, chartPeriod), [all, chartPeriod])
 
-  // Checklist compliance vs outcome
+  // Which bucket is "active" when a period scope is chosen (default = most recent)
+  const activeKey = useMemo(() => {
+    if (scope === 'overall') return null
+    if (selectedKey && buckets.some((b) => b.key === selectedKey)) return selectedKey
+    return buckets.length ? buckets[buckets.length - 1].key : null
+  }, [scope, selectedKey, buckets])
+
+  const activeBucket = useMemo(() => buckets.find((b) => b.key === activeKey) || null, [buckets, activeKey])
+
+  // The set of trades every summary metric on this page is computed from
+  const scopedTrades = useMemo(
+    () => (scope === 'overall' ? all : activeBucket?.trades ?? []),
+    [scope, all, activeBucket],
+  )
+  const stats = computeStats(scopedTrades)
+  const scopeLabel = scope === 'overall' ? 'All-time' : activeBucket?.label ?? '—'
+
+  const chartData = buckets.map((b) => ({
+    key: b.key,
+    label: b.label,
+    pnl: Math.round(b.stats.netPnl * 100) / 100,
+    trades: b.stats.totalTrades,
+    winRate: Math.round(b.stats.winRate),
+  }))
+
+  // Breakdowns + discipline — all scoped to the current selection
+  const byPair = useMemo(() => groupBy(scopedTrades, (t) => t.pair), [scopedTrades])
+  const bySession = useMemo(() => groupBy(scopedTrades, (t) => t.session), [scopedTrades])
+  const byStrategy = useMemo(() => groupBy(scopedTrades, (t) => t.strategy || 'Unspecified'), [scopedTrades])
+
   const compliance = useMemo(() => {
-    const withCl = all.filter((t) => t.checklists.some((c) => c.items.length > 0) && t.outcome !== 'open')
+    const withCl = scopedTrades.filter((t) => t.checklists.some((c) => c.items.length > 0) && t.outcome !== 'open')
     if (withCl.length === 0) return null
     let highWins = 0, high = 0, lowWins = 0, low = 0
     for (const t of withCl) {
@@ -45,18 +74,25 @@ export default function Analytics() {
       highWinRate: high ? (highWins / high) * 100 : 0, high,
       lowWinRate: low ? (lowWins / low) * 100 : 0, low,
     }
-  }, [all])
+  }, [scopedTrades])
+
+  const chartTitle = (scope === 'overall' ? 'Monthly' : SCOPES.find((s) => s.value === scope)!.label) + ' P/L'
+
+  function pickScope(s: Scope) {
+    setScope(s)
+    setSelectedKey(null)
+  }
 
   return (
     <>
       <div className="page-head">
         <div>
           <h1>Analytics</h1>
-          <p>Break your performance down by day, week and month</p>
+          <p>Overall, or zoom into a single day, week or month</p>
         </div>
         <div className="seg">
-          {PERIODS.map((p) => (
-            <button key={p.value} className={period === p.value ? 'active' : ''} onClick={() => setPeriod(p.value)}>{p.label}</button>
+          {SCOPES.map((s) => (
+            <button key={s.value} className={scope === s.value ? 'active' : ''} onClick={() => pickScope(s.value)}>{s.label}</button>
           ))}
         </div>
       </div>
@@ -65,29 +101,71 @@ export default function Analytics() {
         <div className="empty"><div className="big">📈</div><p>No data yet. Once you log trades, this page fills with insights.</p></div>
       ) : (
         <>
+          {/* Scope summary bar */}
+          <div className="scope-bar">
+            <span className="eyebrow" style={{ marginBottom: 0 }}>
+              {scope === 'overall' ? 'All-time performance' : `${SCOPES.find((s) => s.value === scope)!.label} · ${scopeLabel}`}
+            </span>
+            {scope !== 'overall' && buckets.length > 0 && (
+              <select
+                className="select"
+                value={activeKey ?? ''}
+                onChange={(e) => setSelectedKey(e.target.value)}
+                style={{ maxWidth: 280, marginLeft: 'auto' }}
+              >
+                {[...buckets].reverse().map((b) => (
+                  <option key={b.key} value={b.key}>
+                    {b.label} — {fmtMoney(b.stats.netPnl, currency)} · {b.stats.totalTrades} trades
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+
           <div className="grid stat-grid" style={{ marginBottom: 20 }}>
             <StatCard label="Total trades" value={String(stats.totalTrades)} sub={`${stats.open} still open`} />
             <StatCard label="Net P/L" value={fmtMoney(stats.netPnl, currency)} tone={stats.netPnl >= 0 ? 'pos' : 'neg'} />
             <StatCard label="Win rate" value={fmtPct(stats.winRate)} sub={`${stats.wins}W / ${stats.losses}L`} />
-            <StatCard label="Profit factor" value={fmtNum(stats.profitFactor, 2)} tone={stats.profitFactor >= 1 ? 'pos' : 'neg'} />
+            <StatCard label="Profit factor" value={stats.profitFactor === Infinity ? '∞' : fmtNum(stats.profitFactor, 2)} tone={stats.profitFactor >= 1 ? 'pos' : 'neg'} />
             <StatCard label="Total pips" value={fmtNum(stats.totalPips, 1)} tone={stats.totalPips >= 0 ? 'pos' : 'neg'} />
+            <StatCard label="Expectancy" value={fmtMoney(stats.expectancy, currency)} tone={stats.expectancy >= 0 ? 'pos' : 'neg'} sub="per trade" />
+            <StatCard label="Best trade" value={fmtMoney(stats.bestTrade, currency)} tone="pos" />
             <StatCard label="Avg execution" value={stats.avgRating ? fmtNum(stats.avgRating, 1) + ' ★' : '—'} />
           </div>
 
           <div className="card" style={{ marginBottom: 20 }}>
-            <h3>{PERIODS.find((p) => p.value === period)!.label} P/L</h3>
+            <h3>
+              {chartTitle}
+              {scope !== 'overall' && <span className="muted" style={{ fontWeight: 500, fontSize: 12, marginLeft: 8 }}>· tap a bar to inspect that {scope.replace('ly', '')}</span>}
+            </h3>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={chartData} margin={{ top: 6, right: 10, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#263258" />
-                <XAxis dataKey="label" stroke="#6b7699" fontSize={11} tickLine={false} />
-                <YAxis stroke="#6b7699" fontSize={11} tickLine={false} width={64} tickFormatter={(v) => fmtMoney(v, currency)} />
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                <XAxis dataKey="label" stroke="#6a7180" fontSize={11} tickLine={false} />
+                <YAxis stroke="#6a7180" fontSize={11} tickLine={false} width={64} tickFormatter={(v) => fmtMoney(v, currency)} />
                 <Tooltip
                   cursor={{ fill: 'rgba(255,255,255,0.04)' }}
-                  contentStyle={{ background: '#1b2545', border: '1px solid #263258', borderRadius: 10, color: '#e7ecf7' }}
-                  formatter={(v: number, n) => n === 'pnl' ? [fmtMoney(v, currency), 'Net P/L'] : [v, n]}
+                  contentStyle={{ background: '#171a22', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, color: '#f3f5f9' }}
+                  formatter={(v: number, n) => (n === 'pnl' ? [fmtMoney(v, currency), 'Net P/L'] : [v, n])}
                 />
-                <Bar dataKey="pnl" radius={[6, 6, 0, 0]}>
-                  {chartData.map((d, i) => <Cell key={i} fill={d.pnl >= 0 ? '#2ecc8f' : '#ff5c78'} />)}
+                <Bar
+                  dataKey="pnl"
+                  radius={[6, 6, 0, 0]}
+                  cursor={scope === 'overall' ? undefined : 'pointer'}
+                  onClick={(d: any) => { if (scope !== 'overall' && d?.key) setSelectedKey(d.key) }}
+                >
+                  {chartData.map((d) => {
+                    const active = d.key === activeKey
+                    return (
+                      <Cell
+                        key={d.key}
+                        fill={d.pnl >= 0 ? '#3ddc97' : '#ff6b81'}
+                        fillOpacity={activeKey && !active ? 0.4 : 1}
+                        stroke={active ? '#f2cd7f' : undefined}
+                        strokeWidth={active ? 2 : 0}
+                      />
+                    )
+                  })}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
@@ -96,7 +174,7 @@ export default function Analytics() {
           {compliance && (
             <div className="card" style={{ marginBottom: 20 }}>
               <h3>Checklist discipline vs. results</h3>
-              <p className="muted" style={{ marginTop: -6, fontSize: 13 }}>Do you win more when you follow your checklists? (based on {compliance.count} checklisted trades)</p>
+              <p className="muted" style={{ marginTop: -6, fontSize: 13 }}>Do you win more when you follow your checklists? (based on {compliance.count} checklisted trades{scope !== 'overall' ? ` in ${scopeLabel}` : ''})</p>
               <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                 <div className="stat">
                   <div className="label">≥80% checklist done</div>
@@ -119,22 +197,33 @@ export default function Analytics() {
           </div>
 
           <div className="card">
-            <h3>{PERIODS.find((p) => p.value === period)!.label} breakdown</h3>
+            <h3>{scope === 'overall' ? 'Monthly' : SCOPES.find((s) => s.value === scope)!.label} breakdown</h3>
             <div className="table-wrap" style={{ border: 'none' }}>
               <table>
                 <thead>
                   <tr><th>Period</th><th>Trades</th><th>Win rate</th><th>P/L</th><th>Cumulative</th></tr>
                 </thead>
                 <tbody>
-                  {[...buckets].reverse().map((b) => (
-                    <tr key={b.key} style={{ cursor: 'default' }}>
-                      <td><strong>{b.label}</strong></td>
-                      <td>{b.stats.totalTrades}</td>
-                      <td>{fmtPct(b.stats.winRate)}</td>
-                      <td className={b.stats.netPnl >= 0 ? 'pos' : 'neg'}>{fmtMoney(b.stats.netPnl, currency)}</td>
-                      <td className={b.cumulativePnl >= 0 ? 'pos' : 'neg'}>{fmtMoney(b.cumulativePnl, currency)}</td>
-                    </tr>
-                  ))}
+                  {[...buckets].reverse().map((b) => {
+                    const active = b.key === activeKey
+                    return (
+                      <tr
+                        key={b.key}
+                        onClick={() => scope !== 'overall' && setSelectedKey(b.key)}
+                        style={{
+                          cursor: scope === 'overall' ? 'default' : 'pointer',
+                          background: active ? 'rgba(232,180,88,0.10)' : undefined,
+                          boxShadow: active ? 'inset 3px 0 0 var(--accent)' : undefined,
+                        }}
+                      >
+                        <td><strong>{b.label}</strong></td>
+                        <td>{b.stats.totalTrades}</td>
+                        <td>{fmtPct(b.stats.winRate)}</td>
+                        <td className={b.stats.netPnl >= 0 ? 'pos' : 'neg'}>{fmtMoney(b.stats.netPnl, currency)}</td>
+                        <td className={b.cumulativePnl >= 0 ? 'pos' : 'neg'}>{fmtMoney(b.cumulativePnl, currency)}</td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
@@ -145,7 +234,7 @@ export default function Analytics() {
   )
 }
 
-function groupBy(trades: any[], keyFn: (t: any) => string, _currency: string) {
+function groupBy(trades: any[], keyFn: (t: any) => string) {
   const map = new Map<string, any[]>()
   for (const t of trades) {
     const k = keyFn(t)

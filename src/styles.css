@@ -417,6 +417,7 @@ tbody tr:hover { background: rgba(255, 255, 255, 0.035); }
 .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .spacer { flex: 1; }
 .toolbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 20px; }
+.scope-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
 
 .toast {
   position: fixed; bottom: 26px; left: 50%; transform: translateX(-50%);
