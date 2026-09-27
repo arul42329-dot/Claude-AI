@@ -1073,3 +1073,24 @@ tbody tr { transition: background 0.14s var(--ease); }
 @media (max-width: 480px) {
   .bp-grid { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* ---- Economic calendar: "More news" toggle ---- */
+.econ-more {
+  width: 100%; margin-top: 12px; padding: 11px 14px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 10px; color: var(--text-dim);
+  font-family: var(--font-body); font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: background 0.2s var(--ease), color 0.2s var(--ease), border-color 0.2s var(--ease);
+}
+.econ-more:hover { background: var(--surface-3); color: var(--text); border-color: var(--border-strong); }
+
+/* ---- Markets: gold XAU/USD tile (kept visually distinct) ---- */
+.mkt-card.gold {
+  border-color: var(--accent-line);
+  background:
+    linear-gradient(180deg, rgba(232, 180, 88, 0.10), rgba(232, 180, 88, 0.02)),
+    var(--surface);
+}
+.mkt-card.gold:hover { border-color: var(--accent); box-shadow: 0 20px 44px -22px rgba(232, 180, 88, 0.5); }
+.mkt-card.gold .mkt-sym { color: var(--accent-2); }
+.mkt-card.gold .mkt-price { color: #fff; }

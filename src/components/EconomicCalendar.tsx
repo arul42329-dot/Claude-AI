@@ -25,7 +25,11 @@ export function EconomicCalendar() {
   const [impact, setImpact] = useState<'all' | 'medium' | 'high'>('medium')
   const [cur, setCur] = useState('all')
   const [myPairs, setMyPairs] = useState(false)
+  const [showAll, setShowAll] = useState(false)
   const [now, setNow] = useState(() => Date.now())
+
+  // Collapse back to a single day whenever the filter/tab changes.
+  useEffect(() => { setShowAll(false) }, [impact, cur, myPairs])
 
   const trades = useLiveQuery(() => db.trades.toArray(), [], [])
   const tradedCurrencies = useMemo(() => {
@@ -74,6 +78,12 @@ export function EconomicCalendar() {
     return Array.from(m.entries())
   }, [filtered])
 
+  // Collapsed view = just the nearest day that has matching events; the rest is
+  // revealed with "More news". (Empty days never form a group, so this naturally
+  // rolls to the day after next when a day has no news.)
+  const visibleGroups = showAll ? groups : groups.slice(0, 1)
+  const hiddenEvents = showAll ? 0 : filtered.length - (groups[0]?.[1].length ?? 0)
+
   return (
     <div className="card" style={{ marginBottom: 20 }}>
       <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
@@ -116,28 +126,37 @@ export function EconomicCalendar() {
           {groups.length === 0 ? (
             <p className="muted" style={{ textAlign: 'center', padding: '10px 0' }}>No upcoming events match this filter.</p>
           ) : (
-            <div className="econ-wrap">
-              {groups.map(([k, evs]) => (
-                <div key={k}>
-                  <div className="econ-day">{dayLabel(new Date(k + 'T00:00'))}</div>
-                  {evs.map((e) => (
-                    <div key={e.id} className="econ-row">
-                      <span className="econ-time">{format(new Date(e.time), 'HH:mm')}</span>
-                      <span className="cur-badge">{e.country}</span>
-                      <span className={'impact-dot ' + e.impact.toLowerCase()} title={e.impact} />
-                      <span className="econ-title">{e.title}</span>
-                      {e.time > now && e.time - now <= 3600000 && <span className="soon-badge">Soon</span>}
-                      {(e.forecast || e.previous) && (
-                        <span className="econ-vals">
-                          {e.forecast && <>F: <strong>{e.forecast}</strong></>}
-                          {e.previous && <span className="muted"> · P: {e.previous}</span>}
-                        </span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ))}
-            </div>
+            <>
+              <div className="econ-wrap">
+                {visibleGroups.map(([k, evs]) => (
+                  <div key={k}>
+                    <div className="econ-day">{dayLabel(new Date(k + 'T00:00'))}</div>
+                    {evs.map((e) => (
+                      <div key={e.id} className="econ-row">
+                        <span className="econ-time">{format(new Date(e.time), 'HH:mm')}</span>
+                        <span className="cur-badge">{e.country}</span>
+                        <span className={'impact-dot ' + e.impact.toLowerCase()} title={e.impact} />
+                        <span className="econ-title">{e.title}</span>
+                        {e.time > now && e.time - now <= 3600000 && <span className="soon-badge">Soon</span>}
+                        {(e.forecast || e.previous) && (
+                          <span className="econ-vals">
+                            {e.forecast && <>F: <strong>{e.forecast}</strong></>}
+                            {e.previous && <span className="muted"> · P: {e.previous}</span>}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+              {groups.length > 1 && (
+                <button className="econ-more" onClick={() => setShowAll((v) => !v)}>
+                  {showAll
+                    ? 'Show less ▲'
+                    : `More news — ${hiddenEvents} more ${hiddenEvents === 1 ? 'event' : 'events'} over ${groups.length - 1} ${groups.length - 1 === 1 ? 'day' : 'days'} ▾`}
+                </button>
+              )}
+            </>
           )}
         </>
       )}

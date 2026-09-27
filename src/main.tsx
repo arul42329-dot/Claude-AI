@@ -21,6 +21,15 @@ async function bootstrap() {
       </HashRouter>
     </React.StrictMode>,
   )
+
+  // App is mounted (behind the animated splash) — fade out the instant backdrop.
+  requestAnimationFrame(() => {
+    const boot = document.getElementById('boot')
+    if (boot) {
+      boot.classList.add('hide')
+      window.setTimeout(() => boot.remove(), 450)
+    }
+  })
 }
 
 bootstrap()

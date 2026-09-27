@@ -71,7 +71,8 @@ export default function Markets() {
   const gold = quotes.find((x) => x.symbol === 'XAU/USD')
 
   const filtered = useMemo(() => {
-    let list = quotes.filter((x) => x.symbol !== 'XAU/USD')
+    // XAU/USD is shown both as the hero and as a (gold-tinted) tile in the grid.
+    let list = quotes.slice()
     if (group !== 'All') list = list.filter((x) => x.group === group)
     if (q.trim()) {
       const s = q.toLowerCase()
@@ -134,7 +135,7 @@ export default function Markets() {
           </div>
 
           <div className="mkt-grid">
-            {filtered.map((x) => <MktCard key={x.symbol} q={x} hot={pairHot(x.symbol, newsCur)} onOpen={() => setSelected(x)} />)}
+            {filtered.map((x) => <MktCard key={x.symbol} q={x} hot={pairHot(x.symbol, newsCur)} gold={x.symbol === 'XAU/USD'} onOpen={() => setSelected(x)} />)}
           </div>
           {filtered.length === 0 && <p className="muted" style={{ textAlign: 'center', marginTop: 30 }}>No pairs match your search.</p>}
 
@@ -176,10 +177,10 @@ function GoldHero({ q, hot, onOpen }: { q: Quote; hot?: boolean; onOpen?: () => 
   )
 }
 
-function MktCard({ q, hot, onOpen }: { q: Quote; hot?: boolean; onOpen?: () => void }) {
+function MktCard({ q, hot, gold, onOpen }: { q: Quote; hot?: boolean; gold?: boolean; onOpen?: () => void }) {
   const up = q.changePct >= 0
   return (
-    <div className={'mkt-card mkt-clickable' + (hot ? ' hot' : '')} role="button" tabIndex={0} onClick={onOpen}
+    <div className={'mkt-card mkt-clickable' + (hot ? ' hot' : '') + (gold ? ' gold' : '')} role="button" tabIndex={0} onClick={onOpen}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen?.() } }}>
       <div className="mkt-sym">
         {q.compact}
