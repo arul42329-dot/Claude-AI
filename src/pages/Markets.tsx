@@ -156,7 +156,7 @@ function GoldHero({ q, hot }: { q: Quote; hot?: boolean }) {
         <div className="mkt-hero-price">{fmtPrice(p, q.decimals)}</div>
         <div className="mkt-foot" style={{ justifyContent: 'flex-end' }}>
           <span className={'pill ' + (up ? 'up' : 'down')}>{fmtChg(q.changePct)}</span>
-          <span className={'bias ' + (q.bias === 'Bullish' ? 'bull' : q.bias === 'Bearish' ? 'bear' : 'neu')}>
+          <span className={'bias ' + (q.bias === 'Bullish' ? 'bull' : q.bias === 'Bearish' ? 'bear' : 'neu')} title={q.biasVotes?.join('\n')}>
             <span className="bdot" />{q.bias}
           </span>
         </div>
@@ -176,7 +176,7 @@ function MktCard({ q, hot }: { q: Quote; hot?: boolean }) {
       <div className="mkt-price">{fmtPrice(q.price, q.decimals)}</div>
       <div className="mkt-foot">
         <span className={'pill ' + (up ? 'up' : 'down')}>{fmtChg(q.changePct)}</span>
-        <span className={'bias ' + (q.bias === 'Bullish' ? 'bull' : q.bias === 'Bearish' ? 'bear' : 'neu')}>
+        <span className={'bias ' + (q.bias === 'Bullish' ? 'bull' : q.bias === 'Bearish' ? 'bear' : 'neu')} title={q.biasVotes?.join('\n')}>
           <span className="bdot" />{q.bias}
         </span>
       </div>

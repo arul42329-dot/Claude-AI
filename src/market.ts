@@ -7,6 +7,9 @@
 // which we persist locally (the source has no historical field on the live
 // endpoint). FX bias comes from the real previous-business-day rate.
 
+import { computeBias, type BiasVote } from './bias'
+import { getCandles } from './candles'
+
 export type Bias = 'Bullish' | 'Bearish' | 'Neutral'
 export type Group = 'Metals' | 'Crypto' | 'Majors' | 'Crosses'
 
@@ -19,16 +22,21 @@ export interface Quote {
   changePct: number
   bias: Bias
   decimals: number
+  // Rule-based bias detail (populated when daily candles are available; the UI
+  // shows `bias`, and surfaces `biasVotes`/`score` as a tooltip for transparency).
+  score?: number
+  biasVotes?: string[]
+  biasSource?: 'rule' | 'change'
 }
 
-interface MetalDef { symbol: string; compact: string; name: string; group: Group; code: string; decimals: number }
+interface MetalDef { symbol: string; compact: string; name: string; group: Group; code: string; decimals: number; yahoo: string }
 interface FxDef { symbol: string; compact: string; name: string; group: Group; base: string; quote: string; decimals: number }
 
 const METALS: MetalDef[] = [
-  { symbol: 'XAU/USD', compact: 'XAUUSD', name: 'Gold', group: 'Metals', code: 'XAU', decimals: 2 },
-  { symbol: 'XAG/USD', compact: 'XAGUSD', name: 'Silver', group: 'Metals', code: 'XAG', decimals: 2 },
-  { symbol: 'BTC/USD', compact: 'BTCUSD', name: 'Bitcoin', group: 'Crypto', code: 'BTC', decimals: 2 },
-  { symbol: 'ETH/USD', compact: 'ETHUSD', name: 'Ethereum', group: 'Crypto', code: 'ETH', decimals: 2 },
+  { symbol: 'XAU/USD', compact: 'XAUUSD', name: 'Gold', group: 'Metals', code: 'XAU', decimals: 2, yahoo: 'GC=F' },
+  { symbol: 'XAG/USD', compact: 'XAGUSD', name: 'Silver', group: 'Metals', code: 'XAG', decimals: 2, yahoo: 'SI=F' },
+  { symbol: 'BTC/USD', compact: 'BTCUSD', name: 'Bitcoin', group: 'Crypto', code: 'BTC', decimals: 2, yahoo: 'BTC-USD' },
+  { symbol: 'ETH/USD', compact: 'ETHUSD', name: 'Ethereum', group: 'Crypto', code: 'ETH', decimals: 2, yahoo: 'ETH-USD' },
 ]
 
 const FX_SYMBOLS = ['EUR', 'GBP', 'JPY', 'CHF', 'CAD', 'AUD', 'NZD']
@@ -114,6 +122,38 @@ async function fetchFx(): Promise<Quote[]> {
   })
 }
 
+// Yahoo Finance daily-candle symbol for each quote (metals/crypto use their own
+// mapping; FX uses the "{BASE}{QUOTE}=X" convention).
+const YAHOO_SYMBOL: Record<string, string> = {
+  ...Object.fromEntries(METALS.map((m) => [m.symbol, m.yahoo])),
+  ...Object.fromEntries(FX.map((d) => [d.symbol, `${d.base}${d.quote}=X`])),
+}
+
+const arrow = (v: BiasVote['value']) => (v > 0 ? '↑' : v < 0 ? '↓' : '–')
+
+// Replace each quote's day-change bias with the transparent, rule-based daily
+// bias computed from ~2y of daily OHLC candles. Falls back to the day-change
+// bias for any symbol whose candles can't be fetched (e.g. CORS on web).
+async function attachRuleBias(quotes: Quote[]): Promise<void> {
+  await Promise.allSettled(
+    quotes.map(async (q) => {
+      const ySym = YAHOO_SYMBOL[q.symbol]
+      if (!ySym) return
+      const candles = await getCandles(q.symbol, ySym)
+      if (!candles) return
+      const res = computeBias(candles)
+      if (!res) return
+      q.bias = res.label
+      q.score = res.score
+      q.biasSource = 'rule'
+      q.biasVotes = [
+        `Daily bias: ${res.label} (score ${res.score >= 0 ? '+' : ''}${res.score})`,
+        ...res.votes.map((v) => `${arrow(v.value)} ${v.name} — ${v.detail}`),
+      ]
+    }),
+  )
+}
+
 const CACHE_KEY = 'edgefolio-mkt-cache'
 export interface MarketSnapshot { quotes: Quote[]; at: number; partial: boolean }
 
@@ -134,6 +174,8 @@ export async function fetchMarket(): Promise<MarketSnapshot> {
   if (fx.status === 'fulfilled') quotes.push(...fx.value)
   if (quotes.length === 0) throw new Error('No market data available')
   const partial = metals.status !== 'fulfilled' || fx.status !== 'fulfilled'
+  // Upgrade day-change bias to the rule-based daily bias where candles are available.
+  await attachRuleBias(quotes)
   const snap: MarketSnapshot = { quotes, at: Date.now(), partial }
   try { localStorage.setItem(CACHE_KEY, JSON.stringify(snap)) } catch { /* ignore */ }
   return snap

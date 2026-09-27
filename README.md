@@ -17,6 +17,7 @@ Log every trade, build your **own checklists**, and analyse your performance **d
   - Breakdown **by pair, by session, by strategy**.
   - **Checklist discipline vs. results** — see whether you win more when you follow your checklists.
 - **Live Markets tab** — all major forex pairs plus **gold (XAU/USD)** front‑and‑centre, each card showing the live price, day change and a **Bullish/Bearish bias**. Data is pulled from free, keyless providers (gold‑api.com for metals & crypto, frankfurter.app / ECB for FX) and cached for offline viewing.
+- **Rule‑based daily bias** — the Bullish/Bearish/Neutral label is computed transparently (no black‑box ML) from ~2 years of daily OHLC candles: five votes from **EMA20/EMA50**, **price vs EMA50**, **market structure** (swing highs/lows), **MACD histogram** and **Wilder RSI(14)** are summed into a −5…+5 score (≥ +2 Bullish, ≤ −2 Bearish, else Neutral). Hover a bias badge to see the full vote breakdown. Candles come from Yahoo Finance; if unavailable it falls back to the day‑change bias.
 - **Multiple accounts** — journal several trading accounts separately, switch between them, and see per‑account stats or a combined view.
 - **Google Drive backup (Android)** — connect once with your own Google Client ID and Edgefolio auto‑backs‑up your whole journal to your Drive once a day when you open the app, always replacing the same file. Uses the OAuth device flow with the `drive.file` scope (the app only ever touches the single backup file it creates).
 - **P/L calendar heatmap** — a month grid where each day is coloured by net profit, with monthly totals and green/red day counts.
@@ -74,7 +75,7 @@ Building a real Android `.apk` needs the Android SDK, and a Windows `.exe` needs
 2. Go to the **Actions** tab → **“Build apps (Android APK + Windows installer)”** → **Run workflow**.
 3. When it finishes (~5–10 min), open the run and download the artifacts:
    - **Edgefolio-Android** → `Edgefolio.apk`
-   - **Edgefolio-Windows** → `Edgefolio-Setup-1.3.1.exe` (installer) and a portable `.exe`
+   - **Edgefolio-Windows** → `Edgefolio-Setup-1.3.2.exe` (installer) and a portable `.exe`
 
 ### Option B — Publish a versioned Release
 Push a tag and the same build will also create a **GitHub Release** with the APK and EXE attached:
@@ -88,7 +89,7 @@ Find the files under the repo's **Releases** page.
 
 ### Installing
 - **Android:** copy `Edgefolio.apk` to your phone and open it. Allow “install from unknown sources” when prompted. *(This is a debug‑signed build for personal use — perfect for your own device.)*
-- **Windows:** run `Edgefolio-Setup-1.3.1.exe` to install, or use the portable `.exe` with no install. Windows SmartScreen may warn because the build isn't code‑signed — choose **More info → Run anyway**.
+- **Windows:** run `Edgefolio-Setup-1.3.2.exe` to install, or use the portable `.exe` with no install. Windows SmartScreen may warn because the build isn't code‑signed — choose **More info → Run anyway**.
 
 ---
 
