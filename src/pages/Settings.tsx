@@ -10,6 +10,7 @@ import {
   getDriveState, requestDeviceCode, pollForToken, runBackup, disconnect,
   type DriveState, type DeviceCode,
 } from '../drive'
+import { isLockEnabled, setPin, removeLock } from '../lock'
 
 const CURRENCIES = ['USD', 'EUR', 'GBP', 'JPY', 'INR', 'AUD', 'CAD', 'CHF', 'NZD', 'SGD', 'AED', 'ZAR']
 
@@ -159,6 +160,8 @@ export default function SettingsPage() {
 
         <DriveBackup />
 
+        <SecurityCard />
+
         <div className="card">
           <h3>Data tools</h3>
           <div className="row">
@@ -186,6 +189,74 @@ export default function SettingsPage() {
         />
       )}
     </>
+  )
+}
+
+function SecurityCard() {
+  const toast = useToast()
+  const [enabled, setEnabled] = useState(() => isLockEnabled())
+  const [setting, setSetting] = useState(false)
+  const [pin1, setPin1] = useState('')
+  const [pin2, setPin2] = useState('')
+
+  const validPin = /^[0-9]{4,8}$/.test(pin1)
+
+  async function save() {
+    if (!validPin) { toast('PIN must be 4–8 digits'); return }
+    if (pin1 !== pin2) { toast('PINs do not match'); return }
+    await setPin(pin1)
+    setEnabled(true); setSetting(false); setPin1(''); setPin2('')
+    toast('App lock enabled ✓')
+  }
+  function turnOff() {
+    if (!confirm('Turn off the app lock? Anyone with your phone will be able to open Edgefolio.')) return
+    removeLock(); setEnabled(false)
+    toast('App lock removed')
+  }
+
+  return (
+    <div className="card">
+      <h3>🔒 Security · App lock</h3>
+
+      {enabled && !setting && (
+        <>
+          <div className="drive-status"><span className="live-dot" /> App lock is ON · PIN required on open</div>
+          <div className="row" style={{ marginTop: 14 }}>
+            <button className="btn" onClick={() => setSetting(true)}>Change PIN</button>
+            <button className="btn danger" onClick={turnOff}>Turn off</button>
+          </div>
+        </>
+      )}
+
+      {!enabled && !setting && (
+        <>
+          <p className="muted" style={{ marginTop: -6, fontSize: 13 }}>
+            Lock Edgefolio with a PIN so your journal stays private if someone else picks up your phone.
+          </p>
+          <button className="btn primary" onClick={() => setSetting(true)} style={{ marginTop: 4 }}>Set up a PIN</button>
+        </>
+      )}
+
+      {setting && (
+        <>
+          <p className="muted" style={{ marginTop: -6, fontSize: 13 }}>{enabled ? 'Set a new PIN.' : 'Choose a 4–8 digit PIN.'}</p>
+          <div className="form-grid" style={{ marginTop: 6 }}>
+            <div className="field">
+              <label>New PIN (4–8 digits)</label>
+              <input className="input" type="password" inputMode="numeric" value={pin1} onChange={(e) => setPin1(e.target.value.replace(/[^0-9]/g, '').slice(0, 8))} placeholder="••••" />
+            </div>
+            <div className="field">
+              <label>Confirm PIN</label>
+              <input className="input" type="password" inputMode="numeric" value={pin2} onChange={(e) => setPin2(e.target.value.replace(/[^0-9]/g, '').slice(0, 8))} placeholder="••••" />
+            </div>
+          </div>
+          <div className="row" style={{ marginTop: 12 }}>
+            <button className="btn primary" onClick={save} disabled={!validPin || pin1 !== pin2}>Save PIN</button>
+            <button className="btn ghost" onClick={() => { setSetting(false); setPin1(''); setPin2('') }}>Cancel</button>
+          </div>
+        </>
+      )}
+    </div>
   )
 }
 

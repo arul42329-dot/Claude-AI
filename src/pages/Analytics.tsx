@@ -4,6 +4,8 @@ import { useLiveQuery, fmtMoney, fmtNum, fmtPct } from '../util'
 import { useAccountScope, scopeTrades } from '../accounts'
 import { computeStats, groupByPeriod, type Period } from '../stats'
 import { StatCard } from '../components/StatCard'
+import { PnlCalendar } from '../components/PnlCalendar'
+import { tradeDate } from '../stats'
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Cell,
 } from 'recharts'
@@ -59,6 +61,8 @@ export default function Analytics() {
   const byPair = useMemo(() => groupBy(scopedTrades, (t) => t.pair), [scopedTrades])
   const bySession = useMemo(() => groupBy(scopedTrades, (t) => t.session), [scopedTrades])
   const byStrategy = useMemo(() => groupBy(scopedTrades, (t) => t.strategy || 'Unspecified'), [scopedTrades])
+  const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+  const byWeekday = useMemo(() => groupBy(scopedTrades, (t) => WEEKDAYS[tradeDate(t).getDay()]), [scopedTrades])
 
   const compliance = useMemo(() => {
     const withCl = scopedTrades.filter((t) => t.checklists.some((c) => c.items.length > 0) && t.outcome !== 'open')
@@ -191,10 +195,13 @@ export default function Analytics() {
             </div>
           )}
 
+          <PnlCalendar trades={all} currency={currency} />
+
           <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', marginBottom: 20 }}>
             <BreakdownCard title="By pair" rows={byPair} currency={currency} />
             <BreakdownCard title="By session" rows={bySession} currency={currency} />
             <BreakdownCard title="By strategy" rows={byStrategy} currency={currency} />
+            <BreakdownCard title="By weekday" rows={byWeekday} currency={currency} />
           </div>
 
           <div className="card">

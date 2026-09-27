@@ -3,6 +3,8 @@ import { NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import { maybeDailyBackup } from './drive'
 import { ToastProvider } from './components/Toast'
 import { SplashIntro } from './components/SplashIntro'
+import { LockScreen } from './components/LockScreen'
+import { isLockEnabled } from './lock'
 import { AccountSwitcher } from './components/AccountSwitcher'
 import {
   IconDashboard,
@@ -70,7 +72,7 @@ function AppShell() {
           ))}
         </div>
         <div className="sidebar-footer">
-          <span className="dot-live" /> v1.2.7 · Local &amp; private
+          <span className="dot-live" /> v1.2.8 · Local &amp; private
           <br />
           Your data never leaves this device.
         </div>
@@ -116,6 +118,10 @@ function AppShell() {
 
 export default function App() {
   const [showIntro, setShowIntro] = useState(true)
+  const [locked, setLocked] = useState(() => isLockEnabled())
+
+  if (locked) return <LockScreen onUnlock={() => setLocked(false)} />
+
   return (
     <ToastProvider>
       {showIntro && <SplashIntro onDone={() => setShowIntro(false)} />}

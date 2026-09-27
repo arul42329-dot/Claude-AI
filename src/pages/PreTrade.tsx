@@ -3,7 +3,9 @@ import { db, nextChecklistSerial } from '../db'
 import { useLiveQuery, CURRENCY_PAIRS } from '../util'
 import type { ChecklistEntry, Direction } from '../types'
 import { Modal } from '../components/Modal'
+import { RiskCalculator } from '../components/RiskCalculator'
 import { useToast } from '../components/Toast'
+import { useAccountScope } from '../accounts'
 import { format } from 'date-fns'
 
 function compliancePct(e: ChecklistEntry) {
@@ -15,6 +17,8 @@ export default function PreTrade() {
   const entries = useLiveQuery(() => db.checklistEntries.orderBy('serial').reverse().toArray(), [], [])
   const templates = useLiveQuery(() => db.checklists.toArray(), [], [])
   const [editing, setEditing] = useState<ChecklistEntry | null>(null)
+  const [showCalc, setShowCalc] = useState(false)
+  const { currency, startingBalance } = useAccountScope()
   const toast = useToast()
 
   async function openNew() {
@@ -50,10 +54,15 @@ export default function PreTrade() {
           <h1>Pre-Trade Checklist</h1>
           <p>Fill a checklist <strong>before</strong> you take a trade. Each one gets a serial # — link your trade log to it later.</p>
         </div>
-        <button className="btn primary" onClick={openNew} disabled={!templates || templates.length === 0}>
-          ＋ New pre-trade check
-        </button>
+        <div className="row" style={{ gap: 8 }}>
+          <button className="btn" onClick={() => setShowCalc(true)}>🧮 Risk calc</button>
+          <button className="btn primary" onClick={openNew} disabled={!templates || templates.length === 0}>
+            ＋ New pre-trade check
+          </button>
+        </div>
       </div>
+
+      {showCalc && <RiskCalculator balance={startingBalance} currency={currency} onClose={() => setShowCalc(false)} />}
 
       {templates && templates.length === 0 && (
         <div className="empty">

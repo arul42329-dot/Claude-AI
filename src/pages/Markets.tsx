@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { fetchMarket, readCachedMarket, MARKET_GROUPS, type MarketSnapshot, type Quote, type Group } from '../market'
 import { useCountUp } from '../hooks/useCountUp'
+import { SessionClock } from '../components/SessionClock'
 
 function fmtPrice(n: number, d: number) {
   return new Intl.NumberFormat('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }).format(n)
@@ -79,6 +80,8 @@ export default function Markets() {
           </button>
         </div>
       </div>
+
+      <SessionClock />
 
       {error && quotes.length === 0 && (
         <div className="empty">
