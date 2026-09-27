@@ -86,7 +86,7 @@ export default function SettingsPage() {
   }
 
   async function wipe() {
-    if (!confirm('Clear your trades, pre-trade checks, journal entries and any checklists YOU created?\n\nYour default checklists (Pre-Trade & Psychology) and your accounts are kept. This cannot be undone.')) return
+    if (!confirm('Clear your trades, pre-trade checks, journal entries and any checklists YOU created?\n\nYour default checklists (Pre-Trade & Psychology), your accounts, and your Google Drive connection are kept. This cannot be undone.')) return
     await wipeUserData()
     toast('Trades & custom checklists cleared · defaults kept')
   }
@@ -219,7 +219,7 @@ export default function SettingsPage() {
             <button className="btn danger" onClick={wipe}>🗑️ Clear my data</button>
           </div>
           <p className="muted" style={{ fontSize: 12, marginTop: 10, marginBottom: 0 }}>
-            Clears your trades, pre-trade checks, journal and checklists you created. Your default checklists and accounts are kept.
+            Clears your trades, pre-trade checks, journal and checklists you created. Your default checklists, accounts and Google Drive connection are kept.
           </p>
         </div>
 

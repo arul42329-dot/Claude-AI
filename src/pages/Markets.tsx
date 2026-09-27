@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { fetchMarket, readCachedMarket, MARKET_GROUPS, type MarketSnapshot, type Quote, type Group } from '../market'
-import { useCountUp } from '../hooks/useCountUp'
 import { SessionClock } from '../components/SessionClock'
 import { EconomicCalendar } from '../components/EconomicCalendar'
 import { BiasPanel } from '../components/BiasPanel'
@@ -68,8 +67,6 @@ export default function Markets() {
   }, [load])
 
   const quotes = snap?.quotes ?? []
-  const gold = quotes.find((x) => x.symbol === 'XAU/USD')
-
   const filtered = useMemo(() => {
     // XAU/USD is shown both as the hero and as a (gold-tinted) tile in the grid.
     let list = quotes.slice()
@@ -123,8 +120,6 @@ export default function Markets() {
             </div>
           )}
 
-          {gold && <GoldHero q={gold} hot={pairHot(gold.symbol, newsCur)} onOpen={() => setSelected(gold)} />}
-
           <div className="toolbar" style={{ marginTop: 20 }}>
             <input className="input" style={{ maxWidth: 260 }} placeholder="🔍 Search pair…" value={q} onChange={(e) => setQ(e.target.value)} />
             <div className="seg">
@@ -147,33 +142,6 @@ export default function Markets() {
 
       {selectedLive && <BiasPanel q={selectedLive} onClose={() => setSelected(null)} />}
     </>
-  )
-}
-
-function GoldHero({ q, hot, onOpen }: { q: Quote; hot?: boolean; onOpen?: () => void }) {
-  const p = useCountUp(q.price, 700)
-  const up = q.changePct >= 0
-  return (
-    <div className="mkt-hero mkt-clickable" role="button" tabIndex={0} onClick={onOpen}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen?.() } }}>
-      <span className="mkt-hero-glow" aria-hidden="true" />
-      <div className="mkt-hero-left">
-        <div className="mkt-hero-tag"><span className="live-dot" /> LIVE · GOLD</div>
-        <div className="mkt-hero-sym">
-          XAU/USD
-          {hot && <span className="news-dot" title="High-impact news today">📰</span>}
-        </div>
-      </div>
-      <div className="mkt-hero-right">
-        <div className="mkt-hero-price">{fmtPrice(p, q.decimals)}</div>
-        <div className="mkt-foot" style={{ justifyContent: 'flex-end' }}>
-          <span className={'pill ' + (up ? 'up' : 'down')}>{fmtChg(q.changePct)}</span>
-          <span className={'bias ' + (q.bias === 'Bullish' ? 'bull' : q.bias === 'Bearish' ? 'bear' : 'neu')} title={q.biasVotes?.join('\n')}>
-            <span className="bdot" />{q.bias}
-          </span>
-        </div>
-      </div>
-    </div>
   )
 }
 
