@@ -76,3 +76,26 @@ export async function fetchEcon(): Promise<EconSnapshot> {
   try { localStorage.setItem(CACHE_KEY, JSON.stringify(snap)) } catch { /* ignore */ }
   return snap
 }
+
+// De-duplicated fetch: returns fresh-enough cache, or a single shared in-flight
+// request, so multiple components on the same page don't each hit the network.
+let inflight: Promise<EconSnapshot> | null = null
+export async function getEcon(maxAgeMs = 5 * 60 * 1000): Promise<EconSnapshot> {
+  const cached = readCachedEcon()
+  if (cached && Date.now() - cached.at < maxAgeMs) return cached
+  if (inflight) return inflight
+  inflight = fetchEcon().finally(() => { inflight = null })
+  return inflight
+}
+
+// Currency codes that have a high-impact event scheduled today (local day).
+export function highImpactCurrenciesToday(snap: EconSnapshot | null): Set<string> {
+  const out = new Set<string>()
+  if (!snap) return out
+  const start = new Date(); start.setHours(0, 0, 0, 0)
+  const end = start.getTime() + 86400000
+  for (const e of snap.events) {
+    if (e.impact === 'High' && e.time >= start.getTime() && e.time < end) out.add(e.country)
+  }
+  return out
+}

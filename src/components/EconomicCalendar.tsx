@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { fetchEcon, readCachedEcon, type EconEvent, type EconSnapshot, type Impact } from '../econ'
+import { fetchEcon, getEcon, readCachedEcon, type EconEvent, type EconSnapshot, type Impact } from '../econ'
+import { db } from '../db'
+import { useLiveQuery } from '../util'
 import { format, isToday, isTomorrow } from 'date-fns'
 
 const IMPACT_RANK: Record<Impact, number> = { High: 3, Medium: 2, Low: 1, Holiday: 0 }
@@ -20,12 +22,21 @@ export function EconomicCalendar() {
   const [snap, setSnap] = useState<EconSnapshot | null>(() => readCachedEcon())
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [impact, setImpact] = useState<'all' | 'medium' | 'high'>('high')
+  const [impact, setImpact] = useState<'all' | 'medium' | 'high'>('medium')
   const [cur, setCur] = useState('all')
+  const [myPairs, setMyPairs] = useState(false)
+  const [now, setNow] = useState(() => Date.now())
 
-  const load = useCallback(async () => {
+  const trades = useLiveQuery(() => db.trades.toArray(), [], [])
+  const tradedCurrencies = useMemo(() => {
+    const s = new Set<string>()
+    for (const t of trades ?? []) for (const c of (t.pair || '').split('/')) if (c) s.add(c.trim().toUpperCase())
+    return s
+  }, [trades])
+
+  const load = useCallback(async (force = false) => {
     setLoading(true); setError(null)
-    try { setSnap(await fetchEcon()) }
+    try { setSnap(force ? await fetchEcon() : await getEcon()) }
     catch (e: any) { setError(e?.message || 'Could not load the calendar') }
     finally { setLoading(false) }
   }, [])
@@ -35,7 +46,8 @@ export function EconomicCalendar() {
     const onWake = () => load()
     window.addEventListener('focus', onWake)
     window.addEventListener('online', onWake)
-    return () => { window.removeEventListener('focus', onWake); window.removeEventListener('online', onWake) }
+    const tick = window.setInterval(() => setNow(Date.now()), 30000)
+    return () => { window.removeEventListener('focus', onWake); window.removeEventListener('online', onWake); window.clearInterval(tick) }
   }, [load])
 
   const events = snap?.events ?? []
@@ -47,9 +59,10 @@ export function EconomicCalendar() {
     return events.filter((e) =>
       e.time >= startToday.getTime() &&
       IMPACT_RANK[e.impact] >= min &&
-      (cur === 'all' || e.country === cur),
+      (cur === 'all' || e.country === cur) &&
+      (!myPairs || tradedCurrencies.has(e.country)),
     )
-  }, [events, impact, cur])
+  }, [events, impact, cur, myPairs, tradedCurrencies])
 
   const groups = useMemo(() => {
     const m = new Map<string, EconEvent[]>()
@@ -67,7 +80,7 @@ export function EconomicCalendar() {
         <h3 style={{ margin: 0 }}>📅 Economic Calendar</h3>
         <div className="row" style={{ gap: 10 }}>
           {snap && <span className="muted" style={{ fontSize: 12 }}>Updated {timeAgo(snap.at)}</span>}
-          <button className="btn sm" onClick={load} disabled={loading}>
+          <button className="btn sm" onClick={() => load(true)} disabled={loading}>
             <span className={'refresh-ic' + (loading ? ' spin' : '')}>⟳</span>
           </button>
         </div>
@@ -83,12 +96,17 @@ export function EconomicCalendar() {
           <option value="all">All currencies</option>
           {currencies.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
+        {tradedCurrencies.size > 0 && (
+          <button className={'btn sm' + (myPairs ? ' primary' : '')} onClick={() => setMyPairs((v) => !v)} title="Only currencies you trade">
+            ★ My pairs
+          </button>
+        )}
       </div>
 
       {events.length === 0 && error && (
         <div className="empty" style={{ border: 'none' }}>
           <p className="muted">{navigator.onLine ? 'Could not reach the calendar feed.' : 'You are offline.'}</p>
-          <button className="btn" onClick={load} disabled={loading}>Try again</button>
+          <button className="btn" onClick={() => load(true)} disabled={loading}>Try again</button>
         </div>
       )}
 
@@ -108,6 +126,7 @@ export function EconomicCalendar() {
                       <span className="cur-badge">{e.country}</span>
                       <span className={'impact-dot ' + e.impact.toLowerCase()} title={e.impact} />
                       <span className="econ-title">{e.title}</span>
+                      {e.time > now && e.time - now <= 3600000 && <span className="soon-badge">Soon</span>}
                       {(e.forecast || e.previous) && (
                         <span className="econ-vals">
                           {e.forecast && <>F: <strong>{e.forecast}</strong></>}

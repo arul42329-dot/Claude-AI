@@ -3,6 +3,12 @@ import { fetchMarket, readCachedMarket, MARKET_GROUPS, type MarketSnapshot, type
 import { useCountUp } from '../hooks/useCountUp'
 import { SessionClock } from '../components/SessionClock'
 import { EconomicCalendar } from '../components/EconomicCalendar'
+import { getEcon, highImpactCurrenciesToday } from '../econ'
+
+function pairHot(symbol: string, set: Set<string>) {
+  if (set.size === 0) return false
+  return symbol.split('/').some((c) => set.has(c.trim().toUpperCase()))
+}
 
 function fmtPrice(n: number, d: number) {
   return new Intl.NumberFormat('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }).format(n)
@@ -25,6 +31,11 @@ export default function Markets() {
   const [q, setQ] = useState('')
   const [group, setGroup] = useState<'All' | Group>('All')
   const [, force] = useState(0)
+  const [newsCur, setNewsCur] = useState<Set<string>>(new Set())
+
+  useEffect(() => {
+    getEcon().then((s) => setNewsCur(highImpactCurrenciesToday(s))).catch(() => {})
+  }, [])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -103,7 +114,7 @@ export default function Markets() {
             </div>
           )}
 
-          {gold && <GoldHero q={gold} />}
+          {gold && <GoldHero q={gold} hot={pairHot(gold.symbol, newsCur)} />}
 
           <div className="toolbar" style={{ marginTop: 20 }}>
             <input className="input" style={{ maxWidth: 260 }} placeholder="🔍 Search pair…" value={q} onChange={(e) => setQ(e.target.value)} />
@@ -115,7 +126,7 @@ export default function Markets() {
           </div>
 
           <div className="mkt-grid">
-            {filtered.map((x) => <MktCard key={x.symbol} q={x} />)}
+            {filtered.map((x) => <MktCard key={x.symbol} q={x} hot={pairHot(x.symbol, newsCur)} />)}
           </div>
           {filtered.length === 0 && <p className="muted" style={{ textAlign: 'center', marginTop: 30 }}>No pairs match your search.</p>}
 
@@ -128,7 +139,7 @@ export default function Markets() {
   )
 }
 
-function GoldHero({ q }: { q: Quote }) {
+function GoldHero({ q, hot }: { q: Quote; hot?: boolean }) {
   const p = useCountUp(q.price, 700)
   const up = q.changePct >= 0
   return (
@@ -136,7 +147,10 @@ function GoldHero({ q }: { q: Quote }) {
       <span className="mkt-hero-glow" aria-hidden="true" />
       <div className="mkt-hero-left">
         <div className="mkt-hero-tag"><span className="live-dot" /> LIVE · GOLD</div>
-        <div className="mkt-hero-sym">XAU/USD</div>
+        <div className="mkt-hero-sym">
+          XAU/USD
+          {hot && <span className="news-dot" title="High-impact news today">📰</span>}
+        </div>
       </div>
       <div className="mkt-hero-right">
         <div className="mkt-hero-price">{fmtPrice(p, q.decimals)}</div>
@@ -151,11 +165,14 @@ function GoldHero({ q }: { q: Quote }) {
   )
 }
 
-function MktCard({ q }: { q: Quote }) {
+function MktCard({ q, hot }: { q: Quote; hot?: boolean }) {
   const up = q.changePct >= 0
   return (
-    <div className="mkt-card">
-      <div className="mkt-sym">{q.compact}</div>
+    <div className={'mkt-card' + (hot ? ' hot' : '')}>
+      <div className="mkt-sym">
+        {q.compact}
+        {hot && <span className="news-dot" title="High-impact news today">📰</span>}
+      </div>
       <div className="mkt-price">{fmtPrice(q.price, q.decimals)}</div>
       <div className="mkt-foot">
         <span className={'pill ' + (up ? 'up' : 'down')}>{fmtChg(q.changePct)}</span>
