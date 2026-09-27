@@ -895,3 +895,35 @@ tbody tr { transition: background 0.14s var(--ease); }
 .pin-key.ghost { background: transparent; border-color: transparent; font-size: 20px; }
 .pin-key.ok { background: var(--accent); color: #1a1205; border-color: var(--accent); }
 .pin-key.ok:disabled { opacity: 0.4; cursor: default; }
+
+/* ===== Goals progress ===== */
+.goal-track { height: 12px; border-radius: 999px; background: var(--surface-3); overflow: hidden; }
+.goal-fill { height: 100%; border-radius: 999px; transition: width 0.6s var(--ease); min-width: 3px; }
+
+/* ===== Accent swatches ===== */
+.accent-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.accent-swatch {
+  width: 34px; height: 34px; border-radius: 50%; cursor: pointer;
+  border: 2px solid var(--border-strong); color: #10131a; font-weight: 900; font-size: 14px;
+  display: grid; place-items: center; transition: transform 0.12s ease;
+}
+.accent-swatch:hover { transform: scale(1.1); }
+.accent-swatch.on { border-color: #fff; box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px currentColor; }
+
+/* ===== Daily journal ===== */
+.mood-row { display: flex; gap: 8px; }
+.mood-btn {
+  flex: 1; font-size: 22px; padding: 6px 0; border-radius: 12px; cursor: pointer;
+  background: var(--bg); border: 1px solid var(--border); filter: grayscale(0.6); opacity: 0.7;
+  transition: all 0.15s ease;
+}
+.mood-btn:hover { filter: none; opacity: 1; }
+.mood-btn.on { filter: none; opacity: 1; border-color: var(--accent-line); background: var(--accent-soft); transform: scale(1.05); }
+.journal-list { display: flex; flex-direction: column; gap: 8px; max-height: 260px; overflow-y: auto; }
+.journal-item {
+  display: flex; align-items: center; gap: 12px; padding: 10px 12px;
+  border-radius: 12px; background: var(--bg); border: 1px solid var(--border); cursor: pointer;
+}
+.journal-item:hover { border-color: var(--border-strong); }
+.journal-item.active { border-color: var(--accent-line); background: var(--accent-soft); }
+.journal-item .jm { font-size: 20px; }

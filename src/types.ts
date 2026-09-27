@@ -31,6 +31,17 @@ export interface Checklist {
   name: string
   description?: string
   items: ChecklistItem[]
+  isDefault?: boolean // seeded/default checklist — preserved when clearing data
+  createdAt: number
+  updatedAt: number
+}
+
+// A free-form daily reflection / journal note (separate from trades).
+export interface JournalEntry {
+  id: string
+  date: string // yyyy-mm-dd
+  mood?: number // 1 (bad) – 5 (great)
+  text: string
   createdAt: number
   updatedAt: number
 }
@@ -117,4 +128,7 @@ export interface Settings {
   startingBalance: number
   activeAccountId?: string // 'all' for the combined view, or an account id
   theme: 'dark' | 'light'
+  accent?: string // accent theme key (e.g. 'gold', 'emerald', 'azure'…)
+  monthlyProfitGoal?: number // target net profit for the month (currency)
+  maxLossLimit?: number // max acceptable loss for the month (positive currency amount)
 }

@@ -23,8 +23,12 @@ Log every trade, build your **own checklists**, and analyse your performance **d
 - **Position-size / risk calculator** — enter balance, risk % and stop in pips to get the exact lot size (on the Pre-Trade page).
 - **Sessions & killzone clock** — live Sydney/Tokyo/London/New York session status plus ICT killzone windows (on the Markets tab).
 - **App lock (PIN)** — optional 4–8 digit PIN required on open to keep your journal private.
+- **Goals & targets** — set a monthly profit goal and max-loss limit; progress bars show on the Dashboard.
+- **Daily reflection journal** — free-form daily notes with a mood rating (Dashboard card).
+- **Accent themes** — recolour the app (gold, azure, emerald, violet, rose, teal).
+- **CSV export** — export all trades to a spreadsheet-friendly CSV.
 - **Dashboard** — headline stats + equity curve + recent trades.
-- **Backup & restore** — export/import all data as JSON. Load sample trades to explore. Clear all data.
+- **Backup & restore** — export/import all data as JSON or export trades to CSV. Load sample trades to explore. Clearing your data keeps the default checklists and accounts.
 - **Modern dark UI**, responsive — desktop sidebar + mobile bottom navigation.
 
 ---
@@ -69,7 +73,7 @@ Building a real Android `.apk` needs the Android SDK, and a Windows `.exe` needs
 2. Go to the **Actions** tab → **“Build apps (Android APK + Windows installer)”** → **Run workflow**.
 3. When it finishes (~5–10 min), open the run and download the artifacts:
    - **Edgefolio-Android** → `Edgefolio.apk`
-   - **Edgefolio-Windows** → `Edgefolio-Setup-1.2.8.exe` (installer) and a portable `.exe`
+   - **Edgefolio-Windows** → `Edgefolio-Setup-1.2.9.exe` (installer) and a portable `.exe`
 
 ### Option B — Publish a versioned Release
 Push a tag and the same build will also create a **GitHub Release** with the APK and EXE attached:
@@ -83,7 +87,7 @@ Find the files under the repo's **Releases** page.
 
 ### Installing
 - **Android:** copy `Edgefolio.apk` to your phone and open it. Allow “install from unknown sources” when prompted. *(This is a debug‑signed build for personal use — perfect for your own device.)*
-- **Windows:** run `Edgefolio-Setup-1.2.8.exe` to install, or use the portable `.exe` with no install. Windows SmartScreen may warn because the build isn't code‑signed — choose **More info → Run anyway**.
+- **Windows:** run `Edgefolio-Setup-1.2.9.exe` to install, or use the portable `.exe` with no install. Windows SmartScreen may warn because the build isn't code‑signed — choose **More info → Run anyway**.
 
 ---
 

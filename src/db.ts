@@ -1,11 +1,12 @@
 import Dexie, { type Table } from 'dexie'
-import type { Trade, Checklist, Settings, ChecklistEntry, Account } from './types'
+import type { Trade, Checklist, Settings, ChecklistEntry, Account, JournalEntry } from './types'
 
 export class JournalDB extends Dexie {
   trades!: Table<Trade, string>
   checklists!: Table<Checklist, string>
   checklistEntries!: Table<ChecklistEntry, string>
   accounts!: Table<Account, string>
+  journal!: Table<JournalEntry, string>
   settings!: Table<Settings, string>
 
   constructor() {
@@ -28,6 +29,15 @@ export class JournalDB extends Dexie {
       checklists: 'id, name, createdAt',
       checklistEntries: 'id, serial, date, pair, linkedTradeId, createdAt',
       accounts: 'id, name, type, createdAt, archived',
+      settings: 'id',
+    })
+    // v4 adds a daily reflection journal table.
+    this.version(4).stores({
+      trades: 'id, date, pair, outcome, session, strategy, createdAt, serial, checklistSerial, accountId',
+      checklists: 'id, name, createdAt',
+      checklistEntries: 'id, serial, date, pair, linkedTradeId, createdAt',
+      accounts: 'id, name, type, createdAt, archived',
+      journal: 'id, date, createdAt',
       settings: 'id',
     })
   }
@@ -138,6 +148,7 @@ export async function seedIfEmpty() {
       id: crypto.randomUUID(),
       name: 'Pre-Trade Checklist',
       description: 'My step-by-step routine before entering any position.',
+      isDefault: true,
       createdAt: now,
       updatedAt: now,
       items: [
@@ -151,6 +162,7 @@ export async function seedIfEmpty() {
       id: crypto.randomUUID(),
       name: 'Psychology Checklist',
       description: 'Am I in the right state to trade?',
+      isDefault: true,
       createdAt: now,
       updatedAt: now,
       items: [
@@ -163,9 +175,13 @@ export async function seedIfEmpty() {
   ])
 }
 
+// The names of the checklists that ship with the app. These are treated as
+// "default" and are preserved when the user clears all their data.
+const DEFAULT_CHECKLIST_NAMES = ['Pre-Trade Checklist', 'Psychology Checklist']
+
 // One-time update so existing installs pick up the current default Pre-Trade
 // checklist. Bump SEED_VERSION whenever the default routine changes.
-const SEED_VERSION = 3
+const SEED_VERSION = 4
 const DEFAULT_PRETRADE_ITEMS = [
   'Check bias (HTF directional bias — bullish / bearish)',
   'Mark key zones: session highs/lows and previous day high/low',
@@ -186,6 +202,7 @@ export async function migrateDefaults() {
   if (pre) {
     pre.description = 'My step-by-step routine before entering any position.'
     pre.items = items
+    pre.isDefault = true
     pre.updatedAt = now
     await db.checklists.put(pre)
   } else {
@@ -193,36 +210,93 @@ export async function migrateDefaults() {
       id: crypto.randomUUID(),
       name: 'Pre-Trade Checklist',
       description: 'My step-by-step routine before entering any position.',
+      isDefault: true,
       items,
       createdAt: now,
       updatedAt: now,
     })
   }
+
+  // Flag any shipped default checklists (e.g. Psychology) so they survive a
+  // "Clear all data" — for installs created before the isDefault flag existed.
+  const toFlag = all.filter((c) => DEFAULT_CHECKLIST_NAMES.includes(c.name) && !c.isDefault && c.name !== 'Pre-Trade Checklist')
+  if (toFlag.length) {
+    await db.checklists.bulkPut(toFlag.map((c) => ({ ...c, isDefault: true, updatedAt: now })))
+  }
+
   localStorage.setItem(KEY, String(SEED_VERSION))
+}
+
+// ---------- Daily journal ----------
+export async function listJournal(): Promise<JournalEntry[]> {
+  const all = await db.journal.toArray()
+  return all.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : b.createdAt - a.createdAt))
+}
+export async function saveJournalEntry(e: JournalEntry): Promise<void> {
+  await db.journal.put({ ...e, updatedAt: Date.now() })
+}
+export async function deleteJournalEntry(id: string): Promise<void> {
+  await db.journal.delete(id)
+}
+
+// ---------- Clear user data (keeps default checklists + accounts + settings) ----------
+export async function wipeUserData(): Promise<void> {
+  await db.transaction('rw', db.trades, db.checklists, db.checklistEntries, db.journal, async () => {
+    await db.trades.clear()
+    await db.checklistEntries.clear()
+    await db.journal.clear()
+    const custom = await db.checklists.filter((c) => !c.isDefault).toArray()
+    if (custom.length) await db.checklists.bulkDelete(custom.map((c) => c.id))
+  })
+  // Restore the default checklists if somehow none remain.
+  const remaining = await db.checklists.count()
+  if (remaining === 0) await seedIfEmpty()
+}
+
+// ---------- CSV export ----------
+export async function tradesToCsv(): Promise<string> {
+  const [trades, accounts] = await Promise.all([db.trades.toArray(), db.accounts.toArray()])
+  const acctName = new Map(accounts.map((a) => [a.id, a.name]))
+  const cols = [
+    'serial', 'date', 'time', 'account', 'pair', 'direction', 'session', 'strategy',
+    'entryPrice', 'exitPrice', 'stopLoss', 'takeProfit', 'lotSize', 'riskPercent',
+    'riskReward', 'outcome', 'pips', 'pnl', 'emotion', 'rating', 'checklistSerial', 'tags', 'notes',
+  ]
+  const esc = (v: any) => {
+    if (v === undefined || v === null) return ''
+    const s = Array.isArray(v) ? v.join('; ') : String(v)
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s
+  }
+  const rows = trades
+    .sort((a, b) => (a.serial ?? 0) - (b.serial ?? 0))
+    .map((t) => cols.map((c) => (c === 'account' ? esc(acctName.get(t.accountId ?? '') ?? '') : esc((t as any)[c]))).join(','))
+  return [cols.join(','), ...rows].join('\n')
 }
 
 // ---------- Backup / restore ----------
 export async function exportAll() {
-  const [trades, checklists, checklistEntries, accounts, settings] = await Promise.all([
+  const [trades, checklists, checklistEntries, accounts, journal, settings] = await Promise.all([
     db.trades.toArray(),
     db.checklists.toArray(),
     db.checklistEntries.toArray(),
     db.accounts.toArray(),
+    db.journal.toArray(),
     db.settings.toArray(),
   ])
-  return { version: 3, exportedAt: new Date().toISOString(), trades, checklists, checklistEntries, accounts, settings }
+  return { version: 4, exportedAt: new Date().toISOString(), trades, checklists, checklistEntries, accounts, journal, settings }
 }
 
 export async function importAll(data: any, mode: 'merge' | 'replace' = 'merge') {
   if (!data || !Array.isArray(data.trades)) throw new Error('Invalid backup file')
-  await db.transaction('rw', db.trades, db.checklists, db.checklistEntries, db.accounts, db.settings, async () => {
+  await db.transaction('rw', [db.trades, db.checklists, db.checklistEntries, db.accounts, db.journal, db.settings], async () => {
     if (mode === 'replace') {
-      await Promise.all([db.trades.clear(), db.checklists.clear(), db.checklistEntries.clear(), db.accounts.clear()])
+      await Promise.all([db.trades.clear(), db.checklists.clear(), db.checklistEntries.clear(), db.accounts.clear(), db.journal.clear()])
     }
     if (Array.isArray(data.trades)) await db.trades.bulkPut(data.trades)
     if (Array.isArray(data.checklists)) await db.checklists.bulkPut(data.checklists)
     if (Array.isArray(data.checklistEntries)) await db.checklistEntries.bulkPut(data.checklistEntries)
     if (Array.isArray(data.accounts)) await db.accounts.bulkPut(data.accounts)
+    if (Array.isArray(data.journal)) await db.journal.bulkPut(data.journal)
     if (Array.isArray(data.settings)) await db.settings.bulkPut(data.settings)
   })
   await ensureAccounts()

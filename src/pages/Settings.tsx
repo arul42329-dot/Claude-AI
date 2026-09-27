@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { db, getSettings, saveSettings, exportAll, importAll, saveAccount, deleteAccount } from '../db'
+import { db, getSettings, saveSettings, exportAll, importAll, saveAccount, deleteAccount, wipeUserData, tradesToCsv } from '../db'
 import { useLiveQuery, downloadJson, fmtMoney } from '../util'
+import { ACCENTS, applyAccent } from '../theme'
 import { useToast } from '../components/Toast'
 import { Modal } from '../components/Modal'
 import { ACCOUNT_TYPES, ACCOUNT_COLORS, accountTypeLabel } from '../accounts'
@@ -41,6 +42,23 @@ export default function SettingsPage() {
     toast('Settings saved')
   }
 
+  async function doExportCsv() {
+    const csv = await tradesToCsv()
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `edgefolio-trades-${format(new Date(), 'yyyy-MM-dd')}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+    toast('Trades exported as CSV')
+  }
+
+  function pickAccent(key: string) {
+    setForm({ ...form!, accent: key })
+    applyAccent(key) // live preview
+  }
+
   async function doExport() {
     const data = await exportAll()
     downloadJson(`edgefolio-backup-${format(new Date(), 'yyyy-MM-dd')}.json`, data)
@@ -68,9 +86,9 @@ export default function SettingsPage() {
   }
 
   async function wipe() {
-    if (!confirm('Delete ALL trades, pre-trade checks and checklists permanently? This cannot be undone.')) return
-    await Promise.all([db.trades.clear(), db.checklists.clear(), db.checklistEntries.clear()])
-    toast('All data cleared')
+    if (!confirm('Clear your trades, pre-trade checks, journal entries and any checklists YOU created?\n\nYour default checklists (Pre-Trade & Psychology) and your accounts are kept. This cannot be undone.')) return
+    await wipeUserData()
+    toast('Trades & custom checklists cleared · defaults kept')
   }
 
   async function removeAccount(a: Account) {
@@ -130,15 +148,46 @@ export default function SettingsPage() {
 
       <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', maxWidth: 900 }}>
         <div className="card">
-          <h3>Display currency</h3>
-          <p className="muted" style={{ marginTop: -6, fontSize: 13 }}>Used for the combined view and any account without its own currency.</p>
+          <h3>Appearance &amp; currency</h3>
+          <p className="muted" style={{ marginTop: -6, fontSize: 13 }}>Currency is used for the combined view and any account without its own.</p>
           <div className="field" style={{ marginBottom: 16 }}>
             <label>Currency</label>
             <select className="select" value={form.accountCurrency} onChange={(e) => setForm({ ...form, accountCurrency: e.target.value })}>
               {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
+          <div className="field" style={{ marginBottom: 16 }}>
+            <label>Accent colour</label>
+            <div className="accent-row">
+              {ACCENTS.map((a) => (
+                <button
+                  key={a.key}
+                  type="button"
+                  className={'accent-swatch' + ((form.accent ?? 'gold') === a.key ? ' on' : '')}
+                  style={{ background: a.accent }}
+                  title={a.label}
+                  onClick={() => pickAccent(a.key)}
+                >{(form.accent ?? 'gold') === a.key ? '✓' : ''}</button>
+              ))}
+            </div>
+          </div>
           <button className="btn primary" onClick={saveCurrency}>Save</button>
+        </div>
+
+        <div className="card">
+          <h3>🎯 Goals &amp; targets</h3>
+          <p className="muted" style={{ marginTop: -6, fontSize: 13 }}>Set a monthly profit goal and a max-loss limit — progress shows on your Dashboard. Leave blank to hide.</p>
+          <div className="form-grid">
+            <div className="field">
+              <label>Monthly profit goal ({form.accountCurrency})</label>
+              <input className="input" inputMode="decimal" value={form.monthlyProfitGoal ?? ''} onChange={(e) => setForm({ ...form, monthlyProfitGoal: e.target.value ? Number(e.target.value.replace(/[^0-9.]/g, '')) : undefined })} placeholder="e.g. 2000" />
+            </div>
+            <div className="field">
+              <label>Max monthly loss ({form.accountCurrency})</label>
+              <input className="input" inputMode="decimal" value={form.maxLossLimit ?? ''} onChange={(e) => setForm({ ...form, maxLossLimit: e.target.value ? Number(e.target.value.replace(/[^0-9.]/g, '')) : undefined })} placeholder="e.g. 1000" />
+            </div>
+          </div>
+          <button className="btn primary" onClick={saveCurrency} style={{ marginTop: 12 }}>Save goals</button>
         </div>
 
         <div className="card">
@@ -149,6 +198,7 @@ export default function SettingsPage() {
           <div className="row" style={{ marginTop: 8 }}>
             <button className="btn" onClick={doExport}>⬇️ Export backup</button>
             <button className="btn" onClick={() => fileRef.current?.click()}>⬆️ Import backup</button>
+            <button className="btn" onClick={doExportCsv}>📄 Export trades (CSV)</button>
             <input ref={fileRef} type="file" accept="application/json" style={{ display: 'none' }} onChange={(e) => doImport(e.target.files?.[0])} />
           </div>
           <div className="chips" style={{ marginTop: 16 }}>
@@ -166,8 +216,11 @@ export default function SettingsPage() {
           <h3>Data tools</h3>
           <div className="row">
             <button className="btn" onClick={loadSample}>✨ Load sample trades</button>
-            <button className="btn danger" onClick={wipe}>🗑️ Clear all data</button>
+            <button className="btn danger" onClick={wipe}>🗑️ Clear my data</button>
           </div>
+          <p className="muted" style={{ fontSize: 12, marginTop: 10, marginBottom: 0 }}>
+            Clears your trades, pre-trade checks, journal and checklists you created. Your default checklists and accounts are kept.
+          </p>
         </div>
 
         <div className="card">

@@ -6,9 +6,11 @@ import '@fontsource-variable/space-grotesk/index.css'
 import '@fontsource-variable/plus-jakarta-sans/index.css'
 import './styles.css'
 import { seedIfEmpty, getSettings, migrateDefaults, ensureAccounts } from './db'
+import { applyAccent } from './theme'
 
 async function bootstrap() {
-  await getSettings()
+  const settings = await getSettings()
+  applyAccent(settings.accent)
   await seedIfEmpty()
   await migrateDefaults()
   await ensureAccounts()

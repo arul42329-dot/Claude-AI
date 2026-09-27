@@ -5,19 +5,27 @@ import { useAccountScope, scopeTrades } from '../accounts'
 import { computeStats, equityCurve, tradeDate } from '../stats'
 import { StatCard } from '../components/StatCard'
 import { TradeForm } from '../components/TradeForm'
+import { JournalCard } from '../components/JournalCard'
 import { useToast } from '../components/Toast'
-import { format } from 'date-fns'
+import { format, startOfMonth } from 'date-fns'
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid,
 } from 'recharts'
 
 export default function Dashboard() {
   const allTrades = useLiveQuery(() => db.trades.toArray(), [], [])
-  const { activeId, account, currency, startingBalance } = useAccountScope()
+  const { activeId, account, currency, startingBalance, settings } = useAccountScope()
   const [showForm, setShowForm] = useState(false)
   const toast = useToast()
 
   const trades = scopeTrades(allTrades ?? [], activeId)
+
+  const monthStart = startOfMonth(new Date())
+  const monthPnl = trades
+    .filter((t) => t.outcome !== 'open' && tradeDate(t) >= monthStart)
+    .reduce((a, t) => a + (t.pnl ?? 0), 0)
+  const goal = settings?.monthlyProfitGoal ?? 0
+  const lossLimit = settings?.maxLossLimit ?? 0
   const startBal = startingBalance
   const stats = computeStats(trades)
   const curve = equityCurve(trades, startBal)
@@ -45,6 +53,37 @@ export default function Dashboard() {
         <StatCard label="Best / Worst" numeric={stats.bestTrade} format={(n) => fmtMoney(n, currency)} tone="pos" sub={`Worst ${fmtMoney(stats.worstTrade, currency)}`} />
         <StatCard label="Win streak" numeric={stats.maxWinStreak} format={(n) => String(Math.round(n))} sub={`Max loss streak ${stats.maxLossStreak}`} />
       </div>
+
+      {(goal > 0 || lossLimit > 0) && (
+        <div className="card" style={{ marginBottom: 20 }}>
+          <h3>🎯 This month's goals · {format(new Date(), 'MMMM')}</h3>
+          <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 18 }}>
+            {goal > 0 && (
+              <GoalBar
+                label="Profit goal"
+                valueTxt={`${fmtMoney(Math.max(0, monthPnl), currency)} / ${fmtMoney(goal, currency)}`}
+                pct={Math.max(0, Math.min(100, (monthPnl / goal) * 100))}
+                done={monthPnl >= goal}
+                tone="pos"
+              />
+            )}
+            {lossLimit > 0 && (() => {
+              const used = Math.max(0, -monthPnl)
+              const pct = Math.min(100, (used / lossLimit) * 100)
+              const breached = used >= lossLimit
+              return (
+                <GoalBar
+                  label="Max loss limit"
+                  valueTxt={`${fmtMoney(used, currency)} / ${fmtMoney(lossLimit, currency)}${breached ? ' · breached!' : ''}`}
+                  pct={pct}
+                  done={false}
+                  tone={breached ? 'neg' : 'warn'}
+                />
+              )
+            })()}
+          </div>
+        </div>
+      )}
 
       <div className="card" style={{ marginBottom: 20 }}>
         <h3>Equity curve</h3>
@@ -98,9 +137,26 @@ export default function Dashboard() {
         )}
       </div>
 
+      <div style={{ marginTop: 20 }}>
+        <JournalCard />
+      </div>
+
       {showForm && (
         <TradeForm onClose={() => setShowForm(false)} onSaved={() => { setShowForm(false); toast('Trade saved') }} />
       )}
     </>
+  )
+}
+
+function GoalBar({ label, valueTxt, pct, done, tone }: { label: string; valueTxt: string; pct: number; done: boolean; tone: 'pos' | 'neg' | 'warn' }) {
+  const color = tone === 'pos' ? 'var(--green)' : tone === 'neg' ? 'var(--red)' : '#e8b458'
+  return (
+    <div>
+      <div className="row" style={{ justifyContent: 'space-between', marginBottom: 8 }}>
+        <strong style={{ fontSize: 13.5 }}>{label} {done && '✅'}</strong>
+        <span className="muted" style={{ fontSize: 12.5 }}>{valueTxt}</span>
+      </div>
+      <div className="goal-track"><div className="goal-fill" style={{ width: pct + '%', background: color }} /></div>
+    </div>
   )
 }
