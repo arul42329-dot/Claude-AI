@@ -11,6 +11,16 @@ export default defineConfig({
     strictPort: false,
     // Allow the e2b preview proxy host and any other host to reach the dev server.
     allowedHosts: true,
+    // Dev-only proxy so the Yahoo Finance candle feed (no CORS headers) can be
+    // reached from the browser preview. In production the app calls Yahoo
+    // directly (CapacitorHttp on Android, header injection in Electron).
+    proxy: {
+      '/yf': {
+        target: 'https://query1.finance.yahoo.com',
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/yf/, ''),
+      },
+    },
   },
   preview: {
     host: '0.0.0.0',

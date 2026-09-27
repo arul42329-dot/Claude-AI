@@ -3,6 +3,7 @@ import { fetchMarket, readCachedMarket, MARKET_GROUPS, type MarketSnapshot, type
 import { useCountUp } from '../hooks/useCountUp'
 import { SessionClock } from '../components/SessionClock'
 import { EconomicCalendar } from '../components/EconomicCalendar'
+import { BiasPanel } from '../components/BiasPanel'
 import { getEcon, highImpactCurrenciesToday } from '../econ'
 
 function pairHot(symbol: string, set: Set<string>) {
@@ -32,6 +33,7 @@ export default function Markets() {
   const [group, setGroup] = useState<'All' | Group>('All')
   const [, force] = useState(0)
   const [newsCur, setNewsCur] = useState<Set<string>>(new Set())
+  const [selected, setSelected] = useState<Quote | null>(null)
 
   useEffect(() => {
     getEcon().then((s) => setNewsCur(highImpactCurrenciesToday(s))).catch(() => {})
@@ -78,6 +80,12 @@ export default function Markets() {
     return list
   }, [quotes, group, q])
 
+  // Keep the open panel bound to the latest snapshot for its symbol.
+  const selectedLive = useMemo(
+    () => (selected ? quotes.find((x) => x.symbol === selected.symbol) ?? selected : null),
+    [selected, quotes],
+  )
+
   return (
     <>
       <div className="page-head">
@@ -114,7 +122,7 @@ export default function Markets() {
             </div>
           )}
 
-          {gold && <GoldHero q={gold} hot={pairHot(gold.symbol, newsCur)} />}
+          {gold && <GoldHero q={gold} hot={pairHot(gold.symbol, newsCur)} onOpen={() => setSelected(gold)} />}
 
           <div className="toolbar" style={{ marginTop: 20 }}>
             <input className="input" style={{ maxWidth: 260 }} placeholder="🔍 Search pair…" value={q} onChange={(e) => setQ(e.target.value)} />
@@ -126,7 +134,7 @@ export default function Markets() {
           </div>
 
           <div className="mkt-grid">
-            {filtered.map((x) => <MktCard key={x.symbol} q={x} hot={pairHot(x.symbol, newsCur)} />)}
+            {filtered.map((x) => <MktCard key={x.symbol} q={x} hot={pairHot(x.symbol, newsCur)} onOpen={() => setSelected(x)} />)}
           </div>
           {filtered.length === 0 && <p className="muted" style={{ textAlign: 'center', marginTop: 30 }}>No pairs match your search.</p>}
 
@@ -135,15 +143,18 @@ export default function Markets() {
           </p>
         </>
       )}
+
+      {selectedLive && <BiasPanel q={selectedLive} onClose={() => setSelected(null)} />}
     </>
   )
 }
 
-function GoldHero({ q, hot }: { q: Quote; hot?: boolean }) {
+function GoldHero({ q, hot, onOpen }: { q: Quote; hot?: boolean; onOpen?: () => void }) {
   const p = useCountUp(q.price, 700)
   const up = q.changePct >= 0
   return (
-    <div className="mkt-hero">
+    <div className="mkt-hero mkt-clickable" role="button" tabIndex={0} onClick={onOpen}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen?.() } }}>
       <span className="mkt-hero-glow" aria-hidden="true" />
       <div className="mkt-hero-left">
         <div className="mkt-hero-tag"><span className="live-dot" /> LIVE · GOLD</div>
@@ -165,13 +176,15 @@ function GoldHero({ q, hot }: { q: Quote; hot?: boolean }) {
   )
 }
 
-function MktCard({ q, hot }: { q: Quote; hot?: boolean }) {
+function MktCard({ q, hot, onOpen }: { q: Quote; hot?: boolean; onOpen?: () => void }) {
   const up = q.changePct >= 0
   return (
-    <div className={'mkt-card' + (hot ? ' hot' : '')}>
+    <div className={'mkt-card mkt-clickable' + (hot ? ' hot' : '')} role="button" tabIndex={0} onClick={onOpen}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen?.() } }}>
       <div className="mkt-sym">
         {q.compact}
         {hot && <span className="news-dot" title="High-impact news today">📰</span>}
+        <span className="mkt-chev" aria-hidden="true">›</span>
       </div>
       <div className="mkt-price">{fmtPrice(q.price, q.decimals)}</div>
       <div className="mkt-foot">

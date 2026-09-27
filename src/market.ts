@@ -7,7 +7,7 @@
 // which we persist locally (the source has no historical field on the live
 // endpoint). FX bias comes from the real previous-business-day rate.
 
-import { computeBias, type BiasVote } from './bias'
+import { computeBias, type BiasVote, type BiasResult } from './bias'
 import { getCandles } from './candles'
 
 export type Bias = 'Bullish' | 'Bearish' | 'Neutral'
@@ -27,6 +27,8 @@ export interface Quote {
   score?: number
   biasVotes?: string[]
   biasSource?: 'rule' | 'change'
+  // Full rule-based breakdown, surfaced in the tap-to-open bias panel.
+  biasDetail?: BiasResult
 }
 
 interface MetalDef { symbol: string; compact: string; name: string; group: Group; code: string; decimals: number; yahoo: string }
@@ -146,6 +148,7 @@ async function attachRuleBias(quotes: Quote[]): Promise<void> {
       q.bias = res.label
       q.score = res.score
       q.biasSource = 'rule'
+      q.biasDetail = res
       q.biasVotes = [
         `Daily bias: ${res.label} (score ${res.score >= 0 ? '+' : ''}${res.score})`,
         ...res.votes.map((v) => `${arrow(v.value)} ${v.name} — ${v.detail}`),

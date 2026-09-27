@@ -1,5 +1,27 @@
-const { app, BrowserWindow, Menu, shell } = require('electron')
+const { app, BrowserWindow, Menu, shell, session } = require('electron')
 const path = require('path')
+
+// The renderer loads from file:// in the packaged app, so cross-origin fetches
+// to data APIs that don't send CORS headers (Yahoo Finance candles, the
+// ForexFactory calendar) would be blocked. Inject a permissive CORS header on
+// responses from those known hosts so the bias engine & calendar work offline-
+// installed too. Scoped to specific hosts; webSecurity stays enabled.
+function enableApiCors() {
+  const filter = {
+    urls: [
+      'https://query1.finance.yahoo.com/*',
+      'https://query2.finance.yahoo.com/*',
+      'https://*.faireconomy.media/*',
+      'https://api.gold-api.com/*',
+      'https://api.frankfurter.app/*',
+    ],
+  }
+  session.defaultSession.webRequest.onHeadersReceived(filter, (details, callback) => {
+    const responseHeaders = { ...details.responseHeaders }
+    responseHeaders['Access-Control-Allow-Origin'] = ['*']
+    callback({ responseHeaders })
+  })
+}
 
 const isDev = !app.isPackaged && process.env.NODE_ENV !== 'production'
 
@@ -38,6 +60,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  enableApiCors()
   createWindow()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
