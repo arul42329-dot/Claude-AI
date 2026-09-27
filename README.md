@@ -22,6 +22,7 @@ Log every trade, build your **own checklists**, and analyse your performance **d
 - **P/L calendar heatmap** — a month grid where each day is coloured by net profit, with monthly totals and green/red day counts.
 - **Position-size / risk calculator** — enter balance, risk % and stop in pips to get the exact lot size (on the Pre-Trade page).
 - **Sessions & killzone clock** — live Sydney/Tokyo/London/New York session status plus ICT killzone windows (on the Markets tab).
+- **Economic calendar** — upcoming high-impact news & releases (currency, time in your timezone, forecast vs previous) from a free ForexFactory feed, with impact/currency filters (on the Markets tab).
 - **App lock (PIN)** — optional 4–8 digit PIN required on open to keep your journal private.
 - **Goals & targets** — set a monthly profit goal and max-loss limit; progress bars show on the Dashboard.
 - **Daily reflection journal** — free-form daily notes with a mood rating (Dashboard card).
@@ -73,7 +74,7 @@ Building a real Android `.apk` needs the Android SDK, and a Windows `.exe` needs
 2. Go to the **Actions** tab → **“Build apps (Android APK + Windows installer)”** → **Run workflow**.
 3. When it finishes (~5–10 min), open the run and download the artifacts:
    - **Edgefolio-Android** → `Edgefolio.apk`
-   - **Edgefolio-Windows** → `Edgefolio-Setup-1.2.9.exe` (installer) and a portable `.exe`
+   - **Edgefolio-Windows** → `Edgefolio-Setup-1.3.0.exe` (installer) and a portable `.exe`
 
 ### Option B — Publish a versioned Release
 Push a tag and the same build will also create a **GitHub Release** with the APK and EXE attached:
@@ -87,7 +88,7 @@ Find the files under the repo's **Releases** page.
 
 ### Installing
 - **Android:** copy `Edgefolio.apk` to your phone and open it. Allow “install from unknown sources” when prompted. *(This is a debug‑signed build for personal use — perfect for your own device.)*
-- **Windows:** run `Edgefolio-Setup-1.2.9.exe` to install, or use the portable `.exe` with no install. Windows SmartScreen may warn because the build isn't code‑signed — choose **More info → Run anyway**.
+- **Windows:** run `Edgefolio-Setup-1.3.0.exe` to install, or use the portable `.exe` with no install. Windows SmartScreen may warn because the build isn't code‑signed — choose **More info → Run anyway**.
 
 ---
 
