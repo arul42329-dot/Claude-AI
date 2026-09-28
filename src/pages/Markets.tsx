@@ -3,7 +3,11 @@ import { fetchMarket, readCachedMarket, MARKET_GROUPS, type MarketSnapshot, type
 import { SessionClock } from '../components/SessionClock'
 import { EconomicCalendar } from '../components/EconomicCalendar'
 import { BiasPanel } from '../components/BiasPanel'
+import { IndiaMarkets } from '../components/IndiaMarkets'
 import { getEcon, highImpactCurrenciesToday } from '../econ'
+
+type MarketMode = 'forex' | 'india'
+const MODE_KEY = 'edgefolio-mkt-mode'
 
 function pairHot(symbol: string, set: Set<string>) {
   if (set.size === 0) return false
@@ -33,6 +37,9 @@ export default function Markets() {
   const [, force] = useState(0)
   const [newsCur, setNewsCur] = useState<Set<string>>(new Set())
   const [selected, setSelected] = useState<Quote | null>(null)
+  const [mode, setMode] = useState<MarketMode>(() => (localStorage.getItem(MODE_KEY) as MarketMode) || 'forex')
+
+  const setModePersist = (m: MarketMode) => { setMode(m); try { localStorage.setItem(MODE_KEY, m) } catch { /* ignore */ } }
 
   useEffect(() => {
     getEcon().then((s) => setNewsCur(highImpactCurrenciesToday(s))).catch(() => {})
@@ -89,16 +96,27 @@ export default function Markets() {
       <div className="page-head">
         <div>
           <h1>Markets</h1>
-          <p>Live prices &amp; day bias · XAU/USD priority</p>
+          <p>{mode === 'india' ? 'Indian indices · daily bias & news' : 'Live prices & day bias · XAU/USD priority'}</p>
         </div>
-        <div className="row" style={{ gap: 10 }}>
-          {snap && <span className="muted" style={{ fontSize: 12 }}>Updated {timeAgo(snap.at)}</span>}
-          <button className="btn sm" onClick={load} disabled={loading}>
-            <span className={'refresh-ic' + (loading ? ' spin' : '')}>⟳</span> Refresh
-          </button>
-        </div>
+        {mode === 'forex' && (
+          <div className="row" style={{ gap: 10 }}>
+            {snap && <span className="muted" style={{ fontSize: 12 }}>Updated {timeAgo(snap.at)}</span>}
+            <button className="btn sm" onClick={load} disabled={loading}>
+              <span className={'refresh-ic' + (loading ? ' spin' : '')}>⟳</span> Refresh
+            </button>
+          </div>
+        )}
       </div>
 
+      <div className="seg mode-toggle" style={{ marginBottom: 18 }}>
+        <button className={mode === 'forex' ? 'active' : ''} onClick={() => setModePersist('forex')}>🌐 Forex</button>
+        <button className={mode === 'india' ? 'active' : ''} onClick={() => setModePersist('india')}>🇮🇳 India</button>
+      </div>
+
+      {mode === 'india' ? (
+        <IndiaMarkets />
+      ) : (
+      <>
       <SessionClock />
 
       <EconomicCalendar />
@@ -141,6 +159,8 @@ export default function Markets() {
       )}
 
       {selectedLive && <BiasPanel q={selectedLive} onClose={() => setSelected(null)} />}
+      </>
+      )}
     </>
   )
 }

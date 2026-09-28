@@ -20,6 +20,11 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (p) => p.replace(/^\/yf/, ''),
       },
+      '/etnews': {
+        target: 'https://economictimes.indiatimes.com',
+        changeOrigin: true,
+        rewrite: () => '/markets/rssfeeds/1977021501.cms',
+      },
     },
   },
   preview: {

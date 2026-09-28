@@ -14,6 +14,7 @@ function enableApiCors() {
       'https://*.faireconomy.media/*',
       'https://api.gold-api.com/*',
       'https://api.frankfurter.app/*',
+      'https://economictimes.indiatimes.com/*',
     ],
   }
   session.defaultSession.webRequest.onHeadersReceived(filter, (details, callback) => {

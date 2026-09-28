@@ -1,6 +1,16 @@
 import { Modal } from './Modal'
-import { tradeCall } from '../bias'
-import type { Quote } from '../market'
+import { tradeCall, type BiasResult } from '../bias'
+
+// Minimal shape the panel needs — satisfied by both forex Quote and IndiaQuote.
+export interface BiasQuote {
+  symbol: string
+  price: number
+  decimals: number
+  changePct: number
+  bias: 'Bullish' | 'Bearish' | 'Neutral'
+  biasVotes?: string[]
+  biasDetail?: BiasResult
+}
 
 function fmt(n: number, d: number) {
   return new Intl.NumberFormat('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }).format(n)
@@ -11,7 +21,7 @@ function fmtChg(n: number) {
 
 // Tap-to-open Step-4 panel: full rule-based bias breakdown, support/resistance,
 // reversal watch and a daily-timeframe trade call.
-export function BiasPanel({ q, onClose }: { q: Quote; onClose: () => void }) {
+export function BiasPanel({ q, onClose }: { q: BiasQuote; onClose: () => void }) {
   const d = q.biasDetail
   const dec = q.decimals
 
@@ -113,7 +123,7 @@ function Metric({ label, value }: { label: string; value: string }) {
   )
 }
 
-function TradeCallBox({ q }: { q: Quote }) {
+function TradeCallBox({ q }: { q: BiasQuote }) {
   const d = q.biasDetail!
   const dec = q.decimals
   // The Markets tab is a daily-timeframe view, so the "viewed" bias equals the

@@ -28,8 +28,12 @@ function write(s: Store) {
 // headers); the packaged apps call Yahoo directly.
 const YF_BASE = import.meta.env.DEV ? '/yf' : 'https://query1.finance.yahoo.com'
 
+export function yfChartUrl(ySymbol: string, range = '2y'): string {
+  return `${YF_BASE}/v8/finance/chart/${encodeURIComponent(ySymbol)}?interval=1d&range=${range}`
+}
+
 async function fetchYahoo(ySymbol: string): Promise<Candle[]> {
-  const url = `${YF_BASE}/v8/finance/chart/${encodeURIComponent(ySymbol)}?interval=1d&range=2y`
+  const url = yfChartUrl(ySymbol, '2y')
   const ctrl = new AbortController()
   const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS)
   try {
