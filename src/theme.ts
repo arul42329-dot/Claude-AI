@@ -27,3 +27,29 @@ export function applyAccent(key?: string): void {
   s.setProperty('--accent-soft', p.soft)
   s.setProperty('--accent-line', p.line)
 }
+
+// India mode uses a fixed saffron accent so the whole app is instantly
+// recognisable as being in Indian-markets mode, regardless of the user's
+// chosen forex accent.
+export const INDIA_ACCENT = {
+  accent: '#ff8f2e', accent2: '#ffb463',
+  soft: 'rgba(255,143,46,0.15)', line: 'rgba(255,143,46,0.4)',
+}
+
+// Apply the whole-app theme for the given mode. In India mode we force the
+// saffron accent and tag <html data-mode="india"> so CSS can retint the app;
+// in forex mode we restore the user's chosen accent.
+export function applyMode(mode: 'forex' | 'india', accentKey?: string): void {
+  const root = document.documentElement
+  const s = root.style
+  if (mode === 'india') {
+    root.setAttribute('data-mode', 'india')
+    s.setProperty('--accent', INDIA_ACCENT.accent)
+    s.setProperty('--accent-2', INDIA_ACCENT.accent2)
+    s.setProperty('--accent-soft', INDIA_ACCENT.soft)
+    s.setProperty('--accent-line', INDIA_ACCENT.line)
+  } else {
+    root.removeAttribute('data-mode')
+    applyAccent(accentKey)
+  }
+}

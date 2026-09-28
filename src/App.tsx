@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import { maybeDailyBackup } from './drive'
+import { getSettings } from './db'
+import { useLiveQuery } from './util'
+import { AppModeProvider, useAppMode } from './mode'
 import { ToastProvider } from './components/Toast'
 import { SplashIntro } from './components/SplashIntro'
 import { LockScreen } from './components/LockScreen'
@@ -36,6 +39,7 @@ const NAV = [
 
 function AppShell() {
   const location = useLocation()
+  const { isIndia } = useAppMode()
   // Auto-backup to Google Drive once per day, on app open (best-effort, silent).
   useEffect(() => {
     const t = window.setTimeout(() => { maybeDailyBackup() }, 2500)
@@ -53,7 +57,7 @@ function AppShell() {
           </span>
           <div className="name">
             Edgefolio
-            <small>Trade your edge</small>
+            <small>{isIndia ? '🇮🇳 India mode' : 'Trade your edge'}</small>
           </div>
         </div>
         <AccountSwitcher />
@@ -72,7 +76,7 @@ function AppShell() {
           ))}
         </div>
         <div className="sidebar-footer">
-          <span className="dot-live" /> v1.3.7 · Local &amp; private
+          <span className="dot-live" /> v1.3.8 · Local &amp; private
           <br />
           Your data never leaves this device.
         </div>
@@ -83,7 +87,7 @@ function AppShell() {
         <span className="logo-shell sm">
           <img className="logo-img" src={logoUrl} alt="Edgefolio" />
         </span>
-        <span className="topbar-name">Edgefolio</span>
+        <span className="topbar-name">Edgefolio{isIndia && <span className="mode-badge">🇮🇳 India</span>}</span>
         <div style={{ marginLeft: 'auto' }}>
           <AccountSwitcher />
         </div>
@@ -119,13 +123,16 @@ function AppShell() {
 export default function App() {
   const [showIntro, setShowIntro] = useState(true)
   const [locked, setLocked] = useState(() => isLockEnabled())
+  const settings = useLiveQuery(() => getSettings(), [], undefined)
 
   if (locked) return <LockScreen onUnlock={() => setLocked(false)} />
 
   return (
-    <ToastProvider>
-      {showIntro && <SplashIntro onDone={() => setShowIntro(false)} />}
-      <AppShell />
-    </ToastProvider>
+    <AppModeProvider accentKey={settings?.accent}>
+      <ToastProvider>
+        {showIntro && <SplashIntro onDone={() => setShowIntro(false)} />}
+        <AppShell />
+      </ToastProvider>
+    </AppModeProvider>
   )
 }

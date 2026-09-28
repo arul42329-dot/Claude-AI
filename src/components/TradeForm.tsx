@@ -2,20 +2,22 @@ import { useEffect, useMemo, useState } from 'react'
 import { db, nextTradeSerial } from '../db'
 import { useLiveQuery } from '../util'
 import { useAccountScope } from '../accounts'
+import { useAppMode, marketOf, type AppMode } from '../mode'
 import type { Trade, Direction, Outcome, Session } from '../types'
 import { Modal } from './Modal'
 import { useToast } from './Toast'
-import { CURRENCY_PAIRS, SESSIONS } from '../util'
+import { SESSIONS, instrumentsFor, defaultInstrument } from '../util'
 import { format } from 'date-fns'
 
-function emptyTrade(): Trade {
+function emptyTrade(mode: AppMode = 'forex'): Trade {
   return {
     id: crypto.randomUUID(),
+    market: mode,
     date: format(new Date(), 'yyyy-MM-dd'),
     time: format(new Date(), 'HH:mm'),
-    pair: 'EUR/USD',
+    pair: defaultInstrument(mode),
     direction: 'long',
-    session: 'london',
+    session: mode === 'india' ? 'other' : 'london',
     strategy: '',
     outcome: 'open',
     checklists: [],
@@ -35,10 +37,15 @@ export function TradeForm({
   onSaved: () => void
 }) {
   const toast = useToast()
-  const entries = useLiveQuery(() => db.checklistEntries.orderBy('serial').reverse().toArray(), [], [])
+  const { mode } = useAppMode()
+  const allEntries = useLiveQuery(() => db.checklistEntries.orderBy('serial').reverse().toArray(), [], [])
   const { accounts, activeId } = useAccountScope()
-  const [t, setT] = useState<Trade>(initial ? structuredClone(initial) : emptyTrade())
+  const [t, setT] = useState<Trade>(initial ? structuredClone(initial) : emptyTrade(mode))
   const [tagInput, setTagInput] = useState('')
+
+  // Only link pre-trade checks from the same mode (India ⟷ India, forex ⟷ forex).
+  const tradeMarket = marketOf(t)
+  const entries = (allEntries ?? []).filter((e) => marketOf(e) === tradeMarket)
 
   // Default a new trade to the account currently in view (or the first account).
   useEffect(() => {
@@ -204,10 +211,10 @@ export function TradeForm({
           <input className="input" type="time" value={t.time ?? ''} onChange={(e) => set('time', e.target.value)} />
         </div>
         <div className="field">
-          <label>Pair / Instrument</label>
+          <label>{tradeMarket === 'india' ? 'Index / Stock' : 'Pair / Instrument'}</label>
           <input className="input" list="pairs" value={t.pair} onChange={(e) => set('pair', e.target.value.toUpperCase())} />
           <datalist id="pairs">
-            {CURRENCY_PAIRS.map((p) => <option key={p} value={p} />)}
+            {instrumentsFor(tradeMarket).map((p) => <option key={p} value={p} />)}
           </datalist>
         </div>
         <div className="field">

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { db } from '../db'
 import { useLiveQuery, fmtMoney, fmtNum, fmtPct } from '../util'
 import { useAccountScope, scopeTrades } from '../accounts'
+import { useAppMode, marketOf } from '../mode'
 import { computeStats, groupByPeriod, type Period } from '../stats'
 import { StatCard } from '../components/StatCard'
 import { PnlCalendar } from '../components/PnlCalendar'
@@ -21,11 +22,15 @@ const SCOPES: { value: Scope; label: string }[] = [
 
 export default function Analytics() {
   const allTrades = useLiveQuery(() => db.trades.toArray(), [], [])
+  const { mode } = useAppMode()
   const { activeId, account, currency } = useAccountScope()
   const [scope, setScope] = useState<Scope>('overall')
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
 
-  const all = useMemo(() => scopeTrades(allTrades ?? [], activeId), [allTrades, activeId])
+  const all = useMemo(
+    () => scopeTrades((allTrades ?? []).filter((t) => marketOf(t) === mode), activeId),
+    [allTrades, activeId, mode],
+  )
   const scopeName = activeId === 'all' ? 'All accounts' : account?.name ?? 'Account'
 
   // The granularity that drives the chart + breakdown table

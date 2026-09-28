@@ -62,6 +62,7 @@ export interface ChecklistResponse {
 export interface ChecklistEntry {
   id: string
   serial: number // human-facing serial, e.g. 1, 2, 3…
+  market?: 'forex' | 'india' // which app mode this entry belongs to (absent = forex)
   date: string
   time?: string
   pair: string
@@ -83,6 +84,7 @@ export interface ChecklistEntry {
 export interface Trade {
   id: string
   serial?: number // human-facing serial for the trade log
+  market?: 'forex' | 'india' // which app mode this trade belongs to (absent = forex)
   accountId?: string // which trading account this trade belongs to
   // Link to a pre-trade checklist entry by its serial number
   checklistSerial?: number

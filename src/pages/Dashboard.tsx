@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { db } from '../db'
 import { useLiveQuery, fmtMoney, fmtNum, fmtPct } from '../util'
+import { useAppMode, marketOf } from '../mode'
 import { useAccountScope, scopeTrades } from '../accounts'
 import { computeStats, equityCurve, tradeDate } from '../stats'
 import { StatCard } from '../components/StatCard'
@@ -15,10 +16,13 @@ import {
 export default function Dashboard() {
   const allTrades = useLiveQuery(() => db.trades.toArray(), [], [])
   const { activeId, account, currency, startingBalance, settings } = useAccountScope()
+  const { mode, isIndia, setMode } = useAppMode()
   const [showForm, setShowForm] = useState(false)
   const toast = useToast()
 
-  const trades = scopeTrades(allTrades ?? [], activeId)
+  // Forex and India journals are fully separate — only show this mode's trades.
+  const modeTrades = (allTrades ?? []).filter((t) => marketOf(t) === mode)
+  const trades = scopeTrades(modeTrades, activeId)
 
   const monthStart = startOfMonth(new Date())
   const monthPnl = trades
@@ -38,9 +42,22 @@ export default function Dashboard() {
       <div className="page-head">
         <div>
           <h1>Dashboard</h1>
-          <p>{scopeName} · performance at a glance</p>
+          <p>{scopeName} · {isIndia ? '🇮🇳 Indian markets journal' : 'performance at a glance'}</p>
         </div>
         <button className="btn primary" onClick={() => setShowForm(true)}>＋ New trade</button>
+      </div>
+
+      <div className="card mode-switch-card" style={{ marginBottom: 20 }}>
+        <div>
+          <strong style={{ fontSize: 14 }}>App mode</strong>
+          <p className="muted" style={{ fontSize: 12.5, margin: '2px 0 0' }}>
+            Switches the whole app — colour, Markets and a fully separate {isIndia ? 'Indian' : 'forex'} trade journal.
+          </p>
+        </div>
+        <div className="seg mode-toggle">
+          <button className={mode === 'forex' ? 'active' : ''} onClick={() => setMode('forex')}>🌐 Forex</button>
+          <button className={mode === 'india' ? 'active' : ''} onClick={() => setMode('india')}>🇮🇳 India</button>
+        </div>
       </div>
 
       <div className="grid stat-grid" style={{ marginBottom: 20 }}>
@@ -94,8 +111,8 @@ export default function Dashboard() {
             <AreaChart data={curve} margin={{ top: 6, right: 10, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="eq" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#e8b458" stopOpacity={0.42} />
-                  <stop offset="100%" stopColor="#e8b458" stopOpacity={0} />
+                  <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.42} />
+                  <stop offset="100%" stopColor="var(--accent)" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
@@ -105,7 +122,7 @@ export default function Dashboard() {
                 contentStyle={{ background: '#171a22', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, color: '#f3f5f9' }}
                 formatter={(v: number) => [fmtMoney(v, currency), 'Balance']}
               />
-              <Area type="monotone" dataKey="balance" stroke="#f2cd7f" strokeWidth={2.4} fill="url(#eq)" />
+              <Area type="monotone" dataKey="balance" stroke="var(--accent-2)" strokeWidth={2.4} fill="url(#eq)" />
             </AreaChart>
           </ResponsiveContainer>
         )}

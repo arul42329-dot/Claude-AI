@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { db } from '../db'
 import { useLiveQuery, fmtMoney, fmtNum } from '../util'
 import { useAccountScope, scopeTrades } from '../accounts'
+import { useAppMode, marketOf } from '../mode'
 import type { Trade } from '../types'
 import { TradeForm } from '../components/TradeForm'
 import { useToast } from '../components/Toast'
@@ -9,7 +10,9 @@ import { format } from 'date-fns'
 import { tradeDate } from '../stats'
 
 export default function Trades() {
-  const allTrades = useLiveQuery(() => db.trades.toArray(), [], [])
+  const allTradesRaw = useLiveQuery(() => db.trades.toArray(), [], [])
+  const { mode } = useAppMode()
+  const allTrades = (allTradesRaw ?? []).filter((t) => marketOf(t) === mode)
   const { accounts, activeId, account, currency } = useAccountScope()
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<Trade | undefined>(undefined)
@@ -59,7 +62,7 @@ export default function Trades() {
     <>
       <div className="page-head">
         <div>
-          <h1>Trades</h1>
+          <h1>Trades{mode === 'india' && <span className="mode-badge">🇮🇳 India</span>}</h1>
           <p>{scopeName} · {trades.length} logged</p>
         </div>
         <button className="btn primary" onClick={openNew}>＋ New trade</button>

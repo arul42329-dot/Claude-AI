@@ -258,7 +258,7 @@ export async function tradesToCsv(): Promise<string> {
   const [trades, accounts] = await Promise.all([db.trades.toArray(), db.accounts.toArray()])
   const acctName = new Map(accounts.map((a) => [a.id, a.name]))
   const cols = [
-    'serial', 'date', 'time', 'account', 'pair', 'direction', 'session', 'strategy',
+    'serial', 'date', 'time', 'market', 'account', 'pair', 'direction', 'session', 'strategy',
     'entryPrice', 'exitPrice', 'stopLoss', 'takeProfit', 'lotSize', 'riskPercent',
     'riskReward', 'outcome', 'pips', 'pnl', 'emotion', 'rating', 'checklistSerial', 'tags', 'notes',
   ]

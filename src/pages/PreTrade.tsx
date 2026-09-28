@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react'
 import { db, nextChecklistSerial } from '../db'
-import { useLiveQuery, CURRENCY_PAIRS } from '../util'
+import { useLiveQuery, instrumentsFor, defaultInstrument } from '../util'
 import type { ChecklistEntry, Direction } from '../types'
 import { Modal } from '../components/Modal'
 import { RiskCalculator } from '../components/RiskCalculator'
 import { useToast } from '../components/Toast'
 import { useAccountScope } from '../accounts'
+import { useAppMode, marketOf } from '../mode'
 import { format } from 'date-fns'
 
 function compliancePct(e: ChecklistEntry) {
@@ -14,12 +15,15 @@ function compliancePct(e: ChecklistEntry) {
 }
 
 export default function PreTrade() {
-  const entries = useLiveQuery(() => db.checklistEntries.orderBy('serial').reverse().toArray(), [], [])
+  const allEntries = useLiveQuery(() => db.checklistEntries.orderBy('serial').reverse().toArray(), [], [])
   const templates = useLiveQuery(() => db.checklists.toArray(), [], [])
   const [editing, setEditing] = useState<ChecklistEntry | null>(null)
   const [showCalc, setShowCalc] = useState(false)
   const { currency, startingBalance } = useAccountScope()
+  const { mode } = useAppMode()
   const toast = useToast()
+
+  const entries = (allEntries ?? []).filter((e) => marketOf(e) === mode)
 
   async function openNew() {
     const serial = await nextChecklistSerial()
@@ -27,9 +31,10 @@ export default function PreTrade() {
     setEditing({
       id: crypto.randomUUID(),
       serial,
+      market: mode,
       date: format(new Date(), 'yyyy-MM-dd'),
       time: format(new Date(), 'HH:mm'),
-      pair: 'EUR/USD',
+      pair: defaultInstrument(mode),
       direction: 'long',
       bias: '',
       checklistId: firstTemplate?.id ?? '',
@@ -199,9 +204,9 @@ function PreTradeEditor({
           <input className="input" type="time" value={e.time ?? ''} onChange={(ev) => set('time', ev.target.value)} />
         </div>
         <div className="field">
-          <label>Pair / Instrument</label>
+          <label>{marketOf(e) === 'india' ? 'Index / Stock' : 'Pair / Instrument'}</label>
           <input className="input" list="pairs-pt" value={e.pair} onChange={(ev) => set('pair', ev.target.value.toUpperCase())} />
-          <datalist id="pairs-pt">{CURRENCY_PAIRS.map((p) => <option key={p} value={p} />)}</datalist>
+          <datalist id="pairs-pt">{instrumentsFor(marketOf(e)).map((p) => <option key={p} value={p} />)}</datalist>
         </div>
         <div className="field">
           <label>Bias</label>
