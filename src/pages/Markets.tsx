@@ -114,8 +114,6 @@ export default function Markets() {
       <>
       <SessionClock />
 
-      <EconomicCalendar />
-
       {error && quotes.length === 0 && (
         <div className="empty">
           <div className="big">📡</div>
@@ -152,6 +150,11 @@ export default function Markets() {
           </p>
         </>
       )}
+
+      {/* Economic calendar below the pairs */}
+      <div style={{ marginTop: 20 }}>
+        <EconomicCalendar />
+      </div>
 
       {selectedLive && <BiasPanel q={selectedLive} onClose={() => setSelected(null)} />}
       </>

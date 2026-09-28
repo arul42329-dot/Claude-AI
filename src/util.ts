@@ -70,8 +70,10 @@ export const SEGMENTS: { value: Segment; label: string }[] = [
 ]
 
 // Instruments to suggest for a given India segment.
+// Options & futures can be on indices, stocks OR commodities, so they list all.
 export function indiaInstruments(segment: Segment = 'equity'): string[] {
   if (segment === 'commodity') return INDIA_COMMODITIES
+  if (segment === 'options' || segment === 'futures') return [...INDIA_INDICES_LIST, ...INDIA_STOCKS, ...INDIA_COMMODITIES]
   return [...INDIA_INDICES_LIST, ...INDIA_STOCKS]
 }
 

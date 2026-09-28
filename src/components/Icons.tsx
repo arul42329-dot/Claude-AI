@@ -99,3 +99,34 @@ export const IconArrow = (p: IconProps) => (
     <path d="M5 12h14M13 6l6 6-6 6" />
   </Base>
 )
+
+// Actual Indian tricolour flag (emoji flags don't render on Windows — they show
+// as "IN"). Small inline SVG so it looks right everywhere.
+export function IndiaFlag({ size = 16 }: { size?: number }) {
+  const h = Math.round((size * 2) / 3)
+  return (
+    <svg width={size} height={h} viewBox="0 0 30 20" style={{ display: 'inline-block', verticalAlign: 'middle', borderRadius: 2, boxShadow: '0 0 0 1px rgba(0,0,0,0.25)' }} aria-label="India">
+      <rect width="30" height="20" fill="#fff" />
+      <rect width="30" height="6.67" fill="#ff9933" />
+      <rect y="13.33" width="30" height="6.67" fill="#138808" />
+      <circle cx="15" cy="10" r="2.6" fill="none" stroke="#0a3a8f" strokeWidth="0.6" />
+      <circle cx="15" cy="10" r="0.5" fill="#0a3a8f" />
+      <g stroke="#0a3a8f" strokeWidth="0.35">
+        <line x1="15" y1="7.4" x2="15" y2="12.6" />
+        <line x1="12.4" y1="10" x2="17.6" y2="10" />
+        <line x1="13.16" y1="8.16" x2="16.84" y2="11.84" />
+        <line x1="16.84" y1="8.16" x2="13.16" y2="11.84" />
+      </g>
+    </svg>
+  )
+}
+
+// Globe for Forex.
+export function GlobeIcon({ size = 15 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} style={{ display: 'inline-block', verticalAlign: 'middle' }} aria-hidden="true">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18M12 3c2.5 2.5 2.5 15 0 18M12 3c-2.5 2.5-2.5 15 0 18" />
+    </svg>
+  )
+}

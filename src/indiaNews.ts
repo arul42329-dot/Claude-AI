@@ -38,15 +38,20 @@ export async function fetchIndiaNews(): Promise<NewsSnapshot> {
 }
 
 // DEV-only demo headlines so the preview shows the news list (the sandbox can't
-// reach the feed). Compiled out of production builds.
-export function devDemoNews(): NewsSnapshot {
-  const titles = [
+// reach the feed). Compiled out of production builds. Timestamps are generated
+// ONCE (module load) so the relative times don't reset on every refresh.
+const DEMO_NEWS_BASE = Date.now()
+const DEMO_NEWS: NewsSnapshot = {
+  at: DEMO_NEWS_BASE,
+  items: [
     'Sensex, Nifty end higher as banking and IT stocks lead the rally',
     'Rupee holds steady against the US dollar ahead of RBI policy meet',
     'FIIs turn net buyers; DIIs continue to support the market',
     'Bank Nifty hits fresh record high on strong lender earnings',
     'Ahead of Market: 10 things that will decide stock action tomorrow',
     'Gold prices ease as global yields firm up; silver follows',
-  ]
-  return { items: titles.map((t, i) => ({ title: t, link: '#', at: Date.now() - i * 3600000 })), at: Date.now() }
+  ].map((t, i) => ({ title: t, link: '#', at: DEMO_NEWS_BASE - (i + 1) * 37 * 60000 })),
+}
+export function devDemoNews(): NewsSnapshot {
+  return DEMO_NEWS
 }

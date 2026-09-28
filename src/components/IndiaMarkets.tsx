@@ -26,6 +26,8 @@ export function IndiaMarkets({ refreshSignal = 0 }: { refreshSignal?: number }) 
   const [selected, setSelected] = useState<IndiaQuote | null>(null)
   const [, force] = useState(0)
 
+  // Prices refresh fast (~5s); news is slow-moving so it loads on mount and only
+  // every few minutes — otherwise the headline times would reset every 5s.
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
@@ -36,26 +38,32 @@ export function IndiaMarkets({ refreshSignal = 0 }: { refreshSignal?: number }) 
     } finally {
       setLoading(false)
     }
+  }, [])
+
+  const loadNews = useCallback(() => {
     fetchIndiaNews().then(setNews).catch(() => { if (import.meta.env.DEV) setNews(devDemoNews()) })
   }, [])
 
   useEffect(() => {
     load()
-    const id = window.setInterval(load, 5000) // live-ish auto refresh (~5s)
+    loadNews()
+    const id = window.setInterval(load, 5000) // live-ish price auto refresh (~5s)
+    const newsId = window.setInterval(loadNews, 180000) // news every 3 min
     const tick = window.setInterval(() => force((n) => n + 1), 1000)
-    const onWake = () => load()
+    const onWake = () => { load(); loadNews() }
     window.addEventListener('focus', onWake)
     window.addEventListener('online', onWake)
     return () => {
       window.clearInterval(id)
+      window.clearInterval(newsId)
       window.clearInterval(tick)
       window.removeEventListener('focus', onWake)
       window.removeEventListener('online', onWake)
     }
-  }, [load])
+  }, [load, loadNews])
 
   // Reload when the shared top Refresh button is pressed.
-  useEffect(() => { if (refreshSignal) load() }, [refreshSignal]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (refreshSignal) { load(); loadNews() } }, [refreshSignal]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const quotes = snap?.quotes ?? []
   const status = useMemo(() => nseStatus(new Date()), [snap]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -73,8 +81,6 @@ export function IndiaMarkets({ refreshSignal = 0 }: { refreshSignal?: number }) 
         {snap && <span className="muted" style={{ fontSize: 12 }}>Updated {timeAgo(snap.at)}</span>}
       </div>
 
-      <EconomicCalendar />
-
       {error && quotes.length === 0 && (
         <div className="empty">
           <div className="big">📡</div>
@@ -84,6 +90,7 @@ export function IndiaMarkets({ refreshSignal = 0 }: { refreshSignal?: number }) 
         </div>
       )}
 
+      {/* Index prices first */}
       {quotes.length > 0 && (
         <>
           {(error || snap?.partial) && (
@@ -97,6 +104,11 @@ export function IndiaMarkets({ refreshSignal = 0 }: { refreshSignal?: number }) 
           </div>
         </>
       )}
+
+      {/* Calendar + news below the prices */}
+      <div style={{ marginTop: 20 }}>
+        <EconomicCalendar />
+      </div>
 
       {news && news.items.length > 0 && (
         <div className="card" style={{ marginTop: 20 }}>

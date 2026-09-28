@@ -7,6 +7,7 @@ import { computeStats, equityCurve, tradeDate } from '../stats'
 import { StatCard } from '../components/StatCard'
 import { TradeForm } from '../components/TradeForm'
 import { JournalCard } from '../components/JournalCard'
+import { IndiaFlag, GlobeIcon } from '../components/Icons'
 import { useToast } from '../components/Toast'
 import { format, startOfMonth } from 'date-fns'
 import {
@@ -42,7 +43,7 @@ export default function Dashboard() {
       <div className="page-head">
         <div>
           <h1>Dashboard</h1>
-          <p>{scopeName} · {isIndia ? '🇮🇳 Indian markets journal' : 'performance at a glance'}</p>
+          <p>{scopeName} · {isIndia ? <><IndiaFlag size={13} /> Indian markets journal</> : 'performance at a glance'}</p>
         </div>
         <button className="btn primary" onClick={() => setShowForm(true)}>＋ New trade</button>
       </div>
@@ -55,8 +56,8 @@ export default function Dashboard() {
           </p>
         </div>
         <div className="seg mode-toggle">
-          <button className={mode === 'forex' ? 'active' : ''} onClick={() => setMode('forex')}>🌐 Forex</button>
-          <button className={mode === 'india' ? 'active' : ''} onClick={() => setMode('india')}>🇮🇳 India</button>
+          <button className={mode === 'forex' ? 'active' : ''} onClick={() => setMode('forex')}><GlobeIcon size={15} /> Forex</button>
+          <button className={mode === 'india' ? 'active' : ''} onClick={() => setMode('india')}><IndiaFlag size={15} /> India</button>
         </div>
       </div>
 

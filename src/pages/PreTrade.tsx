@@ -3,6 +3,8 @@ import { db, nextChecklistSerial } from '../db'
 import { useLiveQuery, instrumentsFor, indiaInstruments, defaultInstrument, SEGMENTS, type Segment } from '../util'
 import type { ChecklistEntry, Direction } from '../types'
 import { Modal } from '../components/Modal'
+import { Combobox } from '../components/Combobox'
+import { NumberStepper } from '../components/NumberStepper'
 import { RiskCalculator } from '../components/RiskCalculator'
 import { useToast } from '../components/Toast'
 import { useAccountScope } from '../accounts'
@@ -214,8 +216,12 @@ function PreTradeEditor({
         )}
         <div className="field">
           <label>{marketOf(e) === 'india' ? ((e.segment ?? 'equity') === 'commodity' ? 'Commodity' : 'Instrument / Underlying') : 'Pair / Instrument'}</label>
-          <input className="input" list="pairs-pt" value={e.pair} onChange={(ev) => set('pair', ev.target.value.toUpperCase())} />
-          <datalist id="pairs-pt">{(marketOf(e) === 'india' ? indiaInstruments(e.segment ?? 'equity') : instrumentsFor('forex')).map((p) => <option key={p} value={p} />)}</datalist>
+          <Combobox
+            value={e.pair}
+            onChange={(v) => set('pair', v)}
+            options={marketOf(e) === 'india' ? indiaInstruments(e.segment ?? 'equity') : instrumentsFor('forex')}
+            placeholder={marketOf(e) === 'india' ? 'Search index, stock or commodity…' : 'Search pair…'}
+          />
         </div>
         <div className="field">
           <label>Bias</label>
@@ -229,13 +235,13 @@ function PreTradeEditor({
       {marketOf(e) === 'india' && (e.segment ?? 'equity') === 'options' && (
         <div className="form-grid" style={{ marginTop: 14 }}>
           <div className="field">
-            <label>Option type</label>
+            <label>Call / Put</label>
             <div className="seg">
-              <button className={e.optionType === 'CE' ? 'active' : ''} onClick={() => set('optionType', 'CE')}>CE (Call)</button>
-              <button className={e.optionType === 'PE' ? 'active' : ''} onClick={() => set('optionType', 'PE')}>PE (Put)</button>
+              <button className={e.optionType === 'CE' ? 'active' : ''} onClick={() => set('optionType', 'CE')}>Call (CE)</button>
+              <button className={e.optionType === 'PE' ? 'active' : ''} onClick={() => set('optionType', 'PE')}>Put (PE)</button>
             </div>
           </div>
-          <div className="field"><label>Strike</label><input className="input" type="number" step="any" value={e.strike ?? ''} onChange={(ev) => set('strike', ev.target.value === '' ? undefined : Number(ev.target.value))} placeholder="e.g. 25000" /></div>
+          <div className="field"><label>Strike</label><NumberStepper value={e.strike} onChange={(v) => set('strike', v)} step={50} min={0} placeholder="e.g. 25000" /></div>
           <div className="field"><label>Expiry</label><input className="input" type="date" value={e.expiry ?? ''} onChange={(ev) => set('expiry', ev.target.value)} /></div>
         </div>
       )}

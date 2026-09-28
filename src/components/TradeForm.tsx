@@ -5,6 +5,8 @@ import { useAccountScope } from '../accounts'
 import { useAppMode, marketOf, type AppMode } from '../mode'
 import type { Trade, Direction, Outcome, Session } from '../types'
 import { Modal } from './Modal'
+import { Combobox } from './Combobox'
+import { NumberStepper } from './NumberStepper'
 import { useToast } from './Toast'
 import { SESSIONS, SEGMENTS, instrumentsFor, indiaInstruments, defaultInstrument, type Segment } from '../util'
 import { format } from 'date-fns'
@@ -225,15 +227,12 @@ export function TradeForm({
         )}
         <div className="field">
           <label>{isIndia ? (seg === 'commodity' ? 'Commodity' : seg === 'options' || seg === 'futures' ? 'Underlying' : 'Index / Stock') : 'Pair / Instrument'}</label>
-          <input className="input" list="pairs" value={t.pair} onChange={(e) => set('pair', e.target.value.toUpperCase())} />
-          <datalist id="pairs">
-            {instrumentList.map((p) => <option key={p} value={p} />)}
-          </datalist>
+          <Combobox value={t.pair} onChange={(v) => set('pair', v)} options={instrumentList} placeholder={isIndia ? 'Search index, stock or commodity…' : 'Search pair…'} />
         </div>
         <div className="field">
-          <label>Direction</label>
+          <label>{isOption ? 'Buy / Sell option' : 'Direction'}</label>
           <div className="seg">
-            <button className={t.direction === 'long' ? 'active' : ''} onClick={() => set('direction', 'long' as Direction)}>▲ {isOption ? 'Buy' : 'Buy'}</button>
+            <button className={t.direction === 'long' ? 'active' : ''} onClick={() => set('direction', 'long' as Direction)}>▲ Buy</button>
             <button className={t.direction === 'short' ? 'active' : ''} onClick={() => set('direction', 'short' as Direction)}>▼ Sell</button>
           </div>
         </div>
@@ -257,15 +256,15 @@ export function TradeForm({
           <h3 style={{ margin: '22px 0 12px' }}>Option contract</h3>
           <div className="form-grid">
             <div className="field">
-              <label>Option type</label>
+              <label>Call / Put</label>
               <div className="seg">
-                <button className={t.optionType === 'CE' ? 'active' : ''} onClick={() => set('optionType', 'CE')}>CE (Call)</button>
-                <button className={t.optionType === 'PE' ? 'active' : ''} onClick={() => set('optionType', 'PE')}>PE (Put)</button>
+                <button className={t.optionType === 'CE' ? 'active' : ''} onClick={() => set('optionType', 'CE')}>Call (CE)</button>
+                <button className={t.optionType === 'PE' ? 'active' : ''} onClick={() => set('optionType', 'PE')}>Put (PE)</button>
               </div>
             </div>
-            <div className="field"><label>Strike price</label><input className="input" type="number" step="any" value={t.strike ?? ''} onChange={(e) => setNum('strike', e.target.value)} placeholder="e.g. 25000" /></div>
+            <div className="field"><label>Strike price</label><NumberStepper value={t.strike} onChange={(v) => set('strike', v)} step={50} min={0} placeholder="e.g. 25000" /></div>
             <div className="field"><label>Expiry</label><input className="input" type="date" value={t.expiry ?? ''} onChange={(e) => set('expiry', e.target.value)} /></div>
-            <div className="field"><label>Lots</label><input className="input" type="number" step="any" value={t.lots ?? ''} onChange={(e) => setNum('lots', e.target.value)} placeholder="e.g. 2" /></div>
+            <div className="field"><label>Lots</label><NumberStepper value={t.lots} onChange={(v) => set('lots', v)} step={1} min={0} placeholder="e.g. 2" /></div>
           </div>
         </>
       )}
@@ -274,7 +273,7 @@ export function TradeForm({
           <h3 style={{ margin: '22px 0 12px' }}>Contract</h3>
           <div className="form-grid">
             <div className="field"><label>Expiry</label><input className="input" type="date" value={t.expiry ?? ''} onChange={(e) => set('expiry', e.target.value)} /></div>
-            <div className="field"><label>Lots</label><input className="input" type="number" step="any" value={t.lots ?? ''} onChange={(e) => setNum('lots', e.target.value)} placeholder="e.g. 1" /></div>
+            <div className="field"><label>Lots</label><NumberStepper value={t.lots} onChange={(v) => set('lots', v)} step={1} min={0} placeholder="e.g. 1" /></div>
           </div>
         </>
       )}

@@ -6,6 +6,7 @@ import { useToast } from '../components/Toast'
 import { Modal } from '../components/Modal'
 import { ACCOUNT_TYPES, ACCOUNT_COLORS, accountTypeLabel, accountMarket } from '../accounts'
 import { useAppMode } from '../mode'
+import { IndiaFlag } from '../components/Icons'
 import type { Settings, Trade, Account, AccountType } from '../types'
 import { format, subDays } from 'date-fns'
 import {
@@ -120,7 +121,7 @@ export default function SettingsPage() {
       {/* Accounts */}
       <div className="card" style={{ marginBottom: 16, maxWidth: 900 }}>
         <div className="row" style={{ justifyContent: 'space-between', marginBottom: 4 }}>
-          <h3 style={{ margin: 0 }}>{isIndia ? '🇮🇳 Indian trading accounts' : 'Trading accounts'}</h3>
+          <h3 style={{ margin: 0 }}>{isIndia ? <><IndiaFlag size={15} /> Indian trading accounts</> : 'Trading accounts'}</h3>
           <button className="btn primary sm" onClick={() => setEditing(null)}>＋ Add {isIndia ? 'Indian ' : ''}account</button>
         </div>
         <p className="muted" style={{ marginTop: 6, fontSize: 13 }}>
