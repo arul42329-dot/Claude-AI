@@ -72,7 +72,7 @@ function AppShell() {
           ))}
         </div>
         <div className="sidebar-footer">
-          <span className="dot-live" /> v1.3.5 · Local &amp; private
+          <span className="dot-live" /> v1.3.6 · Local &amp; private
           <br />
           Your data never leaves this device.
         </div>

@@ -785,13 +785,16 @@ tbody tr { transition: background 0.14s var(--ease); }
   color: var(--text-dim);
   display: flex; align-items: center; gap: 6px;
 }
-.mkt-card.hot { border-color: rgba(255, 107, 129, 0.45); }
-.mkt-card.hot:hover { border-color: rgba(255, 107, 129, 0.7); }
-.news-dot {
-  font-size: 11px;
-  line-height: 1;
-  filter: saturate(1.1);
-  animation: soonPulse 2.2s ease-in-out infinite;
+/* "Hot" = a high-impact news event today touches this pair. Amber accent (not
+   red — red reads as bearish) plus a clear text badge that renders on every
+   device (no emoji font dependency). */
+.mkt-card.hot { border-color: rgba(245, 167, 66, 0.45); }
+.mkt-card.hot:hover { border-color: rgba(245, 167, 66, 0.75); }
+.news-tag {
+  font-size: 9.5px; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase;
+  line-height: 1; padding: 3px 6px; border-radius: 6px;
+  color: #1a1205; background: #f5a742;
+  box-shadow: 0 0 10px -2px rgba(245, 167, 66, 0.7);
 }
 .mkt-hero-sym { display: inline-flex; align-items: center; gap: 8px; }
 .mkt-price {

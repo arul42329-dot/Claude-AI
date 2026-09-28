@@ -152,7 +152,7 @@ function MktCard({ q, hot, gold, onOpen }: { q: Quote; hot?: boolean; gold?: boo
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen?.() } }}>
       <div className="mkt-sym">
         {q.compact}
-        {hot && <span className="news-dot" title="High-impact news today">📰</span>}
+        {hot && <span className="news-tag" title="High-impact news today for this pair">News</span>}
         <span className="mkt-chev" aria-hidden="true">›</span>
       </div>
       <div className="mkt-price">{fmtPrice(q.price, q.decimals)}</div>

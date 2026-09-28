@@ -88,16 +88,45 @@ jobs:
           echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
           echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
 
-      - name: Build debug APK
+      - name: Compute version
+        id: ver
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            V="${GITHUB_REF_NAME#v}"
+          else
+            V=$(node -p "require('./package.json').version")
+          fi
+          echo "name=$V" >> "$GITHUB_OUTPUT"
+          echo "code=${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+          echo "Version name=$V  code=${{ github.run_number }}"
+
+      - name: Build release APK (unsigned)
         run: |
           cd android
           chmod +x ./gradlew
-          ./gradlew assembleDebug --no-daemon --stacktrace
+          ./gradlew assembleRelease --no-daemon --stacktrace \
+            -Pandroid.injected.version.code=${{ steps.ver.outputs.code }} \
+            -Pandroid.injected.version.name=${{ steps.ver.outputs.name }}
 
-      - name: Rename APK
+      - name: Sign APK with the stable release key
         run: |
+          set -e
+          # Pick the newest installed build-tools (contains zipalign & apksigner).
+          BT="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
+          echo "Using build-tools at: $BT"
+          UNSIGNED="$(ls android/app/build/outputs/apk/release/*.apk | head -1)"
+          echo "Unsigned APK: $UNSIGNED"
           mkdir -p output
-          cp android/app/build/outputs/apk/debug/app-debug.apk "output/Edgefolio.apk"
+          "$BT/zipalign" -f -p 4 "$UNSIGNED" output/aligned.apk
+          "$BT/apksigner" sign \
+            --ks signing/edgefolio-release.p12 \
+            --ks-pass pass:edgefolio \
+            --ks-key-alias edgefolio \
+            --out output/Edgefolio.apk \
+            output/aligned.apk
+          rm -f output/aligned.apk
+          echo "--- signer certificate (stable across versions) ---"
+          "$BT/apksigner" verify --print-certs output/Edgefolio.apk | head -8
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
