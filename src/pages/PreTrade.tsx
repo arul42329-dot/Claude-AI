@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { db, nextChecklistSerial } from '../db'
-import { useLiveQuery, instrumentsFor, defaultInstrument } from '../util'
+import { useLiveQuery, instrumentsFor, indiaInstruments, defaultInstrument, SEGMENTS, type Segment } from '../util'
 import type { ChecklistEntry, Direction } from '../types'
 import { Modal } from '../components/Modal'
 import { RiskCalculator } from '../components/RiskCalculator'
@@ -32,6 +32,7 @@ export default function PreTrade() {
       id: crypto.randomUUID(),
       serial,
       market: mode,
+      segment: mode === 'india' ? 'equity' : undefined,
       date: format(new Date(), 'yyyy-MM-dd'),
       time: format(new Date(), 'HH:mm'),
       pair: defaultInstrument(mode),
@@ -203,10 +204,18 @@ function PreTradeEditor({
           <label>Time</label>
           <input className="input" type="time" value={e.time ?? ''} onChange={(ev) => set('time', ev.target.value)} />
         </div>
+        {marketOf(e) === 'india' && (
+          <div className="field">
+            <label>Segment</label>
+            <select className="select" value={e.segment ?? 'equity'} onChange={(ev) => set('segment', ev.target.value as Segment)}>
+              {SEGMENTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+            </select>
+          </div>
+        )}
         <div className="field">
-          <label>{marketOf(e) === 'india' ? 'Index / Stock' : 'Pair / Instrument'}</label>
+          <label>{marketOf(e) === 'india' ? ((e.segment ?? 'equity') === 'commodity' ? 'Commodity' : 'Instrument / Underlying') : 'Pair / Instrument'}</label>
           <input className="input" list="pairs-pt" value={e.pair} onChange={(ev) => set('pair', ev.target.value.toUpperCase())} />
-          <datalist id="pairs-pt">{instrumentsFor(marketOf(e)).map((p) => <option key={p} value={p} />)}</datalist>
+          <datalist id="pairs-pt">{(marketOf(e) === 'india' ? indiaInstruments(e.segment ?? 'equity') : instrumentsFor('forex')).map((p) => <option key={p} value={p} />)}</datalist>
         </div>
         <div className="field">
           <label>Bias</label>
@@ -216,6 +225,20 @@ function PreTradeEditor({
           </div>
         </div>
       </div>
+
+      {marketOf(e) === 'india' && (e.segment ?? 'equity') === 'options' && (
+        <div className="form-grid" style={{ marginTop: 14 }}>
+          <div className="field">
+            <label>Option type</label>
+            <div className="seg">
+              <button className={e.optionType === 'CE' ? 'active' : ''} onClick={() => set('optionType', 'CE')}>CE (Call)</button>
+              <button className={e.optionType === 'PE' ? 'active' : ''} onClick={() => set('optionType', 'PE')}>PE (Put)</button>
+            </div>
+          </div>
+          <div className="field"><label>Strike</label><input className="input" type="number" step="any" value={e.strike ?? ''} onChange={(ev) => set('strike', ev.target.value === '' ? undefined : Number(ev.target.value))} placeholder="e.g. 25000" /></div>
+          <div className="field"><label>Expiry</label><input className="input" type="date" value={e.expiry ?? ''} onChange={(ev) => set('expiry', ev.target.value)} /></div>
+        </div>
+      )}
 
       <div className="field" style={{ margin: '18px 0' }}>
         <label>Which checklist are you running?</label>

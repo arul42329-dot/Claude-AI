@@ -12,6 +12,7 @@ export interface Account {
   id: string
   name: string
   type: AccountType
+  market?: 'forex' | 'india' // which app mode this account belongs to (absent = forex)
   startingBalance: number
   currency?: string // optional per-account override; defaults to global currency
   color?: string // accent colour used for chips/dots
@@ -68,6 +69,11 @@ export interface ChecklistEntry {
   pair: string
   direction?: Direction
   bias?: string
+  // India-mode instrument segment + option details (mirrors Trade).
+  segment?: 'equity' | 'futures' | 'options' | 'commodity'
+  optionType?: 'CE' | 'PE'
+  strike?: number
+  expiry?: string
   checklistId: string
   checklistName: string
   items: {
@@ -95,6 +101,13 @@ export interface Trade {
   direction: Direction
   session: Session
   strategy?: string
+
+  // India-mode instrument segment + option/derivative details.
+  segment?: 'equity' | 'futures' | 'options' | 'commodity'
+  optionType?: 'CE' | 'PE'
+  strike?: number
+  expiry?: string // yyyy-mm-dd
+  lots?: number
 
   entryPrice?: number
   exitPrice?: number
@@ -128,7 +141,8 @@ export interface Settings {
   id: string // always 'app'
   accountCurrency: string
   startingBalance: number
-  activeAccountId?: string // 'all' for the combined view, or an account id
+  activeAccountId?: string // forex active account: 'all' for the combined view, or an account id
+  activeAccountIdIndia?: string // India-mode active account (kept separate from forex)
   theme: 'dark' | 'light'
   accent?: string // accent theme key (e.g. 'gold', 'emerald', 'azure'…)
   monthlyProfitGoal?: number // target net profit for the month (currency)

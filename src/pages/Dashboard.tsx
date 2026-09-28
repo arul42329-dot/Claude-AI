@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { db } from '../db'
-import { useLiveQuery, fmtMoney, fmtNum, fmtPct } from '../util'
+import { useLiveQuery, fmtMoney, fmtNum, fmtPct, instrumentLabel } from '../util'
 import { useAppMode, marketOf } from '../mode'
 import { useAccountScope, scopeTrades } from '../accounts'
 import { computeStats, equityCurve, tradeDate } from '../stats'
@@ -142,7 +142,7 @@ export default function Dashboard() {
                 {recent.map((t) => (
                   <tr key={t.id} style={{ cursor: 'default' }}>
                     <td>{format(tradeDate(t), 'dd MMM yy')}</td>
-                    <td><strong>{t.pair}</strong></td>
+                    <td><strong>{instrumentLabel(t)}</strong></td>
                     <td><span className={t.direction === 'long' ? 'dir-buy' : 'dir-sell'}>{t.direction === 'long' ? '▲ Buy' : '▼ Sell'}</span></td>
                     <td><span className={'badge ' + t.outcome}>{t.outcome}</span></td>
                     <td style={{ textAlign: 'right' }} className={(t.pnl ?? 0) > 0 ? 'pos' : (t.pnl ?? 0) < 0 ? 'neg' : ''}>{t.pnl != null ? fmtMoney(t.pnl, currency) : '—'}</td>

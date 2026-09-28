@@ -58,6 +58,7 @@ export async function ensureAccounts(): Promise<void> {
       id: crypto.randomUUID(),
       name: 'Main',
       type: 'live',
+      market: 'forex',
       startingBalance: s.startingBalance ?? 10000,
       color: '#e8b458',
       createdAt: Date.now(),
@@ -87,6 +88,26 @@ export async function listAccounts(): Promise<Account[]> {
   return db.accounts.orderBy('createdAt').toArray()
 }
 
+// Ensure at least one account exists for the given market (mode). India and
+// forex keep entirely separate account lists. Called lazily when a mode is used.
+export async function ensureModeAccount(market: 'forex' | 'india'): Promise<void> {
+  const all = await db.accounts.toArray()
+  const has = all.some((a) => (a.market === 'india' ? 'india' : 'forex') === market)
+  if (has) return
+  const now = Date.now()
+  const acc: Account =
+    market === 'india'
+      ? {
+          id: crypto.randomUUID(), name: 'Main (India)', type: 'live', market: 'india',
+          startingBalance: 100000, currency: 'INR', color: '#ff8f2e', createdAt: now, updatedAt: now,
+        }
+      : {
+          id: crypto.randomUUID(), name: 'Main', type: 'live', market: 'forex',
+          startingBalance: 10000, color: '#e8b458', createdAt: now, updatedAt: now,
+        }
+  await db.accounts.add(acc)
+}
+
 export async function saveAccount(a: Account): Promise<void> {
   await db.accounts.put({ ...a, updatedAt: Date.now() })
 }
@@ -99,9 +120,10 @@ export async function deleteAccount(id: string): Promise<void> {
   })
 }
 
-export async function setActiveAccount(id: string): Promise<void> {
+export async function setActiveAccount(id: string, market: 'forex' | 'india' = 'forex'): Promise<void> {
   const s = await getSettings()
-  await saveSettings({ ...s, activeAccountId: id })
+  if (market === 'india') await saveSettings({ ...s, activeAccountIdIndia: id })
+  else await saveSettings({ ...s, activeAccountId: id })
 }
 
 // ---------- Serial numbers ----------
@@ -258,7 +280,8 @@ export async function tradesToCsv(): Promise<string> {
   const [trades, accounts] = await Promise.all([db.trades.toArray(), db.accounts.toArray()])
   const acctName = new Map(accounts.map((a) => [a.id, a.name]))
   const cols = [
-    'serial', 'date', 'time', 'market', 'account', 'pair', 'direction', 'session', 'strategy',
+    'serial', 'date', 'time', 'market', 'account', 'pair', 'segment', 'optionType', 'strike', 'expiry', 'lots',
+    'direction', 'session', 'strategy',
     'entryPrice', 'exitPrice', 'stopLoss', 'takeProfit', 'lotSize', 'riskPercent',
     'riskReward', 'outcome', 'pips', 'pnl', 'emotion', 'rating', 'checklistSerial', 'tags', 'notes',
   ]

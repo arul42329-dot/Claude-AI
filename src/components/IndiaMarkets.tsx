@@ -18,7 +18,7 @@ function timeAgo(ts: number) {
   return Math.round(m / 60) + 'h ago'
 }
 
-export function IndiaMarkets() {
+export function IndiaMarkets({ refreshSignal = 0 }: { refreshSignal?: number }) {
   const [snap, setSnap] = useState<IndiaSnapshot | null>(() => readCachedIndia())
   const [news, setNews] = useState<NewsSnapshot | null>(() => readCachedIndiaNews())
   const [loading, setLoading] = useState(false)
@@ -41,8 +41,8 @@ export function IndiaMarkets() {
 
   useEffect(() => {
     load()
-    const id = window.setInterval(load, 60000)
-    const tick = window.setInterval(() => force((n) => n + 1), 15000)
+    const id = window.setInterval(load, 5000) // live-ish auto refresh (~5s)
+    const tick = window.setInterval(() => force((n) => n + 1), 1000)
     const onWake = () => load()
     window.addEventListener('focus', onWake)
     window.addEventListener('online', onWake)
@@ -53,6 +53,9 @@ export function IndiaMarkets() {
       window.removeEventListener('online', onWake)
     }
   }, [load])
+
+  // Reload when the shared top Refresh button is pressed.
+  useEffect(() => { if (refreshSignal) load() }, [refreshSignal]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const quotes = snap?.quotes ?? []
   const status = useMemo(() => nseStatus(new Date()), [snap]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -67,12 +70,7 @@ export function IndiaMarkets() {
         <span className={'nse-status' + (status.open ? ' open' : '')}>
           <span className="live-dot" /> {status.label}
         </span>
-        <div className="row" style={{ gap: 10 }}>
-          {snap && <span className="muted" style={{ fontSize: 12 }}>Updated {timeAgo(snap.at)}</span>}
-          <button className="btn sm" onClick={load} disabled={loading}>
-            <span className={'refresh-ic' + (loading ? ' spin' : '')}>⟳</span> Refresh
-          </button>
-        </div>
+        {snap && <span className="muted" style={{ fontSize: 12 }}>Updated {timeAgo(snap.at)}</span>}
       </div>
 
       <EconomicCalendar />

@@ -35,6 +35,7 @@ export default function Markets() {
   const [, force] = useState(0)
   const [newsCur, setNewsCur] = useState<Set<string>>(new Set())
   const [selected, setSelected] = useState<Quote | null>(null)
+  const [refreshNonce, setRefreshNonce] = useState(0)
   const { mode } = useAppMode()
 
   useEffect(() => {
@@ -56,8 +57,8 @@ export default function Markets() {
 
   useEffect(() => {
     load()
-    const id = window.setInterval(load, 45000)
-    const tick = window.setInterval(() => force((n) => n + 1), 15000) // refresh "x ago"
+    const id = window.setInterval(load, 5000) // live-ish auto refresh (~5s)
+    const tick = window.setInterval(() => force((n) => n + 1), 1000) // refresh "x ago"
     const onWake = () => load()
     window.addEventListener('focus', onWake)
     window.addEventListener('online', onWake)
@@ -87,6 +88,11 @@ export default function Markets() {
     [selected, quotes],
   )
 
+  const refreshAll = useCallback(() => {
+    if (mode === 'forex') load()
+    setRefreshNonce((n) => n + 1)
+  }, [mode, load])
+
   return (
     <>
       <div className="page-head">
@@ -94,18 +100,16 @@ export default function Markets() {
           <h1>Markets</h1>
           <p>{mode === 'india' ? 'Indian indices · daily bias & news' : 'Live prices & day bias · XAU/USD priority'}</p>
         </div>
-        {mode === 'forex' && (
-          <div className="row" style={{ gap: 10 }}>
-            {snap && <span className="muted" style={{ fontSize: 12 }}>Updated {timeAgo(snap.at)}</span>}
-            <button className="btn sm" onClick={load} disabled={loading}>
-              <span className={'refresh-ic' + (loading ? ' spin' : '')}>⟳</span> Refresh
-            </button>
-          </div>
-        )}
+        <div className="row" style={{ gap: 10 }}>
+          {mode === 'forex' && snap && <span className="muted" style={{ fontSize: 12 }}>Updated {timeAgo(snap.at)}</span>}
+          <button className="btn sm" onClick={refreshAll} disabled={mode === 'forex' && loading}>
+            <span className={'refresh-ic' + (loading ? ' spin' : '')}>⟳</span> Refresh
+          </button>
+        </div>
       </div>
 
       {mode === 'india' ? (
-        <IndiaMarkets />
+        <IndiaMarkets refreshSignal={refreshNonce} />
       ) : (
       <>
       <SessionClock />

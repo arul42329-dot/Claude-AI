@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { setActiveAccount } from '../db'
 import { useAccountScope, accountTypeLabel } from '../accounts'
+import { useAppMode } from '../mode'
 import { fmtMoney } from '../util'
 
 export function AccountSwitcher() {
   const { accounts, activeId, account, currency } = useAccountScope()
+  const { mode } = useAppMode()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -22,7 +24,7 @@ export function AccountSwitcher() {
   const dot = isAll ? 'var(--accent)' : account!.color || 'var(--accent)'
 
   async function pick(id: string) {
-    await setActiveAccount(id)
+    await setActiveAccount(id, mode)
     setOpen(false)
   }
 

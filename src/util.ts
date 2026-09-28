@@ -45,16 +45,38 @@ export const CURRENCY_PAIRS = [
   'XAU/USD', 'XAG/USD', 'BTC/USD', 'ETH/USD', 'US30', 'NAS100', 'SPX500',
 ]
 
-// Indian-market instruments offered when the app is in India mode — the major
-// indices first, then widely-traded NSE large-caps.
-export const INDIA_INSTRUMENTS = [
-  'NIFTY 50', 'BANK NIFTY', 'FIN NIFTY', 'NIFTY MIDCAP 50', 'SENSEX',
+// Indian-market instruments, grouped by segment.
+export const INDIA_INDICES_LIST = ['NIFTY 50', 'BANK NIFTY', 'FIN NIFTY', 'NIFTY MIDCAP 50', 'SENSEX']
+export const INDIA_STOCKS = [
   'RELIANCE', 'HDFC BANK', 'ICICI BANK', 'SBIN', 'AXIS BANK', 'KOTAK BANK',
   'INFOSYS', 'TCS', 'HCL TECH', 'WIPRO', 'ITC', 'HINDUSTAN UNILEVER',
   'BAJAJ FINANCE', 'LARSEN & TOUBRO', 'BHARTI AIRTEL', 'MARUTI SUZUKI',
   'TATA MOTORS', 'TATA STEEL', 'ADANI ENTERPRISES', 'SUN PHARMA', 'TITAN',
   'ASIAN PAINTS', 'NTPC', 'POWER GRID', 'ONGC', 'COAL INDIA',
 ]
+// MCX commodities (logged as instruments; no free keyless live feed to price them).
+export const INDIA_COMMODITIES = [
+  'GOLD', 'GOLD MINI', 'SILVER', 'SILVER MINI', 'CRUDE OIL', 'NATURAL GAS',
+  'COPPER', 'ZINC', 'ALUMINIUM', 'LEAD', 'NICKEL', 'COTTON', 'MENTHA OIL',
+]
+
+export type Segment = 'equity' | 'futures' | 'options' | 'commodity'
+
+export const SEGMENTS: { value: Segment; label: string }[] = [
+  { value: 'equity', label: 'Equity / Index' },
+  { value: 'futures', label: 'Futures' },
+  { value: 'options', label: 'Options' },
+  { value: 'commodity', label: 'Commodity (MCX)' },
+]
+
+// Instruments to suggest for a given India segment.
+export function indiaInstruments(segment: Segment = 'equity'): string[] {
+  if (segment === 'commodity') return INDIA_COMMODITIES
+  return [...INDIA_INDICES_LIST, ...INDIA_STOCKS]
+}
+
+// Combined India list for generic/backward-compatible uses.
+export const INDIA_INSTRUMENTS = [...INDIA_INDICES_LIST, ...INDIA_STOCKS, ...INDIA_COMMODITIES]
 
 // The instrument list + sensible default for the given app mode.
 export function instrumentsFor(mode: 'forex' | 'india'): string[] {
@@ -62,6 +84,14 @@ export function instrumentsFor(mode: 'forex' | 'india'): string[] {
 }
 export function defaultInstrument(mode: 'forex' | 'india'): string {
   return mode === 'india' ? 'NIFTY 50' : 'EUR/USD'
+}
+
+// Display label for a trade/entry instrument — appends strike + CE/PE for options.
+export function instrumentLabel(t: { pair: string; segment?: string; optionType?: string; strike?: number }): string {
+  if (t.segment === 'options' && (t.strike != null || t.optionType)) {
+    return `${t.pair} ${t.strike ?? ''}${t.optionType ?? ''}`.trim()
+  }
+  return t.pair
 }
 
 export const SESSIONS: { value: string; label: string }[] = [

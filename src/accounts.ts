@@ -1,5 +1,6 @@
 import { db, getSettings } from './db'
 import { useLiveQuery } from './util'
+import { useAppMode } from './mode'
 import type { Account, AccountType, Trade } from './types'
 
 export const ACCOUNT_TYPES: { value: AccountType; label: string; short: string }[] = [
@@ -25,19 +26,27 @@ export function scopeTrades(trades: Trade[], activeId: string): Trade[] {
   return trades.filter((t) => t.accountId === activeId)
 }
 
-// Live view of accounts + the active-account scope (currency + starting balance).
+// Which market (app mode) an account belongs to (absent = forex).
+export function accountMarket(a: Account): 'forex' | 'india' {
+  return a.market === 'india' ? 'india' : 'forex'
+}
+
+// Live view of accounts + the active-account scope for the CURRENT app mode.
+// India and forex have fully separate account lists, active selection and
+// currency (India is always INR).
 export function useAccountScope() {
+  const { mode } = useAppMode()
   const accounts = useLiveQuery(() => db.accounts.orderBy('createdAt').toArray(), [], [])
   const settings = useLiveQuery(() => getSettings(), [], undefined)
-  const list = accounts ?? []
-  const activeId = settings?.activeAccountId ?? 'all'
+  const list = (accounts ?? []).filter((a) => accountMarket(a) === mode)
+  const activeId = (mode === 'india' ? settings?.activeAccountIdIndia : settings?.activeAccountId) ?? 'all'
   const account = list.find((a) => a.id === activeId)
-  const globalCurrency = settings?.accountCurrency ?? 'USD'
-  const currency = account?.currency || globalCurrency
+  const globalCurrency = mode === 'india' ? 'INR' : (settings?.accountCurrency ?? 'USD')
+  const currency = mode === 'india' ? 'INR' : (account?.currency || globalCurrency)
   const startingBalance =
     activeId === 'all'
       ? list.reduce((s, a) => s + (a.startingBalance || 0), 0)
-      : account?.startingBalance ?? settings?.startingBalance ?? 0
+      : account?.startingBalance ?? (mode === 'india' ? 0 : settings?.startingBalance ?? 0)
 
-  return { accounts: list, settings, activeId, account, currency, startingBalance, ready: !!settings }
+  return { accounts: list, settings, activeId, account, currency, startingBalance, mode, ready: !!settings }
 }

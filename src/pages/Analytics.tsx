@@ -66,6 +66,7 @@ export default function Analytics() {
   const byPair = useMemo(() => groupBy(scopedTrades, (t) => t.pair), [scopedTrades])
   const bySession = useMemo(() => groupBy(scopedTrades, (t) => t.session), [scopedTrades])
   const byStrategy = useMemo(() => groupBy(scopedTrades, (t) => t.strategy || 'Unspecified'), [scopedTrades])
+  const bySegment = useMemo(() => groupBy(scopedTrades, (t) => t.segment || 'equity'), [scopedTrades])
   const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
   const byWeekday = useMemo(() => groupBy(scopedTrades, (t) => WEEKDAYS[tradeDate(t).getDay()]), [scopedTrades])
 
@@ -203,8 +204,10 @@ export default function Analytics() {
           <PnlCalendar trades={all} currency={currency} />
 
           <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', marginBottom: 20 }}>
-            <BreakdownCard title="By pair" rows={byPair} currency={currency} />
-            <BreakdownCard title="By session" rows={bySession} currency={currency} />
+            <BreakdownCard title={mode === 'india' ? 'By instrument' : 'By pair'} rows={byPair} currency={currency} />
+            {mode === 'india'
+              ? <BreakdownCard title="By segment" rows={bySegment} currency={currency} />
+              : <BreakdownCard title="By session" rows={bySession} currency={currency} />}
             <BreakdownCard title="By strategy" rows={byStrategy} currency={currency} />
             <BreakdownCard title="By weekday" rows={byWeekday} currency={currency} />
           </div>

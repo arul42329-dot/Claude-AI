@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { db } from '../db'
-import { useLiveQuery, fmtMoney, fmtNum } from '../util'
+import { useLiveQuery, fmtMoney, fmtNum, instrumentLabel } from '../util'
 import { useAccountScope, scopeTrades } from '../accounts'
 import { useAppMode, marketOf } from '../mode'
 import type { Trade } from '../types'
@@ -121,7 +121,7 @@ export default function Trades() {
                       </td>
                     )}
                     <td>{format(tradeDate(t), 'dd MMM yy')}</td>
-                    <td><strong>{t.pair}</strong></td>
+                    <td><strong>{instrumentLabel(t)}</strong></td>
                     <td><span className={t.direction === 'long' ? 'dir-buy' : 'dir-sell'}>{t.direction === 'long' ? '▲' : '▼'}</span></td>
                     <td className="muted" style={{ textTransform: 'capitalize' }}>{t.session}</td>
                     <td className="muted">{t.strategy || '—'}</td>

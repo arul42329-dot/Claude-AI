@@ -4,7 +4,8 @@ import { useLiveQuery, downloadJson, fmtMoney } from '../util'
 import { ACCENTS, applyAccent } from '../theme'
 import { useToast } from '../components/Toast'
 import { Modal } from '../components/Modal'
-import { ACCOUNT_TYPES, ACCOUNT_COLORS, accountTypeLabel } from '../accounts'
+import { ACCOUNT_TYPES, ACCOUNT_COLORS, accountTypeLabel, accountMarket } from '../accounts'
+import { useAppMode } from '../mode'
 import type { Settings, Trade, Account, AccountType } from '../types'
 import { format, subDays } from 'date-fns'
 import {
@@ -17,7 +18,9 @@ const CURRENCIES = ['USD', 'EUR', 'GBP', 'JPY', 'INR', 'AUD', 'CAD', 'CHF', 'NZD
 
 export default function SettingsPage() {
   const settings = useLiveQuery(() => getSettings(), [], undefined)
-  const accounts = useLiveQuery(() => db.accounts.orderBy('createdAt').toArray(), [], [])
+  const allAccounts = useLiveQuery(() => db.accounts.orderBy('createdAt').toArray(), [], [])
+  const { mode, isIndia } = useAppMode()
+  const accounts = (allAccounts ?? []).filter((a) => accountMarket(a) === mode)
   const [form, setForm] = useState<Settings | null>(null)
   const loadedRef = useRef(false)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -117,12 +120,13 @@ export default function SettingsPage() {
       {/* Accounts */}
       <div className="card" style={{ marginBottom: 16, maxWidth: 900 }}>
         <div className="row" style={{ justifyContent: 'space-between', marginBottom: 4 }}>
-          <h3 style={{ margin: 0 }}>Trading accounts</h3>
-          <button className="btn primary sm" onClick={() => setEditing(null)}>＋ Add account</button>
+          <h3 style={{ margin: 0 }}>{isIndia ? '🇮🇳 Indian trading accounts' : 'Trading accounts'}</h3>
+          <button className="btn primary sm" onClick={() => setEditing(null)}>＋ Add {isIndia ? 'Indian ' : ''}account</button>
         </div>
         <p className="muted" style={{ marginTop: 6, fontSize: 13 }}>
-          Journal each account separately — e.g. your prop-firm evaluation phases, funded account and live account.
-          Switch between them (or view all combined) using the selector in the sidebar.
+          {isIndia
+            ? 'Indian accounts are journalled separately from your forex accounts and are always in ₹ INR. Switch between them (or view all combined) using the selector in the sidebar.'
+            : 'Journal each account separately — e.g. your prop-firm evaluation phases, funded account and live account. Switch between them (or view all combined) using the selector in the sidebar.'}
         </p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 }}>
           {(accounts ?? []).map((a) => (
@@ -236,7 +240,8 @@ export default function SettingsPage() {
       {editing !== undefined && (
         <AccountEditor
           initial={editing ?? undefined}
-          globalCurrency={form.accountCurrency}
+          market={mode}
+          globalCurrency={isIndia ? 'INR' : form.accountCurrency}
           onClose={() => setEditing(undefined)}
           onSaved={() => { setEditing(undefined); toast('Account saved') }}
         />
@@ -437,20 +442,24 @@ function DriveBackup() {
 
 function AccountEditor({
   initial,
+  market,
   globalCurrency,
   onClose,
   onSaved,
 }: {
   initial?: Account
+  market: 'forex' | 'india'
   globalCurrency: string
   onClose: () => void
   onSaved: () => void
 }) {
+  const acctMarket = initial ? (initial.market === 'india' ? 'india' : 'forex') : market
+  const isIndia = acctMarket === 'india'
   const [name, setName] = useState(initial?.name ?? '')
-  const [type, setType] = useState<AccountType>(initial?.type ?? 'evaluation')
+  const [type, setType] = useState<AccountType>(initial?.type ?? (isIndia ? 'live' : 'evaluation'))
   const [balanceStr, setBalanceStr] = useState(initial ? String(initial.startingBalance) : '')
-  const [currency, setCurrency] = useState(initial?.currency ?? '')
-  const [color, setColor] = useState(initial?.color ?? ACCOUNT_COLORS[0])
+  const [currency, setCurrency] = useState(initial?.currency ?? (isIndia ? 'INR' : ''))
+  const [color, setColor] = useState(initial?.color ?? (isIndia ? '#ff8f2e' : ACCOUNT_COLORS[0]))
   const [targetStr, setTargetStr] = useState(initial?.profitTarget != null ? String(initial.profitTarget) : '')
   const [archived, setArchived] = useState(!!initial?.archived)
 
@@ -460,8 +469,9 @@ function AccountEditor({
       id: initial?.id ?? crypto.randomUUID(),
       name: name.trim(),
       type,
+      market: acctMarket,
       startingBalance: Number(balanceStr) || 0,
-      currency: currency || undefined,
+      currency: isIndia ? 'INR' : (currency || undefined),
       color,
       profitTarget: targetStr ? Number(targetStr) : undefined,
       archived,
@@ -474,7 +484,7 @@ function AccountEditor({
 
   return (
     <Modal
-      title={initial ? 'Edit account' : 'New account'}
+      title={initial ? 'Edit account' : (isIndia ? 'New Indian account (₹ INR)' : 'New account')}
       onClose={onClose}
       footer={
         <>
@@ -500,10 +510,14 @@ function AccountEditor({
         </div>
         <div className="field">
           <label>Currency</label>
-          <select className="select" value={currency} onChange={(e) => setCurrency(e.target.value)}>
-            <option value="">Use display currency ({globalCurrency})</option>
-            {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
+          {isIndia ? (
+            <input className="input" value="₹ INR (fixed)" readOnly style={{ background: 'var(--bg-2)', cursor: 'default' }} />
+          ) : (
+            <select className="select" value={currency} onChange={(e) => setCurrency(e.target.value)}>
+              <option value="">Use display currency ({globalCurrency})</option>
+              {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          )}
         </div>
         <div className="field">
           <label>Profit target (optional)</label>

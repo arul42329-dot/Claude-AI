@@ -6,7 +6,7 @@ import { useAppMode, marketOf, type AppMode } from '../mode'
 import type { Trade, Direction, Outcome, Session } from '../types'
 import { Modal } from './Modal'
 import { useToast } from './Toast'
-import { SESSIONS, instrumentsFor, defaultInstrument } from '../util'
+import { SESSIONS, SEGMENTS, instrumentsFor, indiaInstruments, defaultInstrument, type Segment } from '../util'
 import { format } from 'date-fns'
 
 function emptyTrade(mode: AppMode = 'forex'): Trade {
@@ -18,6 +18,7 @@ function emptyTrade(mode: AppMode = 'forex'): Trade {
     pair: defaultInstrument(mode),
     direction: 'long',
     session: mode === 'india' ? 'other' : 'london',
+    segment: mode === 'india' ? 'equity' : undefined,
     strategy: '',
     outcome: 'open',
     checklists: [],
@@ -45,6 +46,10 @@ export function TradeForm({
 
   // Only link pre-trade checks from the same mode (India ⟷ India, forex ⟷ forex).
   const tradeMarket = marketOf(t)
+  const isIndia = tradeMarket === 'india'
+  const seg: Segment = t.segment ?? 'equity'
+  const isOption = isIndia && seg === 'options'
+  const instrumentList = isIndia ? indiaInstruments(seg) : instrumentsFor('forex')
   const entries = (allEntries ?? []).filter((e) => marketOf(e) === tradeMarket)
 
   // Default a new trade to the account currently in view (or the first account).
@@ -210,40 +215,78 @@ export function TradeForm({
           <label>Time</label>
           <input className="input" type="time" value={t.time ?? ''} onChange={(e) => set('time', e.target.value)} />
         </div>
+        {isIndia && (
+          <div className="field">
+            <label>Segment</label>
+            <select className="select" value={seg} onChange={(e) => set('segment', e.target.value as Segment)}>
+              {SEGMENTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+            </select>
+          </div>
+        )}
         <div className="field">
-          <label>{tradeMarket === 'india' ? 'Index / Stock' : 'Pair / Instrument'}</label>
+          <label>{isIndia ? (seg === 'commodity' ? 'Commodity' : seg === 'options' || seg === 'futures' ? 'Underlying' : 'Index / Stock') : 'Pair / Instrument'}</label>
           <input className="input" list="pairs" value={t.pair} onChange={(e) => set('pair', e.target.value.toUpperCase())} />
           <datalist id="pairs">
-            {instrumentsFor(tradeMarket).map((p) => <option key={p} value={p} />)}
+            {instrumentList.map((p) => <option key={p} value={p} />)}
           </datalist>
         </div>
         <div className="field">
           <label>Direction</label>
           <div className="seg">
-            <button className={t.direction === 'long' ? 'active' : ''} onClick={() => set('direction', 'long' as Direction)}>▲ Buy</button>
+            <button className={t.direction === 'long' ? 'active' : ''} onClick={() => set('direction', 'long' as Direction)}>▲ {isOption ? 'Buy' : 'Buy'}</button>
             <button className={t.direction === 'short' ? 'active' : ''} onClick={() => set('direction', 'short' as Direction)}>▼ Sell</button>
           </div>
         </div>
-        <div className="field">
-          <label>Session</label>
-          <select className="select" value={t.session} onChange={(e) => set('session', e.target.value as Session)}>
-            {SESSIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-          </select>
-        </div>
+        {!isIndia && (
+          <div className="field">
+            <label>Session</label>
+            <select className="select" value={t.session} onChange={(e) => set('session', e.target.value as Session)}>
+              {SESSIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+            </select>
+          </div>
+        )}
         <div className="field">
           <label>Strategy / Setup</label>
           <input className="input" value={t.strategy ?? ''} onChange={(e) => set('strategy', e.target.value)} placeholder="e.g. Breakout, OB retest" />
         </div>
       </div>
 
+      {/* Option contract details (India options only) */}
+      {isOption && (
+        <>
+          <h3 style={{ margin: '22px 0 12px' }}>Option contract</h3>
+          <div className="form-grid">
+            <div className="field">
+              <label>Option type</label>
+              <div className="seg">
+                <button className={t.optionType === 'CE' ? 'active' : ''} onClick={() => set('optionType', 'CE')}>CE (Call)</button>
+                <button className={t.optionType === 'PE' ? 'active' : ''} onClick={() => set('optionType', 'PE')}>PE (Put)</button>
+              </div>
+            </div>
+            <div className="field"><label>Strike price</label><input className="input" type="number" step="any" value={t.strike ?? ''} onChange={(e) => setNum('strike', e.target.value)} placeholder="e.g. 25000" /></div>
+            <div className="field"><label>Expiry</label><input className="input" type="date" value={t.expiry ?? ''} onChange={(e) => set('expiry', e.target.value)} /></div>
+            <div className="field"><label>Lots</label><input className="input" type="number" step="any" value={t.lots ?? ''} onChange={(e) => setNum('lots', e.target.value)} placeholder="e.g. 2" /></div>
+          </div>
+        </>
+      )}
+      {isIndia && (seg === 'futures' || seg === 'commodity') && (
+        <>
+          <h3 style={{ margin: '22px 0 12px' }}>Contract</h3>
+          <div className="form-grid">
+            <div className="field"><label>Expiry</label><input className="input" type="date" value={t.expiry ?? ''} onChange={(e) => set('expiry', e.target.value)} /></div>
+            <div className="field"><label>Lots</label><input className="input" type="number" step="any" value={t.lots ?? ''} onChange={(e) => setNum('lots', e.target.value)} placeholder="e.g. 1" /></div>
+          </div>
+        </>
+      )}
+
       {/* Prices */}
       <h3 style={{ margin: '22px 0 12px' }}>Prices &amp; risk</h3>
       <div className="form-grid">
-        <div className="field"><label>Entry price</label><input className="input" type="number" step="any" value={t.entryPrice ?? ''} onChange={(e) => setNum('entryPrice', e.target.value)} /></div>
-        <div className="field"><label>Exit price</label><input className="input" type="number" step="any" value={t.exitPrice ?? ''} onChange={(e) => setNum('exitPrice', e.target.value)} /></div>
+        <div className="field"><label>{isOption ? 'Entry premium' : 'Entry price'}</label><input className="input" type="number" step="any" value={t.entryPrice ?? ''} onChange={(e) => setNum('entryPrice', e.target.value)} /></div>
+        <div className="field"><label>{isOption ? 'Exit premium' : 'Exit price'}</label><input className="input" type="number" step="any" value={t.exitPrice ?? ''} onChange={(e) => setNum('exitPrice', e.target.value)} /></div>
         <div className="field"><label>Stop loss</label><input className="input" type="number" step="any" value={t.stopLoss ?? ''} onChange={(e) => setNum('stopLoss', e.target.value)} /></div>
         <div className="field"><label>Take profit</label><input className="input" type="number" step="any" value={t.takeProfit ?? ''} onChange={(e) => setNum('takeProfit', e.target.value)} /></div>
-        <div className="field"><label>Lot size</label><input className="input" type="number" step="any" value={t.lotSize ?? ''} onChange={(e) => setNum('lotSize', e.target.value)} /></div>
+        {!isIndia && <div className="field"><label>Lot size</label><input className="input" type="number" step="any" value={t.lotSize ?? ''} onChange={(e) => setNum('lotSize', e.target.value)} /></div>}
         <div className="field"><label>Risk %</label><input className="input" type="number" step="any" value={t.riskPercent ?? ''} onChange={(e) => setNum('riskPercent', e.target.value)} /></div>
         <div className="field">
           <label>Risk : Reward (auto)</label>
@@ -271,8 +314,8 @@ export function TradeForm({
             <option value="breakeven">Breakeven</option>
           </select>
         </div>
-        <div className="field"><label>P/L (account currency)</label><input className="input" type="number" step="any" value={t.pnl ?? ''} onChange={(e) => setNum('pnl', e.target.value)} placeholder="e.g. 125 or -80" /></div>
-        <div className="field"><label>Pips</label><input className="input" type="number" step="any" value={t.pips ?? ''} onChange={(e) => setNum('pips', e.target.value)} /></div>
+        <div className="field"><label>P/L ({isIndia ? '₹ INR' : 'account currency'})</label><input className="input" type="number" step="any" value={t.pnl ?? ''} onChange={(e) => setNum('pnl', e.target.value)} placeholder="e.g. 125 or -80" /></div>
+        {!isIndia && <div className="field"><label>Pips</label><input className="input" type="number" step="any" value={t.pips ?? ''} onChange={(e) => setNum('pips', e.target.value)} /></div>}
         <div className="field">
           <label>Execution rating</label>
           <select className="select" value={t.rating ?? ''} onChange={(e) => setNum('rating', e.target.value)}>

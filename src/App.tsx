@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import { maybeDailyBackup } from './drive'
-import { getSettings } from './db'
+import { getSettings, ensureModeAccount } from './db'
 import { useLiveQuery } from './util'
 import { AppModeProvider, useAppMode } from './mode'
 import { ToastProvider } from './components/Toast'
@@ -39,12 +39,14 @@ const NAV = [
 
 function AppShell() {
   const location = useLocation()
-  const { isIndia } = useAppMode()
+  const { mode, isIndia } = useAppMode()
   // Auto-backup to Google Drive once per day, on app open (best-effort, silent).
   useEffect(() => {
     const t = window.setTimeout(() => { maybeDailyBackup() }, 2500)
     return () => window.clearTimeout(t)
   }, [])
+  // Make sure the current mode has at least one account to journal under.
+  useEffect(() => { ensureModeAccount(mode) }, [mode])
   return (
     <div className="app">
       <div className="aurora" aria-hidden="true">
@@ -76,7 +78,7 @@ function AppShell() {
           ))}
         </div>
         <div className="sidebar-footer">
-          <span className="dot-live" /> v1.3.8 · Local &amp; private
+          <span className="dot-live" /> v1.3.9 · Local &amp; private
           <br />
           Your data never leaves this device.
         </div>
