@@ -37,9 +37,16 @@ export const INDIA_INDICES: IndexDef[] = [
 const arrow = (v: BiasVote['value']) => (v > 0 ? '↑' : v < 0 ? '↓' : '–')
 
 async function fetchIndex(def: IndexDef): Promise<IndiaQuote> {
-  const r = await fetch(yfChartUrl(def.ySymbol, '1y'))
-  if (!r.ok) throw new Error('india ' + def.ySymbol)
-  const j = await r.json()
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), 12000)
+  let j: any
+  try {
+    const r = await fetch(yfChartUrl(def.ySymbol, '1y'), { signal: ctrl.signal })
+    if (!r.ok) throw new Error('india ' + def.ySymbol)
+    j = await r.json()
+  } finally {
+    clearTimeout(timer)
+  }
   const res = j?.chart?.result?.[0]
   if (!res?.meta) throw new Error('india-empty ' + def.ySymbol)
   const meta = res.meta
@@ -91,58 +98,14 @@ export async function fetchIndia(): Promise<IndiaSnapshot> {
   const quotes: IndiaQuote[] = []
   for (const r of results) if (r.status === 'fulfilled') quotes.push(r.value)
   if (quotes.length === 0) {
-    // DEV-only: the sandbox/browser preview can't reach Yahoo — synthesize data so
-    // the India mode is demonstrable. Compiled out of production builds.
-    if (import.meta.env.DEV) {
-      const snap: IndiaSnapshot = { quotes: devDemoQuotes(), at: Date.now(), partial: false }
-      try { localStorage.setItem(CACHE_KEY, JSON.stringify(snap)) } catch { /* ignore */ }
-      return snap
-    }
+    // Keep showing the last good values rather than wiping the screen on a hiccup.
+    const cached = readCachedIndia()
+    if (cached?.quotes?.length) return cached
     throw new Error('No India market data available')
   }
   const snap: IndiaSnapshot = { quotes, at: Date.now(), partial: quotes.length < INDIA_INDICES.length }
   try { localStorage.setItem(CACHE_KEY, JSON.stringify(snap)) } catch { /* ignore */ }
   return snap
-}
-
-// --- DEV demo data (not used in production) ---
-const DEMO_BASE: Record<string, number> = {
-  'NIFTY 50': 24500, 'BANK NIFTY': 52000, 'FIN NIFTY': 24600, 'NIFTY MIDCAP 50': 17200, 'SENSEX': 80500,
-}
-function devDemoCandles(seedStr: string, base: number): Candle[] {
-  let seed = 0
-  for (let i = 0; i < seedStr.length; i++) seed = (seed * 31 + seedStr.charCodeAt(i)) >>> 0
-  const rand = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 0xffffffff }
-  const dir = [1, -1, 0][Math.floor(rand() * 3)]
-  const n = 300
-  const slope = dir * base * 0.0006
-  const out: Candle[] = []
-  let c = base
-  const now = Date.now()
-  for (let i = 0; i < n; i++) {
-    const wave = Math.sin(i * 0.5) * base * 0.01 + Math.sin(i * 0.13) * base * 0.02
-    const o = c
-    c = base + slope * i + wave + (rand() - 0.5) * base * 0.004
-    const span = base * (0.003 + rand() * 0.006)
-    out.push({ t: now - (n - i) * 86400000, o, h: Math.max(o, c) + span, l: Math.min(o, c) - span, c })
-  }
-  return out
-}
-function devDemoQuotes(): IndiaQuote[] {
-  return INDIA_INDICES.map((def) => {
-    const candles = devDemoCandles(def.symbol, DEMO_BASE[def.symbol] ?? 20000)
-    const detail = computeBias(candles)
-    const price = candles[candles.length - 1].c
-    const prev = candles[candles.length - 2].c
-    return {
-      symbol: def.symbol, ySymbol: def.ySymbol, decimals: def.decimals,
-      price, changePct: prev ? ((price - prev) / prev) * 100 : 0,
-      bias: detail?.label ?? 'Neutral', score: detail?.score, biasDetail: detail ?? undefined,
-      biasVotes: detail
-        ? [`Daily bias: ${detail.label} (score ${detail.score >= 0 ? '+' : ''}${detail.score})`, ...detail.votes.map((v) => `${arrow(v.value)} ${v.name} — ${v.detail}`)]
-        : undefined,
-    }
-  })
 }
 
 // NSE regular session status in IST (Mon–Fri, 09:15–15:30). Purely informational.

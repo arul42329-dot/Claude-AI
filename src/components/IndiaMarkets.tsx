@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { fetchIndia, readCachedIndia, nseStatus, type IndiaQuote, type IndiaSnapshot } from '../india'
-import { fetchIndiaNews, readCachedIndiaNews, devDemoNews, type NewsSnapshot } from '../indiaNews'
+import { fetchIndiaNews, readCachedIndiaNews, type NewsSnapshot } from '../indiaNews'
 import { EconomicCalendar } from './EconomicCalendar'
 import { BiasPanel } from './BiasPanel'
 
@@ -41,13 +41,15 @@ export function IndiaMarkets({ refreshSignal = 0 }: { refreshSignal?: number }) 
   }, [])
 
   const loadNews = useCallback(() => {
-    fetchIndiaNews().then(setNews).catch(() => { if (import.meta.env.DEV) setNews(devDemoNews()) })
+    fetchIndiaNews().then(setNews).catch(() => { /* keep last cached news */ })
   }, [])
 
   useEffect(() => {
     load()
     loadNews()
-    const id = window.setInterval(load, 5000) // live-ish price auto refresh (~5s)
+    // Index quotes go through a public CORS proxy in the browser, so refresh at a
+    // proxy-friendly ~12s (the APK hits Yahoo directly and could go faster).
+    const id = window.setInterval(load, 12000)
     const newsId = window.setInterval(loadNews, 180000) // news every 3 min
     const tick = window.setInterval(() => force((n) => n + 1), 1000)
     const onWake = () => { load(); loadNews() }

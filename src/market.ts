@@ -106,7 +106,9 @@ async function fetchFx(): Promise<Quote[]> {
   const end = new Date()
   const start = new Date(end.getTime() - 10 * 86400000)
   const fmt = (d: Date) => d.toISOString().slice(0, 10)
-  const url = `https://api.frankfurter.app/${fmt(start)}..${fmt(end)}?base=USD&symbols=${FX_SYMBOLS.join(',')}`
+  // frankfurter.app now 301-redirects to api.frankfurter.dev/v1 — the redirect
+  // breaks the browser fetch (FX pairs vanish), so call the new endpoint directly.
+  const url = `https://api.frankfurter.dev/v1/${fmt(start)}..${fmt(end)}?base=USD&symbols=${FX_SYMBOLS.join(',')}`
   const r = await fetch(url)
   if (!r.ok) throw new Error('fx')
   const j = await r.json()
