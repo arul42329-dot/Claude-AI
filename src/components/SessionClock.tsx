@@ -37,13 +37,6 @@ function nowHoursInTz(date: Date, timeZone: string): number {
   const m = tzParts(date, timeZone)
   return m.hour + m.minute / 60 + m.second / 3600
 }
-// Timezone's UTC offset in whole hours at this moment (e.g. +1 for BST, -4 for EDT).
-function tzOffsetHours(date: Date, timeZone: string): number {
-  const m = tzParts(date, timeZone)
-  const asUTC = Date.UTC(m.year, m.month - 1, m.day, m.hour, m.minute, m.second)
-  return Math.round((asUTC - date.getTime()) / 3600000)
-}
-
 function inWindow(h: number, w: Zone): boolean {
   return w.start <= w.end ? h >= w.start && h < w.end : h >= w.start || h < w.end
 }
@@ -59,7 +52,6 @@ function fmtCountdown(hoursFloat: number): string {
   const mm = total % 60
   return `${hh}h ${String(mm).padStart(2, '0')}m`
 }
-const pad = (n: number) => String(((n % 24) + 24) % 24).padStart(2, '0')
 
 export function SessionClock() {
   const [now, setNow] = useState(() => new Date())
@@ -72,49 +64,35 @@ export function SessionClock() {
   const localTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   const utcTime = now.toUTCString().slice(17, 22)
 
+  // Which major FX session(s) are open right now.
+  const openSessions = SESSIONS.filter((s) => inWindow(nowHoursInTz(now, s.tz), s))
+  // Next session to open (soonest), for the countdown when nothing is open.
+  const next = SESSIONS
+    .map((s) => ({ s, until: hoursUntilOpen(nowHoursInTz(now, s.tz), s) }))
+    .filter((x) => x.until > 0)
+    .sort((a, b) => a.until - b.until)[0]
+
   return (
-    <div className="card session-clock" style={{ marginBottom: 20 }}>
-      <div className="row" style={{ justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 12 }}>
-        <h3 style={{ margin: 0 }}>⏰ Sessions &amp; Killzones</h3>
+    <div className="card session-clock compact" style={{ marginBottom: 20 }}>
+      <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <div className="sess-now">
+          {openSessions.length > 0 ? (
+            <>
+              <span className="live-dot" />
+              <strong>{openSessions.map((s) => s.name).join(' + ')}</strong>
+              <span className="sess-open-tag">session open</span>
+            </>
+          ) : (
+            <>
+              <span className="live-dot off" />
+              <span className="muted">Markets quiet</span>
+              {next && <span className="sess-next">· {next.s.name} opens in {fmtCountdown(next.until)}</span>}
+            </>
+          )}
+          {activeKz && <span className="kz-inline">· {activeKz.name}</span>}
+        </div>
         <span className="muted" style={{ fontSize: 12.5 }}>Local {localTime} · {utcTime} UTC</span>
       </div>
-
-      {activeKz ? (
-        <div className="kz-active"><span className="live-dot" /> In session: <strong>{activeKz.name}</strong></div>
-      ) : (
-        <div className="kz-active off">No active killzone right now</div>
-      )}
-
-      <div className="sess-grid">
-        {SESSIONS.map((s) => {
-          const h = nowHoursInTz(now, s.tz)
-          const open = inWindow(h, s)
-          const until = hoursUntilOpen(h, s)
-          return (
-            <div key={s.name} className={'sess-pill' + (open ? ' open' : '')}>
-              <span className="sess-name">{s.name}</span>
-              <span className={'sess-state' + (open ? ' on' : '')}>
-                {open ? 'OPEN' : `in ${fmtCountdown(until)}`}
-              </span>
-            </div>
-          )
-        })}
-      </div>
-
-      <div className="kz-list">
-        {KILLZONES.map((k) => {
-          const active = inWindow(nowHoursInTz(now, k.tz), k)
-          const off = tzOffsetHours(now, k.tz)
-          const utcStart = k.start - off
-          const utcEnd = k.end - off
-          return (
-            <span key={k.name} className={'kz-chip' + (active ? ' on' : '')}>
-              {k.name} · {pad(utcStart)}–{pad(utcEnd)} UTC
-            </span>
-          )
-        })}
-      </div>
-      <p className="muted" style={{ fontSize: 11, marginTop: 10 }}>Windows auto-adjust for daylight-saving (Sydney · London · New York).</p>
     </div>
   )
 }

@@ -2,13 +2,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { fetchEcon, getEcon, readCachedEcon, type EconEvent, type EconSnapshot, type Impact } from '../econ'
 import { db } from '../db'
 import { useLiveQuery } from '../util'
-import { format, isToday, isTomorrow } from 'date-fns'
+import { format, isToday, isTomorrow, isYesterday, startOfWeek } from 'date-fns'
 
 const IMPACT_RANK: Record<Impact, number> = { High: 3, Medium: 2, Low: 1, Holiday: 0 }
 
 function dayLabel(d: Date): string {
   if (isToday(d)) return 'Today'
   if (isTomorrow(d)) return 'Tomorrow'
+  if (isYesterday(d)) return 'Yesterday'
   return format(d, 'EEEE, d MMM')
 }
 function timeAgo(ts: number): string {
@@ -18,18 +19,19 @@ function timeAgo(ts: number): string {
   return Math.round(m / 60) + 'h ago'
 }
 
-export function EconomicCalendar() {
+export function EconomicCalendar({ title = '📅 Economic Calendar', lockCurrency }: { title?: string; lockCurrency?: string } = {}) {
   const [snap, setSnap] = useState<EconSnapshot | null>(() => readCachedEcon())
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [impact, setImpact] = useState<'all' | 'medium' | 'high'>('medium')
+  const [impact, setImpact] = useState<'all' | 'medium' | 'high'>(lockCurrency ? 'all' : 'medium')
   const [cur, setCur] = useState('all')
   const [myPairs, setMyPairs] = useState(false)
   const [showAll, setShowAll] = useState(false)
+  const [view, setView] = useState<'upcoming' | 'previous'>('upcoming')
   const [now, setNow] = useState(() => Date.now())
 
   // Collapse back to a single day whenever the filter/tab changes.
-  useEffect(() => { setShowAll(false) }, [impact, cur, myPairs])
+  useEffect(() => { setShowAll(false) }, [impact, cur, myPairs, view])
 
   const trades = useLiveQuery(() => db.trades.toArray(), [], [])
   const tradedCurrencies = useMemo(() => {
@@ -57,18 +59,26 @@ export function EconomicCalendar() {
   const events = snap?.events ?? []
   const currencies = useMemo(() => Array.from(new Set(events.map((e) => e.country).filter(Boolean))).sort(), [events])
 
+  const activeCur = lockCurrency ?? cur
+
   const filtered = useMemo(() => {
-    // Only show events that haven't finished yet. Keep an event for ~10 min after
-    // its scheduled time (so a just-released number lingers briefly), then drop it.
-    const cutoff = now - 10 * 60 * 1000
     const min = impact === 'high' ? 3 : impact === 'medium' ? 2 : 1
-    return events.filter((e) =>
-      e.time >= cutoff &&
+    const base = events.filter((e) =>
       IMPACT_RANK[e.impact] >= min &&
-      (cur === 'all' || e.country === cur) &&
+      (activeCur === 'all' || e.country === activeCur) &&
       (!myPairs || tradedCurrencies.has(e.country)),
     )
-  }, [events, impact, cur, myPairs, tradedCurrencies, now])
+    if (view === 'previous') {
+      // Past events from the start of this week up to now, newest first.
+      const weekStart = startOfWeek(new Date(now), { weekStartsOn: 1 }).getTime()
+      return base
+        .filter((e) => e.time < now && e.time >= weekStart)
+        .sort((a, b) => b.time - a.time)
+    }
+    // Upcoming: only events that haven't finished (10-min grace after start).
+    const cutoff = now - 10 * 60 * 1000
+    return base.filter((e) => e.time >= cutoff)
+  }, [events, impact, activeCur, myPairs, tradedCurrencies, now, view])
 
   const groups = useMemo(() => {
     const m = new Map<string, EconEvent[]>()
@@ -89,7 +99,7 @@ export function EconomicCalendar() {
   return (
     <div className="card" style={{ marginBottom: 20 }}>
       <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-        <h3 style={{ margin: 0 }}>📅 Economic Calendar</h3>
+        <h3 style={{ margin: 0 }}>{title}</h3>
         <div className="row" style={{ gap: 10 }}>
           {snap && <span className="muted" style={{ fontSize: 12 }}>Updated {timeAgo(snap.at)}</span>}
           <button className="btn sm" onClick={() => load(true)} disabled={loading}>
@@ -100,15 +110,21 @@ export function EconomicCalendar() {
 
       <div className="toolbar" style={{ marginBottom: 14 }}>
         <div className="seg">
+          <button className={view === 'upcoming' ? 'active' : ''} onClick={() => setView('upcoming')}>Upcoming</button>
+          <button className={view === 'previous' ? 'active' : ''} onClick={() => setView('previous')}>Previous</button>
+        </div>
+        <div className="seg">
           <button className={impact === 'high' ? 'active' : ''} onClick={() => setImpact('high')}>High</button>
           <button className={impact === 'medium' ? 'active' : ''} onClick={() => setImpact('medium')}>Med+</button>
           <button className={impact === 'all' ? 'active' : ''} onClick={() => setImpact('all')}>All</button>
         </div>
-        <select className="select" value={cur} onChange={(e) => setCur(e.target.value)} style={{ maxWidth: 130 }}>
-          <option value="all">All currencies</option>
-          {currencies.map((c) => <option key={c} value={c}>{c}</option>)}
-        </select>
-        {tradedCurrencies.size > 0 && (
+        {!lockCurrency && (
+          <select className="select" value={cur} onChange={(e) => setCur(e.target.value)} style={{ maxWidth: 130 }}>
+            <option value="all">All currencies</option>
+            {currencies.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+        )}
+        {!lockCurrency && tradedCurrencies.size > 0 && (
           <button className={'btn sm' + (myPairs ? ' primary' : '')} onClick={() => setMyPairs((v) => !v)} title="Only currencies you trade">
             ★ My pairs
           </button>
@@ -126,7 +142,9 @@ export function EconomicCalendar() {
         <>
           {error && <div className="stale-note" style={{ marginBottom: 12 }}>Showing saved events — live feed unavailable.</div>}
           {groups.length === 0 ? (
-            <p className="muted" style={{ textAlign: 'center', padding: '10px 0' }}>No upcoming events match this filter.</p>
+            <p className="muted" style={{ textAlign: 'center', padding: '10px 0' }}>
+              {view === 'previous' ? 'No earlier events this week match this filter.' : 'No upcoming events match this filter.'}
+            </p>
           ) : (
             <>
               <div className="econ-wrap">

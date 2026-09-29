@@ -9,6 +9,7 @@ import { Combobox } from './Combobox'
 import { NumberStepper } from './NumberStepper'
 import { useToast } from './Toast'
 import { SESSIONS, SEGMENTS, instrumentsFor, indiaInstruments, defaultInstrument, type Segment } from '../util'
+import { getUsdRates, readCachedRates, convertAmount } from '../fxrates'
 import { format } from 'date-fns'
 
 function emptyTrade(mode: AppMode = 'forex'): Trade {
@@ -42,9 +43,13 @@ export function TradeForm({
   const toast = useToast()
   const { mode } = useAppMode()
   const allEntries = useLiveQuery(() => db.checklistEntries.orderBy('serial').reverse().toArray(), [], [])
-  const { accounts, activeId } = useAccountScope()
+  const { accounts, activeId, settings } = useAccountScope()
   const [t, setT] = useState<Trade>(initial ? structuredClone(initial) : emptyTrade(mode))
   const [tagInput, setTagInput] = useState('')
+  const [rates, setRates] = useState<Record<string, number> | null>(() => readCachedRates()?.rates ?? null)
+
+  // Latest FX reference rates, for converting forex P/L into the account currency.
+  useEffect(() => { getUsdRates().then(setRates).catch(() => {}) }, [])
 
   // Only link pre-trade checks from the same mode (India ⟷ India, forex ⟷ forex).
   const tradeMarket = marketOf(t)
@@ -102,14 +107,32 @@ export function TradeForm({
     return t.lotSize ?? undefined // forex: lotSize holds units
   }, [isIndia, seg, t.lots, t.lotSize])
 
-  // Auto P/L from entry, exit (close), direction and size. For options the P/L of
-  // a SELL is inverted (you profit when the premium falls).
+  // Account currency this trade is journalled in (India is always INR).
+  const acctCcy = isIndia
+    ? 'INR'
+    : (accounts.find((a) => a.id === t.accountId)?.currency || settings?.accountCurrency || 'USD')
+  // The pair's quote currency (right side of e.g. EUR/USD, USD/JPY, XAU/USD).
+  const quoteCcy = (t.pair?.split('/')[1] || acctCcy).toUpperCase()
+
+  // Auto P/L from entry, exit (close), direction and size. For a SELL the P/L is
+  // inverted (you profit when price falls). For forex the raw P/L is in the quote
+  // currency and is converted into the account currency with live FX rates.
   const autoPnl = useMemo(() => {
     const { entryPrice: e, exitPrice: x, direction } = t
     if (e == null || x == null || totalQty == null || totalQty === 0) return undefined
     const sign = direction === 'short' ? -1 : 1
-    return Math.round((x - e) * sign * totalQty * 100) / 100
-  }, [t.entryPrice, t.exitPrice, t.direction, totalQty])
+    const raw = (x - e) * sign * totalQty // in quote currency (INR already for India)
+    if (isIndia) return Math.round(raw * 100) / 100
+    if (quoteCcy === acctCcy) return Math.round(raw * 100) / 100
+    if (rates) {
+      const conv = convertAmount(raw, quoteCcy, acctCcy, rates)
+      if (conv != null) return Math.round(conv * 100) / 100
+    }
+    return Math.round(raw * 100) / 100 // fallback: unconverted (quote currency)
+  }, [t.entryPrice, t.exitPrice, t.direction, totalQty, isIndia, quoteCcy, acctCcy, rates])
+
+  // Whether the auto P/L is still shown in the quote currency (rates unavailable).
+  const pnlUnconverted = !isIndia && quoteCcy !== acctCcy && (!rates || convertAmount(1, quoteCcy, acctCcy, rates) == null)
 
   // Keep P/L (and the win/loss outcome) synced to the auto value unless the user
   // has chosen to type P/L manually.
@@ -390,7 +413,11 @@ export function TradeForm({
             )}
           </div>
           <span className="muted" style={{ fontSize: 11 }}>
-            {pnlManual ? 'Manual — tap Auto to recompute from prices.' : 'Auto from entry, close price, direction & size — type to override.'}
+            {pnlManual
+              ? 'Manual — tap Auto to recompute from prices.'
+              : pnlUnconverted
+                ? `Auto in ${quoteCcy} (rate to ${acctCcy} unavailable) — type to override.`
+                : `Auto in ${acctCcy} from entry, close price, direction & size — type to override.`}
           </span>
         </div>
         {!isIndia && <div className="field"><label>Pips</label><input className="input" type="number" step="any" value={t.pips ?? ''} onChange={(e) => setNum('pips', e.target.value)} /></div>}

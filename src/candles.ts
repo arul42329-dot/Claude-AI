@@ -53,11 +53,17 @@ async function fetchWithTimeout(url: string, opts: RequestInit | undefined, time
   }
 }
 
-// Fetch a no-CORS URL. Native hits it directly; the browser tries each proxy in
-// turn until one returns a good response.
+// Fetch a URL that may or may not send CORS headers. Native apps always hit it
+// directly. In the browser we try DIRECT first (works for CORS-enabled APIs like
+// frankfurter/gold-api and is the most reliable), then fall back through public
+// CORS proxies for the endpoints that need them (Yahoo, ForexFactory, ET).
 export async function corsFetch(url: string, opts?: RequestInit & { timeoutMs?: number }): Promise<Response> {
   const timeoutMs = opts?.timeoutMs ?? FETCH_TIMEOUT_MS
   if (isNativePlatform()) return fetchWithTimeout(url, opts, timeoutMs)
+  try {
+    const direct = await fetchWithTimeout(url, opts, timeoutMs)
+    if (direct.ok) return direct
+  } catch { /* CORS or network error → fall back to proxies */ }
   let lastErr: unknown
   for (const build of PROXY_BUILDERS) {
     try {
@@ -66,7 +72,7 @@ export async function corsFetch(url: string, opts?: RequestInit & { timeoutMs?: 
       lastErr = new Error('proxy status ' + r.status)
     } catch (e) { lastErr = e }
   }
-  throw lastErr ?? new Error('all CORS proxies failed')
+  throw lastErr ?? new Error('all CORS attempts failed')
 }
 
 // Wrap a single no-CORS URL through the primary proxy (native hits it directly).

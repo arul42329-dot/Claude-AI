@@ -925,6 +925,15 @@ tbody tr { transition: background 0.14s var(--ease); }
 .sess-name { font-weight: 700; font-size: 13.5px; }
 .sess-state { font-size: 11.5px; font-weight: 700; color: var(--text-faint); }
 .sess-state.on { color: var(--green); }
+/* Compact single-line session clock */
+.session-clock.compact { padding: 14px 16px; }
+.sess-now { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 14px; }
+.sess-now strong { color: var(--green); }
+.sess-open-tag { font-size: 11px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; color: var(--green); background: rgba(61,220,151,0.12); border: 1px solid rgba(61,220,151,0.28); padding: 2px 8px; border-radius: 999px; }
+.sess-next { font-size: 12.5px; color: var(--text-dim); }
+.kz-inline { font-size: 12.5px; color: var(--accent-2); font-weight: 600; }
+.live-dot.off { background: var(--text-faint); box-shadow: none; }
+
 .kz-list { display: flex; flex-wrap: wrap; gap: 8px; }
 .kz-chip { font-size: 11.5px; padding: 5px 10px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border); color: var(--text-dim); }
 .kz-chip.on { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent-2); font-weight: 700; }

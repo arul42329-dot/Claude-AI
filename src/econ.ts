@@ -4,6 +4,8 @@
 // through Capacitor's native HTTP (CapacitorHttp), so browser CORS doesn't
 // block them; results are cached to localStorage for offline viewing.
 
+import { corsFetch } from './candles'
+
 export type Impact = 'High' | 'Medium' | 'Low' | 'Holiday'
 
 export interface EconEvent {
@@ -44,7 +46,7 @@ export function readCachedEcon(): EconSnapshot | null {
 export async function fetchEcon(): Promise<EconSnapshot> {
   const results = await Promise.allSettled(
     FEEDS.map(async (u) => {
-      const r = await fetch(u)
+      const r = await corsFetch(u)
       if (!r.ok) throw new Error('feed')
       return r.json()
     }),
