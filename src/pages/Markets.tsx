@@ -47,10 +47,11 @@ export default function Markets() {
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
+    // DXY fetches independently so it still appears even if the main feed hiccups.
+    fetchDxy().then((d) => { if (d) setDxy(d) }).catch(() => {})
     try {
-      const [s, d] = await Promise.all([fetchMarket(), fetchDxy()])
+      const s = await fetchMarket()
       setSnap(s)
-      if (d) setDxy(d)
     } catch (e: any) {
       setError(e?.message || 'Could not load live prices')
     } finally {
@@ -117,15 +118,13 @@ export default function Markets() {
       <>
       <SessionClock />
 
-      {dxy && (
-        <div style={{ marginTop: 16 }}>
-          <ComparisonTile
-            label="DXY" sub="US Dollar Index" accent="usd"
-            price={dxy.price} changePct={dxy.changePct} bias={dxy.bias} decimals={dxy.decimals}
-            biasTitle={dxy.biasVotes?.join('\n')} onOpen={() => setSelected(dxy)}
-          />
-        </div>
-      )}
+      <div style={{ marginTop: 16 }}>
+        <ComparisonTile
+          label="DXY" sub="US Dollar Index" accent="usd"
+          price={dxy?.price} changePct={dxy?.changePct} bias={dxy?.bias} decimals={dxy?.decimals ?? 3}
+          biasTitle={dxy?.biasVotes?.join('\n')} onOpen={dxy ? () => setSelected(dxy) : undefined}
+        />
+      </div>
 
       {error && quotes.length === 0 && (
         <div className="empty">

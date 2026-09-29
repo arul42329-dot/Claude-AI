@@ -32,10 +32,10 @@ export function IndiaMarkets({ refreshSignal = 0 }: { refreshSignal?: number }) 
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
+    // India VIX fetches independently so it still appears even if indices hiccup.
+    fetchIndiaVix().then((v) => { if (v) setVix(v) }).catch(() => {})
     try {
-      const [s, v] = await Promise.all([fetchIndia(), fetchIndiaVix()])
-      setSnap(s)
-      if (v) setVix(v)
+      setSnap(await fetchIndia())
     } catch (e: any) {
       setError(e?.message || 'Could not load Indian market data')
     } finally {
@@ -94,15 +94,13 @@ export function IndiaMarkets({ refreshSignal = 0 }: { refreshSignal?: number }) 
       )}
 
       {/* India VIX comparison hero tile first */}
-      {vix && (
-        <div style={{ marginBottom: 16 }}>
-          <ComparisonTile
-            label="INDIA VIX" sub="Volatility · fear gauge" accent="vix" locale="en-IN"
-            price={vix.price} changePct={vix.changePct} bias={vix.bias} decimals={vix.decimals}
-            biasTitle={vix.biasVotes?.join('\n')} onOpen={() => setSelected(vix)}
-          />
-        </div>
-      )}
+      <div style={{ marginBottom: 16 }}>
+        <ComparisonTile
+          label="INDIA VIX" sub="Volatility · fear gauge" accent="vix" locale="en-IN"
+          price={vix?.price} changePct={vix?.changePct} bias={vix?.bias} decimals={vix?.decimals ?? 2}
+          biasTitle={vix?.biasVotes?.join('\n')} onOpen={vix ? () => setSelected(vix) : undefined}
+        />
+      </div>
 
       {/* Index prices */}
       {quotes.length > 0 && (
