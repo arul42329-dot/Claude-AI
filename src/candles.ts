@@ -115,3 +115,31 @@ export async function getCandles(symbol: string, ySymbol: string): Promise<Candl
   if (cached?.candles?.length) return cached.candles
   return null
 }
+
+// A live quote (price + day change + candles) for a single Yahoo symbol. Used by
+// the DXY (forex) and India VIX (India) comparison tiles. Returns null on failure.
+export interface YahooQuote { price: number; changePct: number; candles: Candle[]; longName?: string; currency?: string }
+export async function fetchYahooQuote(ySymbol: string, range = '1y', timeoutMs = 12000): Promise<YahooQuote | null> {
+  try {
+    const r = await corsFetch(yfDirectUrl(ySymbol, range), { timeoutMs })
+    if (!r.ok) return null
+    const j = await r.json()
+    const res = j?.chart?.result?.[0]
+    const meta = res?.meta
+    if (!meta) return null
+    const price = Number(meta.regularMarketPrice)
+    if (!Number.isFinite(price)) return null
+    const prev = Number(meta.chartPreviousClose ?? meta.previousClose)
+    const changePct = Number.isFinite(meta.regularMarketChangePercent)
+      ? Number(meta.regularMarketChangePercent)
+      : prev ? ((price - prev) / prev) * 100 : 0
+    const ts: number[] = res.timestamp || []
+    const q = res.indicators?.quote?.[0] || {}
+    const candles: Candle[] = []
+    for (let i = 0; i < ts.length; i++) {
+      const o = q.open?.[i], h = q.high?.[i], l = q.low?.[i], c = q.close?.[i]
+      if ([o, h, l, c].every((v) => Number.isFinite(v))) candles.push({ t: ts[i] * 1000, o, h, l, c })
+    }
+    return { price, changePct, candles, longName: meta.longName, currency: meta.currency }
+  } catch { return null }
+}

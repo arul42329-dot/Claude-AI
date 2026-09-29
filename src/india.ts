@@ -7,7 +7,7 @@
 // and Electron (header injection); the dev preview uses the Vite /yf proxy.
 
 import { computeBias, type BiasResult, type BiasVote, type Candle } from './bias'
-import { corsFetch, yfDirectUrl } from './candles'
+import { corsFetch, yfDirectUrl, fetchYahooQuote } from './candles'
 
 export type Bias = 'Bullish' | 'Bearish' | 'Neutral'
 
@@ -101,6 +101,22 @@ export async function fetchIndia(): Promise<IndiaSnapshot> {
   const snap: IndiaSnapshot = { quotes, at: Date.now(), partial: quotes.length < INDIA_INDICES.length }
   try { localStorage.setItem(CACHE_KEY, JSON.stringify(snap)) } catch { /* ignore */ }
   return snap
+}
+
+// India VIX — the headline "comparison" tile for the India tab (the market's
+// volatility / fear gauge, the counterpart to DXY on the forex tab).
+export async function fetchIndiaVix(): Promise<IndiaQuote | null> {
+  const yq = await fetchYahooQuote('^INDIAVIX', '1y')
+  if (!yq) return null
+  const detail = computeBias(yq.candles)
+  return {
+    symbol: 'INDIA VIX', ySymbol: '^INDIAVIX', price: yq.price, changePct: yq.changePct, decimals: 2,
+    bias: detail?.label ?? 'Neutral', score: detail?.score, biasDetail: detail ?? undefined,
+    biasVotes: detail
+      ? [`Daily bias: ${detail.label} (score ${detail.score >= 0 ? '+' : ''}${detail.score})`,
+         ...detail.votes.map((v) => `${arrow(v.value)} ${v.name} — ${v.detail}`)]
+      : undefined,
+  }
 }
 
 // NSE regular session status in IST (Mon–Fri, 09:15–15:30). Purely informational.

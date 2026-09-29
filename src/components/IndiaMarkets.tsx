@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { fetchIndia, readCachedIndia, nseStatus, type IndiaQuote, type IndiaSnapshot } from '../india'
+import { fetchIndia, fetchIndiaVix, readCachedIndia, nseStatus, type IndiaQuote, type IndiaSnapshot } from '../india'
 import { fetchIndiaNews, readCachedIndiaNews, type NewsSnapshot } from '../indiaNews'
-import { EconomicCalendar } from './EconomicCalendar'
 import { BiasPanel } from './BiasPanel'
+import { ComparisonTile } from './ComparisonTile'
 
 function fmtPrice(n: number, d: number) {
   return new Intl.NumberFormat('en-IN', { minimumFractionDigits: d, maximumFractionDigits: d }).format(n)
@@ -24,6 +24,7 @@ export function IndiaMarkets({ refreshSignal = 0 }: { refreshSignal?: number }) 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selected, setSelected] = useState<IndiaQuote | null>(null)
+  const [vix, setVix] = useState<IndiaQuote | null>(null)
   const [, force] = useState(0)
 
   // Prices refresh fast (~5s); news is slow-moving so it loads on mount and only
@@ -32,7 +33,9 @@ export function IndiaMarkets({ refreshSignal = 0 }: { refreshSignal?: number }) 
     setLoading(true)
     setError(null)
     try {
-      setSnap(await fetchIndia())
+      const [s, v] = await Promise.all([fetchIndia(), fetchIndiaVix()])
+      setSnap(s)
+      if (v) setVix(v)
     } catch (e: any) {
       setError(e?.message || 'Could not load Indian market data')
     } finally {
@@ -47,9 +50,7 @@ export function IndiaMarkets({ refreshSignal = 0 }: { refreshSignal?: number }) 
   useEffect(() => {
     load()
     loadNews()
-    // Index quotes go through a public CORS proxy in the browser, so refresh at a
-    // proxy-friendly ~12s (the APK hits Yahoo directly and could go faster).
-    const id = window.setInterval(load, 12000)
+    const id = window.setInterval(load, 5000) // live-ish auto refresh (~5s)
     const newsId = window.setInterval(loadNews, 180000) // news every 3 min
     const tick = window.setInterval(() => force((n) => n + 1), 1000)
     const onWake = () => { load(); loadNews() }
@@ -92,7 +93,18 @@ export function IndiaMarkets({ refreshSignal = 0 }: { refreshSignal?: number }) 
         </div>
       )}
 
-      {/* Index prices first */}
+      {/* India VIX comparison hero tile first */}
+      {vix && (
+        <div style={{ marginBottom: 16 }}>
+          <ComparisonTile
+            label="INDIA VIX" sub="Volatility · fear gauge" accent="vix" locale="en-IN"
+            price={vix.price} changePct={vix.changePct} bias={vix.bias} decimals={vix.decimals}
+            biasTitle={vix.biasVotes?.join('\n')} onOpen={() => setSelected(vix)}
+          />
+        </div>
+      )}
+
+      {/* Index prices */}
       {quotes.length > 0 && (
         <>
           {(error || snap?.partial) && (
@@ -107,11 +119,7 @@ export function IndiaMarkets({ refreshSignal = 0 }: { refreshSignal?: number }) 
         </>
       )}
 
-      {/* Calendar + news below the prices */}
-      <div style={{ marginTop: 20 }}>
-        <EconomicCalendar />
-      </div>
-
+      {/* Indian market news below the prices (no ForexFactory calendar in India mode) */}
       {news && news.items.length > 0 && (
         <div className="card" style={{ marginTop: 20 }}>
           <div className="row" style={{ justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>

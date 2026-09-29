@@ -824,6 +824,46 @@ tbody tr { transition: background 0.14s var(--ease); }
 .bias.bear { color: var(--red); } .bias.bear .bdot { background: var(--red); }
 .bias.neu { color: var(--text-dim); } .bias.neu .bdot { background: var(--text-faint); }
 
+/* ===== Comparison hero tile (DXY on forex, India VIX on India) ===== */
+.cmp-tile {
+  position: relative;
+  border-radius: var(--radius);
+  padding: 18px 22px;
+  border: 1px solid var(--accent-line);
+  background:
+    radial-gradient(120% 140% at 100% 0%, var(--accent-soft), transparent 55%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(0, 0, 0, 0.06)),
+    var(--surface);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  transition: transform 0.25s var(--ease), border-color 0.25s var(--ease), box-shadow 0.25s var(--ease);
+}
+.cmp-tile::before {
+  content: '';
+  position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+  background: linear-gradient(180deg, var(--accent-2), var(--accent));
+}
+.cmp-tile.vix::before { background: linear-gradient(180deg, #ffb463, #ff8f2e); }
+.cmp-tile.vix { border-color: rgba(255, 143, 46, 0.35); }
+.cmp-tile.clickable { cursor: pointer; }
+.cmp-tile.clickable:hover { transform: translateY(-3px); border-color: var(--border-strong); }
+.cmp-head { display: flex; align-items: baseline; gap: 10px; }
+.cmp-label {
+  font-family: var(--font-display);
+  font-size: 18px; font-weight: 800; letter-spacing: 1px;
+  color: var(--text);
+}
+.cmp-sub { font-size: 12px; color: var(--text-dim); letter-spacing: 0.3px; }
+.cmp-chev { margin-left: auto; color: var(--text-faint); font-size: 22px; line-height: 1; }
+.cmp-price {
+  font-family: var(--font-display);
+  font-size: 40px; font-weight: 800; letter-spacing: -1px;
+  margin: 6px 0 12px;
+  font-variant-numeric: tabular-nums;
+}
+.cmp-foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.cmp-foot .pill { font-size: 13px; padding: 4px 11px; }
+
 /* ===== Google Drive backup ===== */
 .link-btn {
   background: none; border: none; padding: 0; cursor: pointer;

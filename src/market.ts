@@ -8,7 +8,7 @@
 // endpoint). FX bias comes from the real previous-business-day rate.
 
 import { computeBias, type BiasVote, type BiasResult } from './bias'
-import { getCandles, corsFetch } from './candles'
+import { getCandles, corsFetch, fetchYahooQuote } from './candles'
 
 export type Bias = 'Bullish' | 'Bearish' | 'Neutral'
 export type Group = 'Metals' | 'Crypto' | 'Majors' | 'Crosses'
@@ -158,6 +158,24 @@ async function attachRuleBias(quotes: Quote[]): Promise<void> {
       ]
     }),
   )
+}
+
+// US Dollar Index (DXY) — the headline "comparison" tile for the forex tab. It's
+// the benchmark for USD strength, so it frames every USD pair on the page.
+export async function fetchDxy(): Promise<Quote | null> {
+  const yq = await fetchYahooQuote('DX-Y.NYB', '1y')
+  if (!yq) return null
+  const detail = computeBias(yq.candles)
+  return {
+    symbol: 'DXY', compact: 'DXY', name: 'US Dollar Index', group: 'Majors',
+    price: yq.price, changePct: yq.changePct, decimals: 3,
+    bias: detail?.label ?? biasFrom(yq.changePct), score: detail?.score,
+    biasSource: detail ? 'rule' : 'change', biasDetail: detail ?? undefined,
+    biasVotes: detail
+      ? [`Daily bias: ${detail.label} (score ${detail.score >= 0 ? '+' : ''}${detail.score})`,
+         ...detail.votes.map((v) => `${v.value > 0 ? '↑' : v.value < 0 ? '↓' : '–'} ${v.name} — ${v.detail}`)]
+      : undefined,
+  }
 }
 
 const CACHE_KEY = 'edgefolio-mkt-cache-v2'

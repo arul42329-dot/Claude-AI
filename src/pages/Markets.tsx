@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { fetchMarket, readCachedMarket, MARKET_GROUPS, type MarketSnapshot, type Quote, type Group } from '../market'
+import { fetchMarket, fetchDxy, readCachedMarket, MARKET_GROUPS, type MarketSnapshot, type Quote, type Group } from '../market'
 import { SessionClock } from '../components/SessionClock'
 import { EconomicCalendar } from '../components/EconomicCalendar'
 import { BiasPanel } from '../components/BiasPanel'
+import { ComparisonTile } from '../components/ComparisonTile'
 import { IndiaMarkets } from '../components/IndiaMarkets'
 import { useAppMode } from '../mode'
 import { getEcon, highImpactCurrenciesToday } from '../econ'
@@ -35,6 +36,7 @@ export default function Markets() {
   const [, force] = useState(0)
   const [newsCur, setNewsCur] = useState<Set<string>>(new Set())
   const [selected, setSelected] = useState<Quote | null>(null)
+  const [dxy, setDxy] = useState<Quote | null>(null)
   const [refreshNonce, setRefreshNonce] = useState(0)
   const { mode } = useAppMode()
 
@@ -46,8 +48,9 @@ export default function Markets() {
     setLoading(true)
     setError(null)
     try {
-      const s = await fetchMarket()
+      const [s, d] = await Promise.all([fetchMarket(), fetchDxy()])
       setSnap(s)
+      if (d) setDxy(d)
     } catch (e: any) {
       setError(e?.message || 'Could not load live prices')
     } finally {
@@ -114,6 +117,16 @@ export default function Markets() {
       <>
       <SessionClock />
 
+      {dxy && (
+        <div style={{ marginTop: 16 }}>
+          <ComparisonTile
+            label="DXY" sub="US Dollar Index" accent="usd"
+            price={dxy.price} changePct={dxy.changePct} bias={dxy.bias} decimals={dxy.decimals}
+            biasTitle={dxy.biasVotes?.join('\n')} onOpen={() => setSelected(dxy)}
+          />
+        </div>
+      )}
+
       {error && quotes.length === 0 && (
         <div className="empty">
           <div className="big">📡</div>
@@ -146,7 +159,7 @@ export default function Markets() {
           {filtered.length === 0 && <p className="muted" style={{ textAlign: 'center', marginTop: 30 }}>No pairs match your search.</p>}
 
           <p className="muted" style={{ fontSize: 11.5, marginTop: 24, textAlign: 'center' }}>
-            Metals &amp; crypto: gold-api.com (real-time). FX: frankfurter.app (ECB reference). Indicative prices for journaling — not tradable quotes.
+            DXY &amp; bias: Yahoo Finance. Metals &amp; crypto: gold-api.com (real-time). FX: frankfurter.dev (ECB reference). Indicative prices for journaling — not tradable quotes.
           </p>
         </>
       )}
