@@ -4,13 +4,13 @@
 // the browser with DOMParser. It has no CORS headers, so native apps (APK/Electron)
 // hit it directly while any browser routes it through a CORS proxy (corsSafe).
 
-import { corsSafe } from './candles'
+import { corsFetch } from './candles'
 
 export interface Headline { title: string; link: string; at: number }
 export interface NewsSnapshot { items: Headline[]; at: number }
 
 const FEED = 'https://economictimes.indiatimes.com/markets/rssfeeds/1977021501.cms'
-const CACHE_KEY = 'edgefolio-india-news'
+const CACHE_KEY = 'edgefolio-india-news-v2'
 
 export function readCachedIndiaNews(): NewsSnapshot | null {
   try {
@@ -20,7 +20,7 @@ export function readCachedIndiaNews(): NewsSnapshot | null {
 }
 
 export async function fetchIndiaNews(): Promise<NewsSnapshot> {
-  const r = await fetch(corsSafe(FEED))
+  const r = await corsFetch(FEED)
   if (!r.ok) throw new Error('india-news')
   const text = await r.text()
   const xml = new DOMParser().parseFromString(text, 'application/xml')

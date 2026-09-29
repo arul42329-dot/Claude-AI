@@ -8,7 +8,7 @@
 // endpoint). FX bias comes from the real previous-business-day rate.
 
 import { computeBias, type BiasVote, type BiasResult } from './bias'
-import { getCandles } from './candles'
+import { getCandles, corsFetch } from './candles'
 
 export type Bias = 'Bullish' | 'Bearish' | 'Neutral'
 export type Group = 'Metals' | 'Crypto' | 'Majors' | 'Crosses'
@@ -106,10 +106,11 @@ async function fetchFx(): Promise<Quote[]> {
   const end = new Date()
   const start = new Date(end.getTime() - 10 * 86400000)
   const fmt = (d: Date) => d.toISOString().slice(0, 10)
-  // frankfurter.app now 301-redirects to api.frankfurter.dev/v1 — the redirect
-  // breaks the browser fetch (FX pairs vanish), so call the new endpoint directly.
+  // frankfurter.app is deprecated (301 → api.frankfurter.dev/v1) and does not send
+  // CORS headers to the preview origin, so the FX pairs used to vanish in the
+  // browser. Route it through corsFetch: direct in the APK, via CORS proxy on web.
   const url = `https://api.frankfurter.dev/v1/${fmt(start)}..${fmt(end)}?base=USD&symbols=${FX_SYMBOLS.join(',')}`
-  const r = await fetch(url)
+  const r = await corsFetch(url)
   if (!r.ok) throw new Error('fx')
   const j = await r.json()
   const dates = Object.keys(j.rates || {}).sort()
@@ -159,7 +160,7 @@ async function attachRuleBias(quotes: Quote[]): Promise<void> {
   )
 }
 
-const CACHE_KEY = 'edgefolio-mkt-cache'
+const CACHE_KEY = 'edgefolio-mkt-cache-v2'
 export interface MarketSnapshot { quotes: Quote[]; at: number; partial: boolean }
 
 export function readCachedMarket(): MarketSnapshot | null {

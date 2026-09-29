@@ -7,7 +7,7 @@
 // and Electron (header injection); the dev preview uses the Vite /yf proxy.
 
 import { computeBias, type BiasResult, type BiasVote, type Candle } from './bias'
-import { yfChartUrl } from './candles'
+import { corsFetch, yfDirectUrl } from './candles'
 
 export type Bias = 'Bullish' | 'Bearish' | 'Neutral'
 
@@ -37,16 +37,9 @@ export const INDIA_INDICES: IndexDef[] = [
 const arrow = (v: BiasVote['value']) => (v > 0 ? '↑' : v < 0 ? '↓' : '–')
 
 async function fetchIndex(def: IndexDef): Promise<IndiaQuote> {
-  const ctrl = new AbortController()
-  const timer = setTimeout(() => ctrl.abort(), 12000)
-  let j: any
-  try {
-    const r = await fetch(yfChartUrl(def.ySymbol, '1y'), { signal: ctrl.signal })
-    if (!r.ok) throw new Error('india ' + def.ySymbol)
-    j = await r.json()
-  } finally {
-    clearTimeout(timer)
-  }
+  const r = await corsFetch(yfDirectUrl(def.ySymbol, '1y'), { timeoutMs: 12000 })
+  if (!r.ok) throw new Error('india ' + def.ySymbol)
+  const j: any = await r.json()
   const res = j?.chart?.result?.[0]
   if (!res?.meta) throw new Error('india-empty ' + def.ySymbol)
   const meta = res.meta
@@ -83,7 +76,9 @@ async function fetchIndex(def: IndexDef): Promise<IndiaQuote> {
   }
 }
 
-const CACHE_KEY = 'edgefolio-india-cache'
+// v2: bump busts stale caches written by earlier (demo) builds — e.g. the fake
+// ~29,000 NIFTY value some users still had persisted in localStorage.
+const CACHE_KEY = 'edgefolio-india-cache-v2'
 export interface IndiaSnapshot { quotes: IndiaQuote[]; at: number; partial: boolean }
 
 export function readCachedIndia(): IndiaSnapshot | null {
