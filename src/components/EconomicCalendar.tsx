@@ -58,15 +58,17 @@ export function EconomicCalendar() {
   const currencies = useMemo(() => Array.from(new Set(events.map((e) => e.country).filter(Boolean))).sort(), [events])
 
   const filtered = useMemo(() => {
-    const startToday = new Date(); startToday.setHours(0, 0, 0, 0)
+    // Only show events that haven't finished yet. Keep an event for ~10 min after
+    // its scheduled time (so a just-released number lingers briefly), then drop it.
+    const cutoff = now - 10 * 60 * 1000
     const min = impact === 'high' ? 3 : impact === 'medium' ? 2 : 1
     return events.filter((e) =>
-      e.time >= startToday.getTime() &&
+      e.time >= cutoff &&
       IMPACT_RANK[e.impact] >= min &&
       (cur === 'all' || e.country === cur) &&
       (!myPairs || tradedCurrencies.has(e.country)),
     )
-  }, [events, impact, cur, myPairs, tradedCurrencies])
+  }, [events, impact, cur, myPairs, tradedCurrencies, now])
 
   const groups = useMemo(() => {
     const m = new Map<string, EconEvent[]>()

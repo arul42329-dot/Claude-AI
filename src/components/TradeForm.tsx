@@ -87,6 +87,43 @@ export function TradeForm({
     }
   }, [autoRr])
 
+  // Total traded quantity used to turn a price move into money.
+  //  • Forex: "Position size (units)"  (100000 = 1.00 standard lot)
+  //  • India F&O / commodity: Lots × Qty-per-lot (e.g. NIFTY 75, BANKNIFTY 30)
+  //  • India equity / cash: Quantity (shares)
+  const totalQty = useMemo(() => {
+    if (isIndia) {
+      if (seg === 'options' || seg === 'futures' || seg === 'commodity') {
+        if (t.lots == null || t.lotSize == null) return undefined
+        return t.lots * t.lotSize
+      }
+      return t.lots ?? undefined // equity / other: lots holds share qty
+    }
+    return t.lotSize ?? undefined // forex: lotSize holds units
+  }, [isIndia, seg, t.lots, t.lotSize])
+
+  // Auto P/L from entry, exit (close), direction and size. For options the P/L of
+  // a SELL is inverted (you profit when the premium falls).
+  const autoPnl = useMemo(() => {
+    const { entryPrice: e, exitPrice: x, direction } = t
+    if (e == null || x == null || totalQty == null || totalQty === 0) return undefined
+    const sign = direction === 'short' ? -1 : 1
+    return Math.round((x - e) * sign * totalQty * 100) / 100
+  }, [t.entryPrice, t.exitPrice, t.direction, totalQty])
+
+  // Keep P/L (and the win/loss outcome) synced to the auto value unless the user
+  // has chosen to type P/L manually.
+  const [pnlManual, setPnlManual] = useState(() => initial?.pnl != null)
+  useEffect(() => {
+    if (pnlManual || autoPnl == null) return
+    setT((prev) => {
+      const outcome: Outcome = prev.outcome === 'open'
+        ? prev.outcome
+        : autoPnl > 0 ? 'win' : autoPnl < 0 ? 'loss' : 'breakeven'
+      return { ...prev, pnl: autoPnl, outcome }
+    })
+  }, [autoPnl, pnlManual])
+
   // Entries that can be linked: still pending, or already linked to THIS trade.
   const linkable = (entries ?? []).filter((e) => !e.linkedTradeId || e.linkedTradeId === t.id)
   const selectedEntry = t.checklistSerial != null ? (entries ?? []).find((e) => e.serial === t.checklistSerial) : undefined
@@ -265,6 +302,7 @@ export function TradeForm({
             <div className="field"><label>Strike price</label><NumberStepper value={t.strike} onChange={(v) => set('strike', v)} step={50} min={0} placeholder="e.g. 25000" /></div>
             <div className="field"><label>Expiry</label><input className="input" type="date" value={t.expiry ?? ''} onChange={(e) => set('expiry', e.target.value)} /></div>
             <div className="field"><label>Lots</label><NumberStepper value={t.lots} onChange={(v) => set('lots', v)} step={1} min={0} placeholder="e.g. 2" /></div>
+            <div className="field"><label>Qty per lot</label><NumberStepper value={t.lotSize} onChange={(v) => set('lotSize', v)} step={5} min={0} placeholder="NIFTY 75, BANKNIFTY 30" /></div>
           </div>
         </>
       )}
@@ -274,18 +312,19 @@ export function TradeForm({
           <div className="form-grid">
             <div className="field"><label>Expiry</label><input className="input" type="date" value={t.expiry ?? ''} onChange={(e) => set('expiry', e.target.value)} /></div>
             <div className="field"><label>Lots</label><NumberStepper value={t.lots} onChange={(v) => set('lots', v)} step={1} min={0} placeholder="e.g. 1" /></div>
+            <div className="field"><label>Qty per lot</label><NumberStepper value={t.lotSize} onChange={(v) => set('lotSize', v)} step={5} min={0} placeholder="e.g. 50" /></div>
           </div>
         </>
       )}
 
-      {/* Prices */}
-      <h3 style={{ margin: '22px 0 12px' }}>Prices &amp; risk</h3>
+      {/* Plan — your intended stop & target. Used only to compute Risk:Reward. */}
+      <h3 style={{ margin: '22px 0 4px' }}>Plan · risk</h3>
+      <p className="muted" style={{ fontSize: 12.5, margin: '0 0 12px' }}>
+        Where you <em>planned</em> to get out. These only drive Risk : Reward — leave blank if you don't use them.
+      </p>
       <div className="form-grid">
-        <div className="field"><label>{isOption ? 'Entry premium' : 'Entry price'}</label><input className="input" type="number" step="any" value={t.entryPrice ?? ''} onChange={(e) => setNum('entryPrice', e.target.value)} /></div>
-        <div className="field"><label>{isOption ? 'Exit premium' : 'Exit price'}</label><input className="input" type="number" step="any" value={t.exitPrice ?? ''} onChange={(e) => setNum('exitPrice', e.target.value)} /></div>
-        <div className="field"><label>Stop loss</label><input className="input" type="number" step="any" value={t.stopLoss ?? ''} onChange={(e) => setNum('stopLoss', e.target.value)} /></div>
-        <div className="field"><label>Take profit</label><input className="input" type="number" step="any" value={t.takeProfit ?? ''} onChange={(e) => setNum('takeProfit', e.target.value)} /></div>
-        {!isIndia && <div className="field"><label>Lot size</label><input className="input" type="number" step="any" value={t.lotSize ?? ''} onChange={(e) => setNum('lotSize', e.target.value)} /></div>}
+        <div className="field"><label>Stop loss</label><input className="input" type="number" step="any" value={t.stopLoss ?? ''} onChange={(e) => setNum('stopLoss', e.target.value)} placeholder="planned SL price" /></div>
+        <div className="field"><label>Take profit</label><input className="input" type="number" step="any" value={t.takeProfit ?? ''} onChange={(e) => setNum('takeProfit', e.target.value)} placeholder="planned TP price" /></div>
         <div className="field"><label>Risk %</label><input className="input" type="number" step="any" value={t.riskPercent ?? ''} onChange={(e) => setNum('riskPercent', e.target.value)} /></div>
         <div className="field">
           <label>Risk : Reward (auto)</label>
@@ -297,23 +336,63 @@ export function TradeForm({
             title="Automatically calculated from Entry, Stop loss and Take profit"
             style={{ background: 'var(--bg-2)', cursor: 'default', fontWeight: 700 }}
           />
-          <span className="muted" style={{ fontSize: 11 }}>Calculated from Entry, Stop loss &amp; Take profit</span>
+          <span className="muted" style={{ fontSize: 11 }}>From Entry, Stop loss &amp; Take profit</span>
         </div>
       </div>
 
-      {/* Result */}
-      <h3 style={{ margin: '22px 0 12px' }}>Result</h3>
+      {/* Execution — what actually happened. P/L is computed from these. */}
+      <h3 style={{ margin: '22px 0 4px' }}>Execution · result</h3>
+      <p className="muted" style={{ fontSize: 12.5, margin: '0 0 12px' }}>
+        What <em>actually</em> happened. P/L is calculated automatically from entry, close price, direction &amp; size.
+      </p>
       <div className="form-grid">
+        <div className="field"><label>{isOption ? 'Entry premium' : 'Entry price'}</label><input className="input" type="number" step="any" value={t.entryPrice ?? ''} onChange={(e) => setNum('entryPrice', e.target.value)} placeholder="fill price" /></div>
+        <div className="field"><label>{isOption ? 'Exit / close premium' : 'Exit / close price'}</label><input className="input" type="number" step="any" value={t.exitPrice ?? ''} onChange={(e) => setNum('exitPrice', e.target.value)} placeholder="close price" /></div>
+        {!isIndia && (
+          <div className="field">
+            <label>Position size (units)</label>
+            <input className="input" type="number" step="any" value={t.lotSize ?? ''} onChange={(e) => setNum('lotSize', e.target.value)} placeholder="100000 = 1.00 lot" />
+            <span className="muted" style={{ fontSize: 11 }}>100000 = 1.00 standard lot</span>
+          </div>
+        )}
+        {isIndia && !isOption && seg !== 'futures' && seg !== 'commodity' && (
+          <div className="field"><label>Quantity (shares)</label><NumberStepper value={t.lots} onChange={(v) => set('lots', v)} step={1} min={0} placeholder="e.g. 100" /></div>
+        )}
         <div className="field">
           <label>Outcome</label>
-          <select className="select" value={t.outcome} onChange={(e) => set('outcome', e.target.value as Outcome)}>
+          <select className="select" value={t.outcome} onChange={(e) => { setPnlManual(true); set('outcome', e.target.value as Outcome) }}>
             <option value="open">Open</option>
             <option value="win">Win</option>
             <option value="loss">Loss</option>
             <option value="breakeven">Breakeven</option>
           </select>
         </div>
-        <div className="field"><label>P/L ({isIndia ? '₹ INR' : 'account currency'})</label><input className="input" type="number" step="any" value={t.pnl ?? ''} onChange={(e) => setNum('pnl', e.target.value)} placeholder="e.g. 125 or -80" /></div>
+        <div className="field">
+          <label>
+            P/L ({isIndia ? '₹ INR' : 'account currency'})
+            {!pnlManual && autoPnl != null && <span className="muted" style={{ fontSize: 11, fontWeight: 400 }}> · auto</span>}
+          </label>
+          <div className="row" style={{ gap: 6 }}>
+            <input
+              className="input"
+              type="number"
+              step="any"
+              value={t.pnl ?? ''}
+              onChange={(e) => { setPnlManual(true); setNum('pnl', e.target.value) }}
+              placeholder={autoPnl != null ? String(autoPnl) : 'e.g. 125 or -80'}
+              style={!pnlManual && autoPnl != null ? { background: 'var(--bg-2)', fontWeight: 700 } : undefined}
+            />
+            {pnlManual && (
+              <button type="button" className="btn sm" title="Recalculate automatically from prices & size"
+                onClick={() => { setPnlManual(false); if (autoPnl != null) setNum('pnl', String(autoPnl)) }}>
+                Auto
+              </button>
+            )}
+          </div>
+          <span className="muted" style={{ fontSize: 11 }}>
+            {pnlManual ? 'Manual — tap Auto to recompute from prices.' : 'Auto from entry, close price, direction & size — type to override.'}
+          </span>
+        </div>
         {!isIndia && <div className="field"><label>Pips</label><input className="input" type="number" step="any" value={t.pips ?? ''} onChange={(e) => setNum('pips', e.target.value)} /></div>}
         <div className="field">
           <label>Execution rating</label>

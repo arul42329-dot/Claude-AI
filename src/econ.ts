@@ -88,14 +88,16 @@ export async function getEcon(maxAgeMs = 5 * 60 * 1000): Promise<EconSnapshot> {
   return inflight
 }
 
-// Currency codes that have a high-impact event scheduled today (local day).
+// Currency codes with a high-impact event still to come today (local day). Past
+// events are excluded so the "News" tag warns about upcoming volatility only.
 export function highImpactCurrenciesToday(snap: EconSnapshot | null): Set<string> {
   const out = new Set<string>()
   if (!snap) return out
+  const now = Date.now()
   const start = new Date(); start.setHours(0, 0, 0, 0)
   const end = start.getTime() + 86400000
   for (const e of snap.events) {
-    if (e.impact === 'High' && e.time >= start.getTime() && e.time < end) out.add(e.country)
+    if (e.impact === 'High' && e.time >= now && e.time < end) out.add(e.country)
   }
   return out
 }
