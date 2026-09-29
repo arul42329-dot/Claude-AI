@@ -19,11 +19,11 @@ function timeAgo(ts: number): string {
   return Math.round(m / 60) + 'h ago'
 }
 
-export function EconomicCalendar({ title = '📅 Economic Calendar', lockCurrency }: { title?: string; lockCurrency?: string } = {}) {
+export function EconomicCalendar({ title = '📅 Economic Calendar' }: { title?: string } = {}) {
   const [snap, setSnap] = useState<EconSnapshot | null>(() => readCachedEcon())
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [impact, setImpact] = useState<'all' | 'medium' | 'high'>(lockCurrency ? 'all' : 'medium')
+  const [impact, setImpact] = useState<'all' | 'medium' | 'high'>('medium')
   const [cur, setCur] = useState('all')
   const [myPairs, setMyPairs] = useState(false)
   const [showAll, setShowAll] = useState(false)
@@ -59,13 +59,11 @@ export function EconomicCalendar({ title = '📅 Economic Calendar', lockCurrenc
   const events = snap?.events ?? []
   const currencies = useMemo(() => Array.from(new Set(events.map((e) => e.country).filter(Boolean))).sort(), [events])
 
-  const activeCur = lockCurrency ?? cur
-
   const filtered = useMemo(() => {
     const min = impact === 'high' ? 3 : impact === 'medium' ? 2 : 1
     const base = events.filter((e) =>
       IMPACT_RANK[e.impact] >= min &&
-      (activeCur === 'all' || e.country === activeCur) &&
+      (cur === 'all' || e.country === cur) &&
       (!myPairs || tradedCurrencies.has(e.country)),
     )
     if (view === 'previous') {
@@ -78,7 +76,7 @@ export function EconomicCalendar({ title = '📅 Economic Calendar', lockCurrenc
     // Upcoming: only events that haven't finished (10-min grace after start).
     const cutoff = now - 10 * 60 * 1000
     return base.filter((e) => e.time >= cutoff)
-  }, [events, impact, activeCur, myPairs, tradedCurrencies, now, view])
+  }, [events, impact, cur, myPairs, tradedCurrencies, now, view])
 
   const groups = useMemo(() => {
     const m = new Map<string, EconEvent[]>()
@@ -118,13 +116,11 @@ export function EconomicCalendar({ title = '📅 Economic Calendar', lockCurrenc
           <button className={impact === 'medium' ? 'active' : ''} onClick={() => setImpact('medium')}>Med+</button>
           <button className={impact === 'all' ? 'active' : ''} onClick={() => setImpact('all')}>All</button>
         </div>
-        {!lockCurrency && (
-          <select className="select" value={cur} onChange={(e) => setCur(e.target.value)} style={{ maxWidth: 130 }}>
-            <option value="all">All currencies</option>
-            {currencies.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
-        )}
-        {!lockCurrency && tradedCurrencies.size > 0 && (
+        <select className="select" value={cur} onChange={(e) => setCur(e.target.value)} style={{ maxWidth: 130 }}>
+          <option value="all">All currencies</option>
+          {currencies.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+        {tradedCurrencies.size > 0 && (
           <button className={'btn sm' + (myPairs ? ' primary' : '')} onClick={() => setMyPairs((v) => !v)} title="Only currencies you trade">
             ★ My pairs
           </button>
@@ -152,11 +148,13 @@ export function EconomicCalendar({ title = '📅 Economic Calendar', lockCurrenc
                   <div key={k}>
                     <div className="econ-day">{dayLabel(new Date(k + 'T00:00'))}</div>
                     {evs.map((e) => (
-                      <div key={e.id} className="econ-row">
+                      <div key={e.id} className={'econ-row' + (e.impact === 'High' ? ' big' : '')}>
                         <span className="econ-time">{format(new Date(e.time), 'HH:mm')}</span>
                         <span className="cur-badge">{e.country}</span>
-                        <span className={'impact-dot ' + e.impact.toLowerCase()} title={e.impact} />
-                        <span className="econ-title">{e.title}</span>
+                        {e.impact === 'High'
+                          ? <span className="impact-chip high" title="High impact">HIGH</span>
+                          : <span className={'impact-dot ' + e.impact.toLowerCase()} title={e.impact} />}
+                        <span className={'econ-title' + (e.impact === 'High' ? ' big-title' : '')}>{e.title}</span>
                         {e.time > now && e.time - now <= 3600000 && <span className="soon-badge">Soon</span>}
                         {(e.forecast || e.previous) && (
                           <span className="econ-vals">
@@ -181,7 +179,7 @@ export function EconomicCalendar({ title = '📅 Economic Calendar', lockCurrenc
         </>
       )}
 
-      <p className="muted" style={{ fontSize: 11, marginTop: 12 }}>Times shown in your local timezone · impact: 🔴 high 🟠 medium 🟡 low. Source: ForexFactory (faireconomy.media).</p>
+      <p className="muted" style={{ fontSize: 11, marginTop: 12 }}>Times shown in your local timezone · 🔴 high-impact events are highlighted. Source: ForexFactory (faireconomy.media).</p>
     </div>
   )
 }

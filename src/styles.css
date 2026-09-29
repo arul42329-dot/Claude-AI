@@ -1015,6 +1015,24 @@ tbody tr { transition: background 0.14s var(--ease); }
 .impact-dot.medium { background: #f5a742; }
 .impact-dot.low { background: #d7dae2; opacity: 0.5; }
 .impact-dot.holiday { background: #5b8cff; }
+/* "Big news" = high-impact events get a full-row red highlight so they pop out
+   of the list at a glance, plus a HIGH chip instead of the plain dot. */
+.econ-row.big {
+  background: rgba(255, 79, 109, 0.09);
+  border-left: 3px solid #ff6b81;
+  padding-left: 9px;
+  box-shadow: 0 0 18px -8px rgba(255, 79, 109, 0.5);
+}
+.econ-row.big:hover { background: rgba(255, 79, 109, 0.15); }
+.econ-title.big-title { font-weight: 700; color: var(--text); }
+.impact-chip {
+  flex-shrink: 0;
+  font-size: 9.5px; font-weight: 800; letter-spacing: 0.08em;
+  line-height: 1; padding: 3px 6px; border-radius: 5px;
+  color: #ff97a9;
+  background: rgba(255, 79, 109, 0.18);
+  border: 1px solid rgba(255, 107, 129, 0.45);
+}
 .econ-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .soon-badge {
   flex-shrink: 0;

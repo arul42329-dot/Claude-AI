@@ -3,7 +3,6 @@ import { fetchIndia, fetchIndiaVix, readCachedIndia, nseStatus, type IndiaQuote,
 import { fetchIndiaNews, readCachedIndiaNews, type NewsSnapshot } from '../indiaNews'
 import { BiasPanel } from './BiasPanel'
 import { ComparisonTile } from './ComparisonTile'
-import { EconomicCalendar } from './EconomicCalendar'
 
 function fmtPrice(n: number, d: number) {
   return new Intl.NumberFormat('en-IN', { minimumFractionDigits: d, maximumFractionDigits: d }).format(n)
@@ -135,11 +134,6 @@ export function IndiaMarkets({ refreshSignal = 0 }: { refreshSignal?: number }) 
           </div>
         </div>
       )}
-
-      {/* Indian economic calendar (INR events only) — with Upcoming/Previous */}
-      <div style={{ marginTop: 20 }}>
-        <EconomicCalendar title="🇮🇳 Indian economic calendar" lockCurrency="INR" />
-      </div>
 
       <p className="muted" style={{ fontSize: 11.5, marginTop: 24, textAlign: 'center' }}>
         Indices: Yahoo Finance (may be ~15 min delayed). News: Economic Times. Indicative data for journaling — not tradable quotes.
