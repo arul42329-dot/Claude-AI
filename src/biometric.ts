@@ -15,6 +15,9 @@ interface BiometricResult {
 interface EdgefolioBiometric {
   isAvailable(): Promise<{ available: boolean; code: number }>
   verify(options: { title?: string; subtitle?: string }): Promise<BiometricResult>
+  openNotificationSettings(): Promise<void>
+  openExactAlarmSettings(): Promise<void>
+  exactAlarmState(): Promise<{ exact: boolean }>
 }
 
 const plugin = registerPlugin<EdgefolioBiometric>('EdgefolioBiometric')
@@ -36,5 +39,28 @@ export async function biometricVerify(title: string, subtitle?: string): Promise
     return await plugin.verify({ title, subtitle })
   } catch (e: any) {
     return { ok: false, message: e?.message || 'Biometric unlock unavailable' }
+  }
+}
+
+// ---------------- Notification / alarm device helpers ----------------
+// (same first-party plugin — deep links into Android system settings)
+
+/** Open this app's notification page in the phone's system settings. */
+export async function openNotificationSettings(): Promise<void> {
+  try { await plugin.openNotificationSettings() } catch { /* ignore */ }
+}
+
+/** Open the "Alarms & reminders" (exact alarm) permission page. */
+export async function openExactAlarmSettings(): Promise<void> {
+  try { await plugin.openExactAlarmSettings() } catch { /* ignore */ }
+}
+
+/** True when exact alarms are allowed (always true below Android 12). */
+export async function exactAlarmsAllowed(): Promise<boolean> {
+  try {
+    const r = await plugin.exactAlarmState()
+    return !!r.exact
+  } catch {
+    return true
   }
 }

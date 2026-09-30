@@ -20,13 +20,11 @@ import {
   newsAlertsSupported, isNewsAlertsEnabled, setNewsAlertsEnabled,
   syncNewsAlerts, cancelAllNewsAlerts, sendTestNewsAlert, LEAD_MINUTES,
   getSessionAlertPrefs, setSessionAlertPrefs, syncSessionAlerts, cancelSessionAlerts,
+  ensureNotificationPermission, notificationPermission,
   type SessionAlertPrefs,
 } from '../newsAlerts'
+import { openNotificationSettings, openExactAlarmSettings, exactAlarmsAllowed } from '../biometric'
 import { appVersion, checkForUpdate, openUpdateDownload, type UpdateInfo } from '../updates'
-import {
-  getGoogleUser, requestSigninDeviceCode, pollForSignIn, signOutGoogle,
-  type GoogleUser, type DeviceCode as SigninDeviceCode,
-} from '../googleAuth'
 
 const CURRENCIES = ['USD', 'EUR', 'GBP', 'JPY', 'INR', 'AUD', 'CAD', 'CHF', 'NZD', 'SGD', 'AED', 'ZAR']
 
@@ -199,8 +197,6 @@ export default function SettingsPage() {
           {(accounts ?? []).length === 0 && <p className="muted">No accounts yet.</p>}
         </div>
       </div>
-
-      <GoogleAccountCard />
 
       <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', maxWidth: 900 }}>
         <div className="card">
@@ -387,7 +383,16 @@ function NewsAlertsCard() {
   const [supported] = useState(() => newsAlertsSupported())
   const [enabled, setEnabled] = useState(() => isNewsAlertsEnabled())
   const [sessions, setSessions] = useState<SessionAlertPrefs>(() => getSessionAlertPrefs())
+  const [perm, setPerm] = useState<'granted' | 'denied' | 'prompt' | 'unknown'>('unknown')
+  const [exact, setExact] = useState(true)
   const [busy, setBusy] = useState(false)
+
+  async function refreshPerm() {
+    setPerm(await notificationPermission())
+    setExact(await exactAlarmsAllowed())
+  }
+
+  useEffect(() => { refreshPerm() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function turnOn() {
     setBusy(true)
@@ -397,12 +402,16 @@ function NewsAlertsCard() {
       const snap = await getEcon()
       const res = await syncNewsAlerts(snap)
       await syncSessionAlerts()
-      if (res.permissionDenied) toast('Android blocked notifications — allow them for Edgefolio in phone settings')
-      else toast('Alerts on ✓')
+      if (res.permissionDenied) {
+        toast('Android blocked notifications — tap "Open phone settings" below and allow them')
+      } else {
+        toast('Alerts on ✓')
+      }
     } catch {
       toast('Alerts on ✓ — will schedule once the calendar loads')
     } finally {
       setBusy(false)
+      refreshPerm()
     }
   }
 
@@ -417,9 +426,12 @@ function NewsAlertsCard() {
 
   async function test() {
     setBusy(true)
+    await ensureNotificationPermission()
     const ok = await sendTestNewsAlert()
     setBusy(false)
-    toast(ok ? 'Test alert sent — should pop up in a few seconds' : 'Could not send — check notification permission for Edgefolio')
+    refreshPerm()
+    if (ok) toast('Test alert sent — should pop up in a few seconds')
+    else toast('Blocked — tap "Open phone settings" below and allow notifications')
   }
 
   async function toggleSession(key: keyof SessionAlertPrefs, on: boolean) {
@@ -450,6 +462,21 @@ function NewsAlertsCard() {
   return (
     <div className="card">
       <h3>🔔 Alerts</h3>
+
+      {supported && (
+        <div className="row" style={{ alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
+          <span className="muted" style={{ fontSize: 12.5 }}>Phone notifications:</span>
+          {perm === 'granted' && <span className="chip" style={{ color: 'var(--green)', borderColor: 'var(--green)' }}>✓ Allowed</span>}
+          {perm === 'denied' && <span className="chip" style={{ color: 'var(--red)', borderColor: 'var(--red)' }}>✗ Blocked</span>}
+          {(perm === 'prompt' || perm === 'unknown') && <span className="chip">Not allowed yet</span>}
+          {perm !== 'granted' && (
+            <button className="btn sm" onClick={() => openNotificationSettings()}>Open phone settings</button>
+          )}
+          {perm === 'granted' && !exact && (
+            <button className="btn sm" onClick={() => openExactAlarmSettings()} title="Allows alerts to fire at the exact minute">Enable exact alarms</button>
+          )}
+        </div>
+      )}
 
       {enabled ? (
         <>
@@ -488,102 +515,6 @@ function NewsAlertsCard() {
   )
 }
 
-
-function GoogleAccountCard() {
-  const toast = useToast()
-  const [user, setUser] = useState<GoogleUser | null>(() => getGoogleUser())
-  const [cid, setCid] = useState(() => getDriveState().clientId) // reuse the Drive client if set
-  const [guide, setGuide] = useState(false)
-  const [busy, setBusy] = useState(false)
-  const [dc, setDc] = useState<SigninDeviceCode | null>(null)
-  const [secsLeft, setSecsLeft] = useState(0)
-
-  async function signIn() {
-    if (!cid.trim()) { toast('Paste your Google OAuth Client ID first'); return }
-    setBusy(true)
-    try {
-      const code = await requestSigninDeviceCode(cid)
-      setDc(code); setSecsLeft(code.expires_in)
-      const u = await pollForSignIn(cid, code, (s) => setSecsLeft(s))
-      setUser(u); setDc(null)
-      toast(`Signed in as ${u.email} ✓`)
-    } catch (e: any) {
-      setDc(null)
-      toast(e?.message || 'Sign-in failed')
-    } finally { setBusy(false) }
-  }
-
-  function signOut() {
-    if (!confirm('Sign out of your Google account?\n\nNothing is deleted — your journal stays on this device.')) return
-    signOutGoogle()
-    setUser(null)
-    toast('Signed out')
-  }
-
-  const mins = Math.floor(secsLeft / 60), ss = secsLeft % 60
-
-  return (
-    <div className="card" style={{ marginBottom: 16, maxWidth: 900 }}>
-      <h3 style={{ margin: 0 }}>&#128100; Account · Sign in with Google</h3>
-
-      {user ? (
-        <div className="row" style={{ alignItems: 'center', gap: 12, marginTop: 10, flexWrap: 'wrap' }}>
-          {user.picture
-            ? <img src={user.picture} alt="" style={{ width: 44, height: 44, borderRadius: '50%' }} referrerPolicy="no-referrer" />
-            : <span style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--accent-soft)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>&#128100;</span>}
-          <div style={{ minWidth: 0 }}>
-            <strong style={{ display: 'block' }}>{user.name}</strong>
-            <span className="muted" style={{ fontSize: 13 }}>{user.email}</span>
-          </div>
-          <button className="btn danger" style={{ marginLeft: 'auto' }} onClick={signOut}>Sign out</button>
-        </div>
-      ) : (
-        <>
-          <p className="muted" style={{ marginTop: 8, fontSize: 13 }}>
-            Optional: tie this journal to your Google account. Signing in records whose journal this is, pairs with
-            Google Drive backup/restore on a new phone, and is the base for future cloud sync.{' '}
-            <strong>Your data stays on this device</strong> — sign-in alone uploads nothing.
-          </p>
-
-          <button className="link-btn" onClick={() => setGuide((g) => !g)} style={{ margin: '6px 0 4px' }}>
-            {guide ? '▾ Hide setup steps' : '▸ First time? Get a free Client ID (2 min)'}
-          </button>
-          {guide && (
-            <ol className="drive-guide">
-              <li>Open the <a href="https://console.cloud.google.com/" target="_blank" rel="noreferrer">Google Cloud Console</a> and create a free project.</li>
-              <li>In <em>OAuth consent screen</em>, choose <strong>External</strong>, fill the basics, and add your own Gmail under <strong>Test users</strong>.</li>
-              <li>In <em>Credentials → Create credentials → OAuth client ID</em>, set Application type to <strong>TVs and Limited Input devices</strong>.</li>
-              <li>Copy the <strong>Client ID</strong> and paste it below. (If you already set one up for Drive backup, it works here too — it’s pre-filled.)</li>
-            </ol>
-          )}
-
-          <div className="field" style={{ maxWidth: 480, marginTop: 10 }}>
-            <label>Google OAuth Client ID</label>
-            <input className="input" value={cid} onChange={(e) => setCid(e.target.value)} placeholder="1234…apps.googleusercontent.com" autoComplete="off" />
-          </div>
-          <div className="row" style={{ marginTop: 12 }}>
-            <button className="btn primary" onClick={signIn} disabled={busy}>{busy ? 'Waiting for Google…' : 'Sign in with Google'}</button>
-          </div>
-          <p className="muted" style={{ fontSize: 11.5, marginTop: 10, marginBottom: 0 }}>
-            Sign-in happens on Google’s website with a one-time code — free, no server. Edgefolio only reads your name, email and avatar.
-          </p>
-        </>
-      )}
-
-      {dc && (
-        <Modal title="Approve on Google" onClose={() => { setDc(null); setBusy(false) }}>
-          <p style={{ marginTop: 0 }}>On any device, open</p>
-          <p style={{ textAlign: 'center' }}><strong style={{ fontSize: 17 }}>{dc.verification_url}</strong></p>
-          <p style={{ textAlign: 'center' }}>and enter this code:</p>
-          <p style={{ textAlign: 'center', fontSize: 26, letterSpacing: 2, fontFamily: 'var(--font-display)', margin: '4px 0' }}>{dc.user_code}</p>
-          <p className="muted" style={{ textAlign: 'center', fontSize: 13 }}>
-            {busy ? `Waiting for you… ${mins}:${String(ss).padStart(2, '0')}` : 'Code expired — try again'}
-          </p>
-        </Modal>
-      )}
-    </div>
-  )
-}
 
 function UpdateCard() {
   const toast = useToast()

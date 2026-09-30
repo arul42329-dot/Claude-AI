@@ -78,6 +78,26 @@ async function ensurePermission(LN: LocalNotificationsPlugin): Promise<boolean> 
   } catch { return false }
 }
 
+// Ask for the Android 13+ notification permission up-front (once). Safe to
+// call repeatedly: if already granted/denied it's a no-op. Called at app boot
+// so the system dialog always appears, even if the calendar feed is slow/down.
+export async function ensureNotificationPermission(): Promise<boolean> {
+  const LN = await loadPlugin()
+  if (!LN) return false
+  return ensurePermission(LN)
+}
+
+// Current notification permission for the Alerts card status line.
+export async function notificationPermission(): Promise<'granted' | 'denied' | 'prompt' | 'unknown'> {
+  const LN = await loadPlugin()
+  if (!LN) return 'unknown'
+  try {
+    const p = await LN.checkPermissions()
+    if (p.display === 'granted' || p.display === 'denied' || p.display === 'prompt') return p.display
+    return 'unknown'
+  } catch { return 'unknown' }
+}
+
 function hhmm(t: number): string {
   const d = new Date(t)
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`

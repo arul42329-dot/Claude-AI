@@ -3,7 +3,7 @@ import { NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-d
 import { maybeDailyBackup } from './drive'
 import { getSettings, ensureModeAccount } from './db'
 import { getEcon } from './econ'
-import { syncNewsAlerts, syncSessionAlerts } from './newsAlerts'
+import { syncNewsAlerts, syncSessionAlerts, ensureNotificationPermission } from './newsAlerts'
 import { checkForUpdate, appVersion } from './updates'
 import { isAmoledEnabled, applyAmoled } from './theme'
 import { isNativePlatform } from './candles'
@@ -57,6 +57,10 @@ function AppShell() {
   // Re-syncs on app open, every 45 min while open, and when back online —
   // scheduled alerts fire even when the app is closed.
   useEffect(() => {
+    // Android 13+ asks for the notification permission at runtime. Ask once,
+    // up-front, even if the calendar feed is slow or offline (which previously
+    // gated the dialog). No-op if already granted or denied.
+    const t0 = window.setTimeout(() => { ensureNotificationPermission().catch(() => {}) }, 1200)
     const sync = () => {
       getEcon().then((s) => { syncNewsAlerts(s) }).catch(() => {})
       syncSessionAlerts().catch(() => {})
@@ -66,6 +70,7 @@ function AppShell() {
     const onOnline = () => sync()
     window.addEventListener('online', onOnline)
     return () => {
+      window.clearTimeout(t0)
       window.clearTimeout(t)
       window.clearInterval(id)
       window.removeEventListener('online', onOnline)

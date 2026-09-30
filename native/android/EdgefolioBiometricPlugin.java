@@ -1,6 +1,11 @@
 package com.edgefolio.app;
 
+import android.app.AlarmManager;
+import android.content.Context;
+import android.content.Intent;
+import android.net.Uri;
 import android.os.Build;
+import android.provider.Settings;
 import android.util.Log;
 
 import androidx.biometric.BiometricManager;
@@ -18,8 +23,9 @@ import java.util.concurrent.Executor;
 
 /**
  * Tiny first-party plugin: Android BiometricPrompt (fingerprint / face / PIN)
- * used by the app-lock screen. No npm package needed — this file is copied
- * into the CI-generated Android project by the build workflow.
+ * used by the app-lock screen, plus a few device-setting helpers for
+ * notifications. No npm package needed — this file is copied into the
+ * CI-generated Android project by the build workflow.
  */
 @CapacitorPlugin(name = "EdgefolioBiometric")
 public class EdgefolioBiometricPlugin extends Plugin {
@@ -112,6 +118,56 @@ public class EdgefolioBiometricPlugin extends Plugin {
         } catch (Exception e) {
             Log.e(TAG, "verify failed", e);
             call.reject("biometric prompt failed");
+        }
+    }
+
+    // ---------------- Notification / alarm helpers ----------------
+
+    /** Deep-link straight to this app's notification page in system settings. */
+    @PluginMethod
+    public void openNotificationSettings(PluginCall call) {
+        try {
+            Intent intent = new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                    .putExtra(Settings.EXTRA_APP_PACKAGE, getContext().getPackageName());
+            getActivity().startActivity(intent);
+            call.resolve();
+        } catch (Exception e) {
+            Log.e(TAG, "openNotificationSettings failed", e);
+            call.reject("could not open notification settings");
+        }
+    }
+
+    /** Whether exact alarms are allowed (Android 12+ "Alarms & reminders"). */
+    @PluginMethod
+    public void exactAlarmState(PluginCall call) {
+        try {
+            AlarmManager am = (AlarmManager) getContext().getSystemService(Context.ALARM_SERVICE);
+            JSObject ret = new JSObject();
+            ret.put("exact", Build.VERSION.SDK_INT < 31 || am == null || am.canScheduleExactAlarms());
+            call.resolve(ret);
+        } catch (Exception e) {
+            Log.e(TAG, "exactAlarmState failed", e);
+            call.reject("alarm check failed");
+        }
+    }
+
+    /** Deep-link to the "Alarms & reminders" permission page (Android 12+). */
+    @PluginMethod
+    public void openExactAlarmSettings(PluginCall call) {
+        try {
+            Intent intent;
+            if (Build.VERSION.SDK_INT >= 31) {
+                intent = new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                        Uri.parse("package:" + getContext().getPackageName()));
+            } else {
+                intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        Uri.parse("package:" + getContext().getPackageName()));
+            }
+            getActivity().startActivity(intent);
+            call.resolve();
+        } catch (Exception e) {
+            Log.e(TAG, "openExactAlarmSettings failed", e);
+            call.reject("could not open alarm settings");
         }
     }
 }
