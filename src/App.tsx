@@ -1,12 +1,15 @@
-import { useEffect, useState } from 'react'
-import { NavLink, Route, Routes, useLocation } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { maybeDailyBackup } from './drive'
 import { getSettings, ensureModeAccount } from './db'
 import { getEcon } from './econ'
-import { syncNewsAlerts } from './newsAlerts'
+import { syncNewsAlerts, syncSessionAlerts } from './newsAlerts'
+import { checkForUpdate, appVersion } from './updates'
+import { isAmoledEnabled, applyAmoled } from './theme'
+import { isNativePlatform } from './candles'
 import { useLiveQuery } from './util'
 import { AppModeProvider, useAppMode } from './mode'
-import { ToastProvider } from './components/Toast'
+import { ToastProvider, useToast } from './components/Toast'
 import { SplashIntro } from './components/SplashIntro'
 import { LockScreen } from './components/LockScreen'
 import { isLockEnabled } from './lock'
@@ -42,6 +45,8 @@ const NAV = [
 
 function AppShell() {
   const location = useLocation()
+  const nav = useNavigate()
+  const toast = useToast()
   const { mode, isIndia } = useAppMode()
   // Auto-backup to Google Drive once per day, on app open (best-effort, silent).
   useEffect(() => {
@@ -52,7 +57,10 @@ function AppShell() {
   // Re-syncs on app open, every 45 min while open, and when back online —
   // scheduled alerts fire even when the app is closed.
   useEffect(() => {
-    const sync = () => { getEcon().then((s) => { syncNewsAlerts(s) }).catch(() => {}) }
+    const sync = () => {
+      getEcon().then((s) => { syncNewsAlerts(s) }).catch(() => {})
+      syncSessionAlerts().catch(() => {})
+    }
     const t = window.setTimeout(sync, 4000)
     const id = window.setInterval(sync, 45 * 60 * 1000)
     const onOnline = () => sync()
@@ -63,6 +71,42 @@ function AppShell() {
       window.removeEventListener('online', onOnline)
     }
   }, [])
+  // Android hardware back button: go back a page, or double-press to exit
+  // from the top level (instead of the app closing instantly on first tap).
+  const pathRef = useRef(location.pathname)
+  pathRef.current = location.pathname
+  const navRef = useRef(nav)
+  navRef.current = nav
+  const toastRef = useRef(toast)
+  toastRef.current = toast
+  useEffect(() => {
+    if (!isNativePlatform()) return
+    let disposed = false
+    let handle: { remove: () => void } | null = null
+    import('@capacitor/app').then(({ App }) => {
+      if (disposed) return
+      let lastBack = 0
+      App.addListener('backButton', () => {
+        if (pathRef.current !== '/') { navRef.current(-1); return }
+        const now = Date.now()
+        if (now - lastBack < 2500) { App.exitApp(); return }
+        lastBack = now
+        toastRef.current('Press back again to exit')
+      }).then((h) => { handle = h as any })
+    }).catch(() => { /* not on Android — ignore */ })
+    return () => { disposed = true; handle?.remove() }
+  }, [])
+  // Silent update check once a day: surface a toast if a newer release exists.
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      checkForUpdate().then((info) => {
+        if (info?.newer) toastRef.current(`Edgefolio v${info.latest} is available — see Settings → Updates`)
+      }).catch(() => {})
+    }, 6000)
+    return () => window.clearTimeout(t)
+  }, [])
+  // AMOLED pure-black display mode (persisted in localStorage, set in Settings).
+  useEffect(() => { applyAmoled(isAmoledEnabled()) }, [])
   // Make sure the current mode has at least one account to journal under.
   useEffect(() => { ensureModeAccount(mode) }, [mode])
   return (
@@ -96,7 +140,7 @@ function AppShell() {
           ))}
         </div>
         <div className="sidebar-footer">
-          <span className="dot-live" /> v1.3.17 · Local &amp; private
+          <span className="dot-live" /> v{appVersion()} · Local &amp; private
           <br />
           Your data never leaves this device.
         </div>

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { db, getSettings, saveSettings, exportAll, importAll, saveAccount, deleteAccount, wipeUserData, tradesToCsv } from '../db'
 import { useLiveQuery, downloadJson, fmtMoney } from '../util'
-import { ACCENTS, applyAccent } from '../theme'
+import { ACCENTS, applyAccent, isAmoledEnabled, setAmoled } from '../theme'
+import { isNativePlatform } from '../candles'
 import { useToast } from '../components/Toast'
 import { Modal } from '../components/Modal'
 import { ACCOUNT_TYPES, ACCOUNT_COLORS, accountTypeLabel, accountMarket } from '../accounts'
@@ -18,7 +19,14 @@ import { getEcon } from '../econ'
 import {
   newsAlertsSupported, isNewsAlertsEnabled, setNewsAlertsEnabled,
   syncNewsAlerts, cancelAllNewsAlerts, sendTestNewsAlert, LEAD_MINUTES,
+  getSessionAlertPrefs, setSessionAlertPrefs, syncSessionAlerts, cancelSessionAlerts,
+  type SessionAlertPrefs,
 } from '../newsAlerts'
+import { appVersion, checkForUpdate, openUpdateDownload, type UpdateInfo } from '../updates'
+import {
+  getGoogleUser, requestSigninDeviceCode, pollForSignIn, signOutGoogle,
+  type GoogleUser, type DeviceCode as SigninDeviceCode,
+} from '../googleAuth'
 
 const CURRENCIES = ['USD', 'EUR', 'GBP', 'JPY', 'INR', 'AUD', 'CAD', 'CHF', 'NZD', 'SGD', 'AED', 'ZAR']
 
@@ -35,6 +43,7 @@ export default function SettingsPage() {
   const clCount = useLiveQuery(() => db.checklists.count(), [], 0)
 
   const [editing, setEditing] = useState<Account | null | undefined>(undefined) // undefined = closed
+  const [amoled, setAmoledState] = useState(() => isAmoledEnabled())
 
   // Load the form ONCE — don't overwrite what the user is typing on later emissions.
   useEffect(() => {
@@ -61,6 +70,41 @@ export default function SettingsPage() {
     a.click()
     URL.revokeObjectURL(url)
     toast('Trades exported as CSV')
+  }
+
+  // Android: write the CSV to the app cache and open the system share sheet
+  // (WhatsApp, Gmail, Drive, …). Web/desktop keeps the download button.
+  async function doShareCsv() {
+    try {
+      const csv = await tradesToCsv()
+      if (isNativePlatform()) {
+        const { Filesystem, Directory, Encoding } = await import('@capacitor/filesystem')
+        const { Share } = await import('@capacitor/share')
+        const res = await Filesystem.writeFile({
+          path: `edgefolio-trades-${format(new Date(), 'yyyy-MM-dd')}.csv`,
+          data: csv,
+          directory: Directory.Cache,
+          encoding: Encoding.UTF8,
+        })
+        await Share.share({ title: 'Edgefolio trades', text: 'My trade journal (CSV)', url: res.uri, dialogTitle: 'Share trades' })
+      } else {
+        const blob = new Blob([csv], { type: 'text/csv' })
+        const url = URL.createObjectURL(blob)
+        const nav = navigator as any
+        if (nav.canShare?.({ files: [new File([blob], 'edgefolio-trades.csv', { type: 'text/csv' })] })) {
+          await nav.share({ files: [new File([blob], 'edgefolio-trades.csv', { type: 'text/csv' })], title: 'Edgefolio trades' })
+        } else {
+          const a = document.createElement('a')
+          a.href = url
+          a.download = `edgefolio-trades-${format(new Date(), 'yyyy-MM-dd')}.csv`
+          a.click()
+          URL.revokeObjectURL(url)
+        }
+      }
+    } catch (e: any) {
+      if (String(e?.message || e).toLowerCase().includes('cancel')) return
+      toast(e?.message || 'Could not share the CSV')
+    }
   }
 
   function pickAccent(key: string) {
@@ -156,6 +200,8 @@ export default function SettingsPage() {
         </div>
       </div>
 
+      <GoogleAccountCard />
+
       <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', maxWidth: 900 }}>
         <div className="card">
           <h3>Appearance &amp; currency</h3>
@@ -181,6 +227,10 @@ export default function SettingsPage() {
               ))}
             </div>
           </div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, cursor: 'pointer', fontSize: 13.5 }}>
+            <input type="checkbox" checked={amoled} onChange={(e) => { setAmoled(e.target.checked); setAmoledState(e.target.checked) }} />
+            <span>🖤 Pure black (AMOLED) — saves battery on OLED screens</span>
+          </label>
           <button className="btn primary" onClick={saveCurrency}>Save</button>
         </div>
 
@@ -209,6 +259,7 @@ export default function SettingsPage() {
             <button className="btn" onClick={doExport}>⬇️ Export backup</button>
             <button className="btn" onClick={() => fileRef.current?.click()}>⬆️ Import backup</button>
             <button className="btn" onClick={doExportCsv}>📄 Export trades (CSV)</button>
+            <button className="btn" onClick={doShareCsv}>📤 Share CSV</button>
             <input ref={fileRef} type="file" accept="application/json" style={{ display: 'none' }} onChange={(e) => doImport(e.target.files?.[0])} />
           </div>
           <div className="chips" style={{ marginTop: 16 }}>
@@ -234,6 +285,8 @@ export default function SettingsPage() {
             Clears your trades, pre-trade checks, journal and checklists you created. Your default checklists, accounts and Google Drive connection are kept.
           </p>
         </div>
+
+        <UpdateCard />
 
         <div className="card">
           <h3>About</h3>
@@ -287,6 +340,9 @@ function SecurityCard() {
       {enabled && !setting && (
         <>
           <div className="drive-status"><span className="live-dot" /> App lock is ON · PIN required on open</div>
+          <p className="muted" style={{ fontSize: 12.5, marginTop: 10 }}>
+            On Android, fingerprint / face unlock is offered automatically when your phone supports it — the PIN always works as backup.
+          </p>
           <div className="row" style={{ marginTop: 14 }}>
             <button className="btn" onClick={() => setSetting(true)}>Change PIN</button>
             <button className="btn danger" onClick={turnOff}>Turn off</button>
@@ -330,6 +386,7 @@ function NewsAlertsCard() {
   const toast = useToast()
   const [supported] = useState(() => newsAlertsSupported())
   const [enabled, setEnabled] = useState(() => isNewsAlertsEnabled())
+  const [sessions, setSessions] = useState<SessionAlertPrefs>(() => getSessionAlertPrefs())
   const [busy, setBusy] = useState(false)
 
   async function turnOn() {
@@ -339,10 +396,11 @@ function NewsAlertsCard() {
     try {
       const snap = await getEcon()
       const res = await syncNewsAlerts(snap)
+      await syncSessionAlerts()
       if (res.permissionDenied) toast('Android blocked notifications — allow them for Edgefolio in phone settings')
-      else toast('News alerts on ✓')
+      else toast('Alerts on ✓')
     } catch {
-      toast('News alerts on ✓ — will schedule once the calendar loads')
+      toast('Alerts on ✓ — will schedule once the calendar loads')
     } finally {
       setBusy(false)
     }
@@ -364,13 +422,26 @@ function NewsAlertsCard() {
     toast(ok ? 'Test alert sent — should pop up in a few seconds' : 'Could not send — check notification permission for Edgefolio')
   }
 
+  async function toggleSession(key: keyof SessionAlertPrefs, on: boolean) {
+    const next = { ...sessions, [key]: on }
+    setSessions(next)
+    setSessionAlertPrefs(next)
+    if (!next.london && !next.newyork) {
+      await cancelSessionAlerts()
+      return
+    }
+    const n = await syncSessionAlerts()
+    if (n > 0) toast('Session alert booked ✓')
+  }
+
   if (!supported) {
     return (
       <div className="card">
-        <h3>🔔 High-impact news alerts</h3>
+        <h3>🔔 Alerts</h3>
         <p className="muted" style={{ marginTop: -6, fontSize: 13 }}>
           On the Android app: a phone notification ~{LEAD_MINUTES} minutes before high-impact (red) economic events
-          for the currencies you trade — even when Edgefolio is closed. No account or server needed.
+          for the currencies you trade, and when the London / New York sessions open — even when Edgefolio is closed.
+          No account or server needed.
         </p>
       </div>
     )
@@ -378,17 +449,17 @@ function NewsAlertsCard() {
 
   return (
     <div className="card">
-      <h3>🔔 High-impact news alerts</h3>
+      <h3>🔔 Alerts</h3>
 
       {enabled ? (
         <>
-          <div className="drive-status"><span className="live-dot" /> Alerts ON · ~{LEAD_MINUTES} min before red-folder events</div>
+          <div className="drive-status"><span className="live-dot" /> News alerts ON · ~{LEAD_MINUTES} min before red-folder events</div>
           <p className="muted" style={{ fontSize: 13, marginTop: 10 }}>
             Covers the currencies in your logged trades (all currencies until you log some). Fires even when the app is closed.
           </p>
           <div className="row" style={{ marginTop: 12 }}>
             <button className="btn" onClick={test} disabled={busy}>Send test alert</button>
-            <button className="btn danger" onClick={turnOff} disabled={busy}>Turn off</button>
+            <button className="btn danger" onClick={turnOff} disabled={busy}>Turn off news alerts</button>
           </div>
         </>
       ) : (
@@ -397,9 +468,176 @@ function NewsAlertsCard() {
             Get a phone notification ~{LEAD_MINUTES} minutes before high-impact (red) economic events for the
             currencies you trade — even when Edgefolio is closed. No account or server needed.
           </p>
-          <button className="btn primary" onClick={turnOn} disabled={busy} style={{ marginTop: 4 }}>Turn on alerts</button>
+          <button className="btn primary" onClick={turnOn} disabled={busy} style={{ marginTop: 4 }}>Turn on news alerts</button>
         </>
       )}
+
+      <div style={{ borderTop: '1px solid var(--hairline)', margin: '16px 0 12px' }} />
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13.5, marginBottom: 6 }}>
+        <input type="checkbox" checked={sessions.london} onChange={(e) => toggleSession('london', e.target.checked)} />
+        <span>🇬🇧 London session open <span className="muted" style={{ fontSize: 12 }}>(08:00 London time)</span></span>
+      </label>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13.5 }}>
+        <input type="checkbox" checked={sessions.newyork} onChange={(e) => toggleSession('newyork', e.target.checked)} />
+        <span>🇺🇸 New York session open <span className="muted" style={{ fontSize: 12 }}>(08:00 New York time)</span></span>
+      </label>
+      <p className="muted" style={{ fontSize: 12, marginTop: 8, marginBottom: 0 }}>
+        Session alerts fire at the session open in your local timezone — following daylight-saving changes — even when the app is closed.
+      </p>
+    </div>
+  )
+}
+
+
+function GoogleAccountCard() {
+  const toast = useToast()
+  const [user, setUser] = useState<GoogleUser | null>(() => getGoogleUser())
+  const [cid, setCid] = useState(() => getDriveState().clientId) // reuse the Drive client if set
+  const [guide, setGuide] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [dc, setDc] = useState<SigninDeviceCode | null>(null)
+  const [secsLeft, setSecsLeft] = useState(0)
+
+  async function signIn() {
+    if (!cid.trim()) { toast('Paste your Google OAuth Client ID first'); return }
+    setBusy(true)
+    try {
+      const code = await requestSigninDeviceCode(cid)
+      setDc(code); setSecsLeft(code.expires_in)
+      const u = await pollForSignIn(cid, code, (s) => setSecsLeft(s))
+      setUser(u); setDc(null)
+      toast(`Signed in as ${u.email} ✓`)
+    } catch (e: any) {
+      setDc(null)
+      toast(e?.message || 'Sign-in failed')
+    } finally { setBusy(false) }
+  }
+
+  function signOut() {
+    if (!confirm('Sign out of your Google account?\n\nNothing is deleted — your journal stays on this device.')) return
+    signOutGoogle()
+    setUser(null)
+    toast('Signed out')
+  }
+
+  const mins = Math.floor(secsLeft / 60), ss = secsLeft % 60
+
+  return (
+    <div className="card" style={{ marginBottom: 16, maxWidth: 900 }}>
+      <h3 style={{ margin: 0 }}>&#128100; Account · Sign in with Google</h3>
+
+      {user ? (
+        <div className="row" style={{ alignItems: 'center', gap: 12, marginTop: 10, flexWrap: 'wrap' }}>
+          {user.picture
+            ? <img src={user.picture} alt="" style={{ width: 44, height: 44, borderRadius: '50%' }} referrerPolicy="no-referrer" />
+            : <span style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--accent-soft)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>&#128100;</span>}
+          <div style={{ minWidth: 0 }}>
+            <strong style={{ display: 'block' }}>{user.name}</strong>
+            <span className="muted" style={{ fontSize: 13 }}>{user.email}</span>
+          </div>
+          <button className="btn danger" style={{ marginLeft: 'auto' }} onClick={signOut}>Sign out</button>
+        </div>
+      ) : (
+        <>
+          <p className="muted" style={{ marginTop: 8, fontSize: 13 }}>
+            Optional: tie this journal to your Google account. Signing in records whose journal this is, pairs with
+            Google Drive backup/restore on a new phone, and is the base for future cloud sync.{' '}
+            <strong>Your data stays on this device</strong> — sign-in alone uploads nothing.
+          </p>
+
+          <button className="link-btn" onClick={() => setGuide((g) => !g)} style={{ margin: '6px 0 4px' }}>
+            {guide ? '▾ Hide setup steps' : '▸ First time? Get a free Client ID (2 min)'}
+          </button>
+          {guide && (
+            <ol className="drive-guide">
+              <li>Open the <a href="https://console.cloud.google.com/" target="_blank" rel="noreferrer">Google Cloud Console</a> and create a free project.</li>
+              <li>In <em>OAuth consent screen</em>, choose <strong>External</strong>, fill the basics, and add your own Gmail under <strong>Test users</strong>.</li>
+              <li>In <em>Credentials → Create credentials → OAuth client ID</em>, set Application type to <strong>TVs and Limited Input devices</strong>.</li>
+              <li>Copy the <strong>Client ID</strong> and paste it below. (If you already set one up for Drive backup, it works here too — it’s pre-filled.)</li>
+            </ol>
+          )}
+
+          <div className="field" style={{ maxWidth: 480, marginTop: 10 }}>
+            <label>Google OAuth Client ID</label>
+            <input className="input" value={cid} onChange={(e) => setCid(e.target.value)} placeholder="1234…apps.googleusercontent.com" autoComplete="off" />
+          </div>
+          <div className="row" style={{ marginTop: 12 }}>
+            <button className="btn primary" onClick={signIn} disabled={busy}>{busy ? 'Waiting for Google…' : 'Sign in with Google'}</button>
+          </div>
+          <p className="muted" style={{ fontSize: 11.5, marginTop: 10, marginBottom: 0 }}>
+            Sign-in happens on Google’s website with a one-time code — free, no server. Edgefolio only reads your name, email and avatar.
+          </p>
+        </>
+      )}
+
+      {dc && (
+        <Modal title="Approve on Google" onClose={() => { setDc(null); setBusy(false) }}>
+          <p style={{ marginTop: 0 }}>On any device, open</p>
+          <p style={{ textAlign: 'center' }}><strong style={{ fontSize: 17 }}>{dc.verification_url}</strong></p>
+          <p style={{ textAlign: 'center' }}>and enter this code:</p>
+          <p style={{ textAlign: 'center', fontSize: 26, letterSpacing: 2, fontFamily: 'var(--font-display)', margin: '4px 0' }}>{dc.user_code}</p>
+          <p className="muted" style={{ textAlign: 'center', fontSize: 13 }}>
+            {busy ? `Waiting for you… ${mins}:${String(ss).padStart(2, '0')}` : 'Code expired — try again'}
+          </p>
+        </Modal>
+      )}
+    </div>
+  )
+}
+
+function UpdateCard() {
+  const toast = useToast()
+  const [info, setInfo] = useState<UpdateInfo | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  async function check(force: boolean) {
+    setBusy(true)
+    const r = await checkForUpdate(force)
+    setInfo(r)
+    setBusy(false)
+    if (force) {
+      if (r?.newer) toast(`v${r.latest} is available ✓`)
+      else if (r) toast('You are up to date ✓')
+      else toast('Could not check for updates right now')
+    }
+  }
+
+  useEffect(() => { check(false) }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <div className="card">
+      <h3>⬆️ Updates</h3>
+      <p className="muted" style={{ marginTop: -6, fontSize: 13 }}>
+        Installed: <strong>v{appVersion()}</strong>
+        {info && <> · Latest release: <strong>v{info.latest}</strong></>}
+      </p>
+      {info?.newer ? (
+        <>
+          <div className="drive-status" style={{ color: 'var(--green)' }}>
+            <span className="live-dot" /> A new version is available
+          </div>
+          {info.notes && (
+            <p className="muted" style={{ fontSize: 12.5, marginTop: 10, whiteSpace: 'pre-wrap', maxHeight: 120, overflow: 'auto', marginBottom: 0 }}>
+              {info.notes.slice(0, 600)}
+            </p>
+          )}
+          <div className="row" style={{ marginTop: 12 }}>
+            <button className="btn primary" onClick={() => openUpdateDownload(info)}>⬇️ Download v{info.latest}</button>
+            <button className="btn" onClick={() => check(true)} disabled={busy}>{busy ? 'Checking…' : 'Check again'}</button>
+          </div>
+          <p className="muted" style={{ fontSize: 11.5, marginTop: 10, marginBottom: 0 }}>
+            The download opens in your browser — then tap the downloaded file to install (allow “install from this source” if Android asks).
+          </p>
+        </>
+      ) : (
+        <div className="row" style={{ marginTop: 8 }}>
+          <button className="btn" onClick={() => check(true)} disabled={busy}>{busy ? 'Checking…' : 'Check for updates'}</button>
+          {info && !info.newer && <span className="muted" style={{ fontSize: 13, alignSelf: 'center' }}>You’re up to date ✓</span>}
+        </div>
+      )}
+      <p className="muted" style={{ fontSize: 11.5, marginTop: 10, marginBottom: 0 }}>
+        Edgefolio checks automatically once a day and notifies you when a new release is out.
+      </p>
     </div>
   )
 }

@@ -1276,3 +1276,20 @@ tbody tr { transition: background 0.14s var(--ease); }
 
 /* Flag/globe inside toggle buttons & badges */
 .mode-toggle button svg, .mode-badge svg { margin-right: 5px; }
+
+/* ===== AMOLED pure-black theme (Settings → Appearance) ===== */
+/* True black surfaces: on OLED screens, black pixels are off, so this saves
+   battery and looks extra deep. The aurora decoration is dropped too. */
+html[data-amoled='on'] {
+  --bg: #000000;
+  --bg-2: #000000;
+  --surface: #050507;
+  --surface-2: #0b0b0f;
+  --surface-3: #131318;
+  --shadow: 0 20px 50px -22px rgba(0, 0, 0, 0.95);
+  --shadow-lift: 0 30px 70px -25px rgba(0, 0, 0, 1);
+}
+html[data-amoled='on'] body {
+  background: #000;
+}
+html[data-amoled='on'] .aurora { display: none; }

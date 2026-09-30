@@ -43,6 +43,22 @@ jobs:
       - name: Add Android platform
         run: npx cap add android
 
+      - name: Inject native biometric unlock plugin
+        run: |
+          set -e
+          PKG_DIR=android/app/src/main/java/com/edgefolio/app
+          mkdir -p "$PKG_DIR"
+          cp native/android/EdgefolioBiometricPlugin.java "$PKG_DIR/"
+          cp native/android/MainActivity.java "$PKG_DIR/"
+          # androidx.biometric requires minSdk 23 (Capacitor's default is 22).
+          sed -i 's/minSdkVersion = 22/minSdkVersion = 23/' android/variables.gradle || true
+          # Add the androidx.biometric dependency to the app module.
+          if ! grep -q "androidx.biometric" android/app/build.gradle; then
+            sed -i "s|implementation project(':capacitor-android')|implementation project(':capacitor-android')\n        implementation 'androidx.biometric:biometric:1.1.0'|" android/app/build.gradle
+          fi
+          grep -n "biometric" android/app/build.gradle || true
+          echo "Biometric plugin injected."
+
       - name: Sync Capacitor
         run: npx cap sync android
 

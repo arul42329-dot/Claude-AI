@@ -152,6 +152,134 @@ export async function cancelAllNewsAlerts(): Promise<void> {
   } catch { /* ignore */ }
 }
 
+// ---------------- Session-open alerts ----------------
+// Local notifications when a major forex session opens (London / New York).
+// Session start times are defined in that market's local time and converted
+// with Intl, so they stay correct across daylight-saving changes — the same
+// approach the on-screen session clock uses.
+
+const SESSIONS_KEY = 'edgefolio-session-alerts'
+// Notification ids for session alerts live in their own range so they can be
+// cancelled independently of news alerts (which use hashed event ids).
+const SESSION_ID_BASE = 900000000
+
+export interface SessionAlertPrefs {
+  london: boolean
+  newyork: boolean
+}
+
+export function getSessionAlertPrefs(): SessionAlertPrefs {
+  try {
+    const raw = localStorage.getItem(SESSIONS_KEY)
+    if (raw) return { london: true, newyork: true, ...JSON.parse(raw) }
+  } catch { /* ignore */ }
+  return { london: true, newyork: true }
+}
+
+export function setSessionAlertPrefs(p: SessionAlertPrefs): void {
+  try { localStorage.setItem(SESSIONS_KEY, JSON.stringify(p)) } catch { /* ignore */ }
+}
+
+const SESSION_DEFS: { key: keyof SessionAlertPrefs; name: string; tz: string; hour: number }[] = [
+  { key: 'london', name: 'London session', tz: 'Europe/London', hour: 8 },
+  { key: 'newyork', name: 'New York session', tz: 'America/New_York', hour: 8 },
+]
+
+function tzPartsMs(date: Date, timeZone: string): number {
+  // Milliseconds offset of `timeZone` from UTC at the given instant — derived
+  // from Intl so DST is handled for us.
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone, hourCycle: 'h23',
+    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
+  }).formatToParts(date)
+  const m: Record<string, number> = {}
+  for (const p of parts) if (p.type !== 'literal') m[p.type] = Number(p.value)
+  const asUTC = Date.UTC(m.year, m.month - 1, m.day, m.hour, m.minute)
+  return asUTC - date.getTime()
+}
+
+// Epoch time of the next (or current-day future) HH:00 wall clock in `tz`.
+function nextOpenAt(now: Date, tz: string, hour: number): number {
+  const offset = tzPartsMs(now, tz)
+  const wall = new Date(now.getTime() + offset) // tz wall time, read via UTC getters
+  let at = Date.UTC(wall.getUTCFullYear(), wall.getUTCMonth(), wall.getUTCDate(), hour, 0) - offset
+  if (at <= now.getTime()) at += 24 * 60 * 60 * 1000
+  return at
+}
+
+function isSessionAlertId(id: number): boolean {
+  return id >= SESSION_ID_BASE && id < SESSION_ID_BASE + 1000
+}
+
+// Book session-open notifications for the next `days` days (re-synced on every
+// app open, mirroring the news alerts). Idempotent via the pending list.
+export async function syncSessionAlerts(days = 2): Promise<number> {
+  const LN = await loadPlugin()
+  if (!LN) return 0
+  const prefs = getSessionAlertPrefs()
+  if (!prefs.london && !prefs.newyork) return 0
+  if (!(await ensurePermission(LN))) return 0
+
+  const now = new Date()
+  const wanted: { id: number; title: string; body: string; at: number }[] = []
+  SESSION_DEFS.forEach((s, si) => {
+    if (!prefs[s.key]) return
+    // Cancel the other session's alerts stay untouched; ids are per session/day.
+    let at = nextOpenAt(now, s.tz, s.hour)
+    for (let d = 0; d < days; d++) {
+      const local = new Date(at)
+      const hh = String(local.getHours()).padStart(2, '0')
+      const mm = String(local.getMinutes()).padStart(2, '0')
+      wanted.push({
+        id: SESSION_ID_BASE + si * 100 + d,
+        title: `🟢 ${s.name} open`,
+        body: `The ${s.name} just opened (${hh}:${mm} your time). Trade your plan.`,
+        at,
+      })
+      at += 24 * 60 * 60 * 1000
+    }
+  })
+
+  let booked = new Set<number>()
+  try {
+    const pend = await LN.getPending()
+    booked = new Set(pend.notifications.map((n) => n.id))
+  } catch { /* treat as nothing booked */ }
+
+  const toSchedule = wanted.filter((w) => !booked.has(w.id))
+  if (!toSchedule.length) return 0
+
+  // Drop any stale session alerts outside what we want now (e.g. day slots
+  // from an earlier sync) so the pending list never grows unbounded.
+  const stale = Array.from(booked).filter((id) => isSessionAlertId(id) && !wanted.some((w) => w.id === id))
+  try {
+    if (stale.length) await LN.cancel({ notifications: stale.map((id) => ({ id })) })
+  } catch { /* ignore */ }
+
+  try {
+    await LN.schedule({
+      notifications: toSchedule.map((w) => ({
+        id: w.id,
+        title: w.title,
+        body: w.body,
+        schedule: { at: new Date(Math.max(w.at, Date.now() + 5000)), allowWhileIdle: true },
+      })),
+    })
+  } catch { /* try again on next sync */ }
+  return toSchedule.length
+}
+
+// Cancel only the session-open alerts (used when both toggles are turned off).
+export async function cancelSessionAlerts(): Promise<void> {
+  const LN = await loadPlugin()
+  if (!LN) return
+  try {
+    const pend = await LN.getPending()
+    const ids = pend.notifications.map((n) => n.id).filter(isSessionAlertId)
+    if (ids.length) await LN.cancel({ notifications: ids.map((id) => ({ id })) })
+  } catch { /* ignore */ }
+}
+
 // Fire a one-off sample notification a few seconds out, so the user can
 // verify alerts work on their phone.
 export async function sendTestNewsAlert(): Promise<boolean> {

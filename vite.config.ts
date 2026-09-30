@@ -1,9 +1,12 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import pkg from './package.json'
 
 // Use relative base so the built assets work inside Electron (file://) and Capacitor (WebView).
 export default defineConfig({
   base: './',
+  // Compile-time app version (used by the in-app update checker).
+  define: { __APP_VERSION__: JSON.stringify(pkg.version) },
   plugins: [react()],
   server: {
     host: '0.0.0.0',

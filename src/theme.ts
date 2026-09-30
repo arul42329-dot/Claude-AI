@@ -53,3 +53,23 @@ export function applyMode(mode: 'forex' | 'india', accentKey?: string): void {
     applyAccent(accentKey)
   }
 }
+
+// AMOLED pure-black display mode — swaps the graphite palette for true black
+// (pixels off = battery saved on OLED screens). Persisted in localStorage and
+// applied at boot (App) and from the Settings toggle.
+const AMOLED_KEY = 'edgefolio-amoled'
+
+export function isAmoledEnabled(): boolean {
+  try { return localStorage.getItem(AMOLED_KEY) === 'on' } catch { return false }
+}
+
+export function applyAmoled(on: boolean): void {
+  const root = document.documentElement
+  if (on) root.setAttribute('data-amoled', 'on')
+  else root.removeAttribute('data-amoled')
+}
+
+export function setAmoled(on: boolean): void {
+  try { localStorage.setItem(AMOLED_KEY, on ? 'on' : 'off') } catch { /* ignore */ }
+  applyAmoled(on)
+}
