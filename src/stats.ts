@@ -43,6 +43,56 @@ export function tradeDate(t: Trade): Date {
   }
 }
 
+// Realized R multiple of a closed trade, derived purely from prices:
+// R = (move in your favour) / (planned risk = entry → stop).
+// Works for any instrument/lot size because it's currency-agnostic.
+export function tradeR(t: Trade): number | null {
+  const e = t.entryPrice, x = t.exitPrice, s = t.stopLoss
+  if (typeof e !== 'number' || typeof x !== 'number' || typeof s !== 'number') return null
+  if (!Number.isFinite(e) || !Number.isFinite(x) || !Number.isFinite(s)) return null
+  const risk = Math.abs(e - s)
+  if (risk <= 0) return null
+  const move = t.direction === 'short' ? e - x : x - e
+  return move / risk
+}
+
+export interface RStats {
+  count: number
+  avgR: number
+  avgWinR: number
+  avgLossR: number
+  sumR: number
+  bestR: number
+  worstR: number
+  // Distribution buckets: [≤-2, -2..-1, -1..0, 0..1, 1..2, 2..3, ≥3]
+  buckets: { label: string; r: number }[]
+}
+
+export function computeRStats(trades: Trade[]): RStats {
+  const rs = trades
+    .filter((t) => t.outcome !== 'open')
+    .map(tradeR)
+    .filter((r): r is number => r !== null)
+  const wins = rs.filter((r) => r > 0)
+  const losses = rs.filter((r) => r < 0)
+  const labels = ['≤ -2R', '-2 to -1R', '-1 to 0R', '0 to 1R', '1 to 2R', '2 to 3R', '3R+']
+  const bounds = [-Infinity, -2, -1, 0, 1, 2, 3, Infinity]
+  const buckets = labels.map((label, i) => ({
+    label,
+    r: rs.filter((r) => r > bounds[i] && r <= bounds[i + 1]).length,
+  }))
+  return {
+    count: rs.length,
+    avgR: rs.length ? rs.reduce((a, b) => a + b, 0) / rs.length : 0,
+    avgWinR: wins.length ? wins.reduce((a, b) => a + b, 0) / wins.length : 0,
+    avgLossR: losses.length ? losses.reduce((a, b) => a + b, 0) / losses.length : 0,
+    sumR: rs.reduce((a, b) => a + b, 0),
+    bestR: rs.length ? Math.max(...rs) : 0,
+    worstR: rs.length ? Math.min(...rs) : 0,
+    buckets,
+  }
+}
+
 export function computeStats(trades: Trade[]): Stats {
   const closed = trades.filter((t) => t.outcome !== 'open')
   const wins = closed.filter((t) => t.outcome === 'win')

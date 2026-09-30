@@ -3,10 +3,9 @@ import { db } from '../db'
 import { useLiveQuery, fmtMoney, fmtNum, fmtPct } from '../util'
 import { useAccountScope, scopeTrades } from '../accounts'
 import { useAppMode, marketOf } from '../mode'
-import { computeStats, groupByPeriod, type Period } from '../stats'
+import { computeStats, groupByPeriod, tradeDate, computeRStats, type Period } from '../stats'
 import { StatCard } from '../components/StatCard'
 import { PnlCalendar } from '../components/PnlCalendar'
-import { tradeDate } from '../stats'
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Cell,
 } from 'recharts'
@@ -52,6 +51,7 @@ export default function Analytics() {
     [scope, all, activeBucket],
   )
   const stats = computeStats(scopedTrades)
+  const rStats = useMemo(() => computeRStats(scopedTrades), [scopedTrades])
   const scopeLabel = scope === 'overall' ? 'All-time' : activeBucket?.label ?? '—'
 
   const chartData = buckets.map((b) => ({
@@ -142,6 +142,12 @@ export default function Analytics() {
             <StatCard label="Expectancy" numeric={stats.expectancy} format={(n) => fmtMoney(n, currency)} tone={stats.expectancy >= 0 ? 'pos' : 'neg'} sub="per trade" />
             <StatCard label="Best trade" numeric={stats.bestTrade} format={(n) => fmtMoney(n, currency)} tone="pos" />
             <StatCard label="Avg execution" value={stats.avgRating ? fmtNum(stats.avgRating, 1) + ' ★' : '—'} />
+            <StatCard
+              label="Avg R multiple"
+              value={rStats.count ? fmtNum(rStats.avgR, 2) + 'R' : '—'}
+              tone={rStats.avgR >= 0 ? 'pos' : 'neg'}
+              sub={rStats.count ? `${rStats.count} with entry/SL/exit` : 'log prices to see R'}
+            />
           </div>
 
           <div className="card" style={{ marginBottom: 20 }}>
@@ -181,6 +187,41 @@ export default function Analytics() {
               </BarChart>
             </ResponsiveContainer>
           </div>
+
+          {rStats.count > 0 && (
+            <div className="card" style={{ marginBottom: 20 }}>
+              <h3>
+                R-multiple distribution
+                <span className="muted" style={{ fontWeight: 500, fontSize: 12, marginLeft: 8 }}>
+                  · realized risk-multiples (entry→stop = 1R)
+                </span>
+              </h3>
+              <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, margin: '6px 0 16px' }}>
+                <div className="stat"><div className="stat-label">Avg R</div><div className={'stat-value ' + (rStats.avgR >= 0 ? 'pos' : 'neg')}>{fmtNum(rStats.avgR, 2)}R</div></div>
+                <div className="stat"><div className="stat-label">Total R</div><div className={'stat-value ' + (rStats.sumR >= 0 ? 'pos' : 'neg')}>{fmtNum(rStats.sumR, 1)}R</div></div>
+                <div className="stat"><div className="stat-label">Avg win</div><div className="stat-value pos">{fmtNum(rStats.avgWinR, 2)}R</div></div>
+                <div className="stat"><div className="stat-label">Avg loss</div><div className="stat-value neg">{fmtNum(rStats.avgLossR, 2)}R</div></div>
+                <div className="stat"><div className="stat-label">Best / worst</div><div className="stat-value">{fmtNum(rStats.bestR, 1)}R / {fmtNum(rStats.worstR, 1)}R</div></div>
+              </div>
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={rStats.buckets} margin={{ top: 6, right: 10, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                  <XAxis dataKey="label" stroke="#6a7180" fontSize={10.5} tickLine={false} interval={0} />
+                  <YAxis stroke="#6a7180" fontSize={11} tickLine={false} width={36} allowDecimals={false} />
+                  <Tooltip
+                    cursor={{ fill: 'rgba(255,255,255,0.04)' }}
+                    contentStyle={{ background: '#171a22', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, color: '#f3f5f9' }}
+                    formatter={(v: number) => [v, 'Trades']}
+                  />
+                  <Bar dataKey="r" radius={[6, 6, 0, 0]}>
+                    {rStats.buckets.map((b, i) => (
+                      <Cell key={b.label} fill={i >= 3 ? '#3ddc97' : '#ff6b81'} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
 
           {compliance && (
             <div className="card" style={{ marginBottom: 20 }}>

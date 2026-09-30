@@ -12,6 +12,33 @@ import { SESSIONS, SEGMENTS, instrumentsFor, indiaInstruments, defaultInstrument
 import { getUsdRates, readCachedRates, convertAmount } from '../fxrates'
 import { format } from 'date-fns'
 
+// Downscale + re-encode a picked image to a compact JPEG data URL so stored
+// screenshots stay small (the journal lives in IndexedDB / backup JSON).
+async function compressImage(file: File, maxEdge = 1400, quality = 0.72): Promise<string> {
+  const dataUrl = await new Promise<string>((res, rej) => {
+    const r = new FileReader()
+    r.onload = () => res(r.result as string)
+    r.onerror = () => rej(r.error)
+    r.readAsDataURL(file)
+  })
+  const img = await new Promise<HTMLImageElement>((res, rej) => {
+    const i = new Image()
+    i.onload = () => res(i)
+    i.onerror = () => rej(new Error('decode failed'))
+    i.src = dataUrl
+  })
+  const scale = Math.min(1, maxEdge / Math.max(img.width, img.height))
+  const w = Math.max(1, Math.round(img.width * scale))
+  const h = Math.max(1, Math.round(img.height * scale))
+  const canvas = document.createElement('canvas')
+  canvas.width = w
+  canvas.height = h
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return dataUrl // can't compress — keep the original
+  ctx.drawImage(img, 0, 0, w, h)
+  return canvas.toDataURL('image/jpeg', quality)
+}
+
 function emptyTrade(mode: AppMode = 'forex'): Trade {
   return {
     id: crypto.randomUUID(),
@@ -158,15 +185,31 @@ export function TradeForm({
     setTagInput('')
   }
 
-  async function handleScreenshot(file: File | undefined) {
-    if (!file) return
-    if (file.size > 3_500_000) {
-      alert('Please choose an image under ~3.5 MB.')
-      return
+  // Multiple chart screenshots: images are downscaled + re-encoded on the
+  // device (max 1400px long edge, JPEG) so a trade never bloats the database
+  // or the Drive backup. Android's picker offers camera or gallery.
+  async function handleScreenshots(files: FileList | null) {
+    if (!files || !files.length) return
+    const next = [...(t.screenshots ?? [])]
+    for (const file of Array.from(files).slice(0, 6 - next.length)) {
+      let url: string | null = null
+      try { url = await compressImage(file) } catch { url = null }
+      if (!url && file.size <= 3_500_000) {
+        url = await new Promise<string>((res, rej) => {
+          const r = new FileReader()
+          r.onload = () => res(r.result as string)
+          r.onerror = () => rej(r.error)
+          r.readAsDataURL(file)
+        }).catch(() => null)
+      }
+      if (url) next.push(url)
     }
-    const reader = new FileReader()
-    reader.onload = () => set('screenshot', reader.result as string)
-    reader.readAsDataURL(file)
+    if (next.length) set('screenshots', next)
+    if (next.length >= 6) toast('Up to 6 screenshots per trade')
+  }
+
+  function removeScreenshot(i: number) {
+    set('screenshots', (t.screenshots ?? []).filter((_, idx) => idx !== i))
   }
 
   async function save() {
@@ -449,13 +492,27 @@ export function TradeForm({
         </div>
       </div>
       <div className="field full">
-        <label>Chart screenshot (optional)</label>
-        <input className="input" type="file" accept="image/*" onChange={(e) => handleScreenshot(e.target.files?.[0])} />
-        {t.screenshot && (
-          <div style={{ marginTop: 10 }}>
-            <img src={t.screenshot} alt="screenshot" style={{ maxWidth: '100%', borderRadius: 10, border: '1px solid var(--border)' }} />
-            <button className="btn sm" style={{ marginTop: 8 }} onClick={() => set('screenshot', undefined)}>Remove image</button>
+        <label>Chart screenshots (optional · up to 6)</label>
+        <input className="input" type="file" accept="image/*" multiple onChange={(e) => { handleScreenshots(e.target.files); e.target.value = '' }} />
+        {(t.screenshots?.length || t.screenshot) ? (
+          <div className="shot-grid">
+            {t.screenshot && (
+              <div className="shot-cell">
+                <img src={t.screenshot} alt="screenshot" />
+                <button type="button" className="shot-x" title="Remove" onClick={() => set('screenshot', undefined)}>✕</button>
+              </div>
+            )}
+            {(t.screenshots ?? []).map((s, i) => (
+              <div className="shot-cell" key={i}>
+                <img src={s} alt={'screenshot ' + (i + 1)} />
+                <button type="button" className="shot-x" title="Remove" onClick={() => removeScreenshot(i)}>✕</button>
+              </div>
+            ))}
           </div>
+        ) : (
+          <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>
+            Snap your chart from the camera or gallery — images are compressed automatically.
+          </p>
         )}
       </div>
     </Modal>

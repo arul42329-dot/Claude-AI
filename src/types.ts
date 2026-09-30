@@ -129,7 +129,8 @@ export interface Trade {
 
   notes?: string
   tags?: string[]
-  screenshot?: string // data URL (optional)
+  screenshot?: string // data URL (optional, legacy single image)
+  screenshots?: string[] // data URLs (multiple chart screenshots)
 
   checklists: ChecklistResponse[]
 

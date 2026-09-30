@@ -10,6 +10,11 @@ import { IndiaFlag } from '../components/Icons'
 import { format } from 'date-fns'
 import { tradeDate } from '../stats'
 
+// Number of screenshots attached to a trade (new multi-image + legacy single).
+function shotCount(t: Trade): number {
+  return (t.screenshots?.length ?? 0) + (t.screenshot ? 1 : 0)
+}
+
 export default function Trades() {
   const allTradesRaw = useLiveQuery(() => db.trades.toArray(), [], [])
   const { mode } = useAppMode()
@@ -122,7 +127,7 @@ export default function Trades() {
                       </td>
                     )}
                     <td>{format(tradeDate(t), 'dd MMM yy')}</td>
-                    <td><strong>{instrumentLabel(t)}</strong></td>
+                    <td><strong>{instrumentLabel(t)}</strong>{shotCount(t) > 0 && <span className="shot-mark" title={`${shotCount(t)} screenshot${shotCount(t) === 1 ? '' : 's'}`}>📷 {shotCount(t)}</span>}</td>
                     <td><span className={t.direction === 'long' ? 'dir-buy' : 'dir-sell'}>{t.direction === 'long' ? '▲' : '▼'}</span></td>
                     <td className="muted" style={{ textTransform: 'capitalize' }}>{t.session}</td>
                     <td className="muted">{t.strategy || '—'}</td>

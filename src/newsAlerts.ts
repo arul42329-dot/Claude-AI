@@ -143,12 +143,14 @@ export async function syncNewsAlerts(snap: EconSnapshot | null): Promise<NewsAle
 }
 
 // Cancel every pending news alert (used when the user turns alerts off).
+// Session-open alerts use their own id range and are left alone.
 export async function cancelAllNewsAlerts(): Promise<void> {
   const LN = await loadPlugin()
   if (!LN) return
   try {
     const pend = await LN.getPending()
-    if (pend.notifications.length) await LN.cancel({ notifications: pend.notifications.map((n) => ({ id: n.id })) })
+    const ids = pend.notifications.map((n) => n.id).filter((id) => !isSessionAlertId(id))
+    if (ids.length) await LN.cancel({ notifications: ids.map((id) => ({ id })) })
   } catch { /* ignore */ }
 }
 
