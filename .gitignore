@@ -7,8 +7,8 @@ release/
 *.local
 
 # Capacitor native project (generated in CI via `npx cap add android`)
-android/
-ios/
+/android/
+/ios/
 
 # Logs
 npm-debug.log*
