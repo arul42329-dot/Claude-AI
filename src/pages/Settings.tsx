@@ -14,6 +14,11 @@ import {
   type DriveState, type DeviceCode,
 } from '../drive'
 import { isLockEnabled, setPin, removeLock } from '../lock'
+import { getEcon } from '../econ'
+import {
+  newsAlertsSupported, isNewsAlertsEnabled, setNewsAlertsEnabled,
+  syncNewsAlerts, cancelAllNewsAlerts, sendTestNewsAlert, LEAD_MINUTES,
+} from '../newsAlerts'
 
 const CURRENCIES = ['USD', 'EUR', 'GBP', 'JPY', 'INR', 'AUD', 'CAD', 'CHF', 'NZD', 'SGD', 'AED', 'ZAR']
 
@@ -217,6 +222,8 @@ export default function SettingsPage() {
 
         <SecurityCard />
 
+        <NewsAlertsCard />
+
         <div className="card">
           <h3>Data tools</h3>
           <div className="row">
@@ -313,6 +320,84 @@ function SecurityCard() {
             <button className="btn primary" onClick={save} disabled={!validPin || pin1 !== pin2}>Save PIN</button>
             <button className="btn ghost" onClick={() => { setSetting(false); setPin1(''); setPin2('') }}>Cancel</button>
           </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+function NewsAlertsCard() {
+  const toast = useToast()
+  const [supported] = useState(() => newsAlertsSupported())
+  const [enabled, setEnabled] = useState(() => isNewsAlertsEnabled())
+  const [busy, setBusy] = useState(false)
+
+  async function turnOn() {
+    setBusy(true)
+    setNewsAlertsEnabled(true)
+    setEnabled(true)
+    try {
+      const snap = await getEcon()
+      const res = await syncNewsAlerts(snap)
+      if (res.permissionDenied) toast('Android blocked notifications — allow them for Edgefolio in phone settings')
+      else toast('News alerts on ✓')
+    } catch {
+      toast('News alerts on ✓ — will schedule once the calendar loads')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function turnOff() {
+    setBusy(true)
+    setNewsAlertsEnabled(false)
+    setEnabled(false)
+    await cancelAllNewsAlerts()
+    setBusy(false)
+    toast('News alerts off')
+  }
+
+  async function test() {
+    setBusy(true)
+    const ok = await sendTestNewsAlert()
+    setBusy(false)
+    toast(ok ? 'Test alert sent — should pop up in a few seconds' : 'Could not send — check notification permission for Edgefolio')
+  }
+
+  if (!supported) {
+    return (
+      <div className="card">
+        <h3>🔔 High-impact news alerts</h3>
+        <p className="muted" style={{ marginTop: -6, fontSize: 13 }}>
+          On the Android app: a phone notification ~{LEAD_MINUTES} minutes before high-impact (red) economic events
+          for the currencies you trade — even when Edgefolio is closed. No account or server needed.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="card">
+      <h3>🔔 High-impact news alerts</h3>
+
+      {enabled ? (
+        <>
+          <div className="drive-status"><span className="live-dot" /> Alerts ON · ~{LEAD_MINUTES} min before red-folder events</div>
+          <p className="muted" style={{ fontSize: 13, marginTop: 10 }}>
+            Covers the currencies in your logged trades (all currencies until you log some). Fires even when the app is closed.
+          </p>
+          <div className="row" style={{ marginTop: 12 }}>
+            <button className="btn" onClick={test} disabled={busy}>Send test alert</button>
+            <button className="btn danger" onClick={turnOff} disabled={busy}>Turn off</button>
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="muted" style={{ marginTop: -6, fontSize: 13 }}>
+            Get a phone notification ~{LEAD_MINUTES} minutes before high-impact (red) economic events for the
+            currencies you trade — even when Edgefolio is closed. No account or server needed.
+          </p>
+          <button className="btn primary" onClick={turnOn} disabled={busy} style={{ marginTop: 4 }}>Turn on alerts</button>
         </>
       )}
     </div>

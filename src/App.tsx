@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import { maybeDailyBackup } from './drive'
 import { getSettings, ensureModeAccount } from './db'
+import { getEcon } from './econ'
+import { syncNewsAlerts } from './newsAlerts'
 import { useLiveQuery } from './util'
 import { AppModeProvider, useAppMode } from './mode'
 import { ToastProvider } from './components/Toast'
@@ -46,6 +48,21 @@ function AppShell() {
     const t = window.setTimeout(() => { maybeDailyBackup() }, 2500)
     return () => window.clearTimeout(t)
   }, [])
+  // Keep local notifications booked for upcoming high-impact news (Android).
+  // Re-syncs on app open, every 45 min while open, and when back online —
+  // scheduled alerts fire even when the app is closed.
+  useEffect(() => {
+    const sync = () => { getEcon().then((s) => { syncNewsAlerts(s) }).catch(() => {}) }
+    const t = window.setTimeout(sync, 4000)
+    const id = window.setInterval(sync, 45 * 60 * 1000)
+    const onOnline = () => sync()
+    window.addEventListener('online', onOnline)
+    return () => {
+      window.clearTimeout(t)
+      window.clearInterval(id)
+      window.removeEventListener('online', onOnline)
+    }
+  }, [])
   // Make sure the current mode has at least one account to journal under.
   useEffect(() => { ensureModeAccount(mode) }, [mode])
   return (
@@ -79,7 +96,7 @@ function AppShell() {
           ))}
         </div>
         <div className="sidebar-footer">
-          <span className="dot-live" /> v1.3.16 · Local &amp; private
+          <span className="dot-live" /> v1.3.17 · Local &amp; private
           <br />
           Your data never leaves this device.
         </div>
