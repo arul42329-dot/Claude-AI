@@ -84,6 +84,11 @@ export function TradeForm({
   const isIndia = tradeMarket === 'india'
   const seg: Segment = t.segment ?? 'equity'
   const isOption = isIndia && seg === 'options'
+  // India options are modelled as bought premium — the CE/PE choice covers the
+  // directional view, so the trade is always premium-long for P/L purposes.
+  useEffect(() => {
+    if (isOption && t.direction !== 'long') set('direction', 'long')
+  }, [isOption]) // eslint-disable-line react-hooks/exhaustive-deps
   const instrumentList = isIndia ? indiaInstruments(seg) : instrumentsFor('forex')
   const entries = (allEntries ?? []).filter((e) => marketOf(e) === tradeMarket)
 
@@ -420,13 +425,15 @@ export function TradeForm({
           <label>{isIndia ? (seg === 'commodity' ? 'Commodity' : seg === 'options' || seg === 'futures' ? 'Underlying' : 'Index / Stock') : 'Pair / Instrument'}</label>
           <Combobox value={t.pair} onChange={(v) => set('pair', v)} options={instrumentList} placeholder={isIndia ? 'Search index, stock or commodity…' : 'Search pair…'} />
         </div>
-        <div className="field">
-          <label>{isOption ? 'Buy / Sell option' : 'Direction'}</label>
-          <div className="seg">
-            <button className={t.direction === 'long' ? 'active' : ''} onClick={() => set('direction', 'long' as Direction)}>▲ Buy</button>
-            <button className={t.direction === 'short' ? 'active' : ''} onClick={() => set('direction', 'short' as Direction)}>▼ Sell</button>
+        {!isOption && (
+          <div className="field">
+            <label>Direction</label>
+            <div className="seg">
+              <button className={t.direction === 'long' ? 'active' : ''} onClick={() => set('direction', 'long' as Direction)}>▲ Buy</button>
+              <button className={t.direction === 'short' ? 'active' : ''} onClick={() => set('direction', 'short' as Direction)}>▼ Sell</button>
+            </div>
           </div>
-        </div>
+        )}
         {!isIndia && (
           <div className="field">
             <label>Session</label>
@@ -517,9 +524,6 @@ export function TradeForm({
             <option value="loss">Loss</option>
             <option value="breakeven">Breakeven</option>
           </select>
-          <span className="muted" style={{ fontSize: 11 }}>
-            Calculated automatically from entry, exit &amp; net P/L — a close very near entry counts as breakeven.
-          </span>
         </div>
         <div className="field">
           <label>
@@ -543,15 +547,6 @@ export function TradeForm({
               </button>
             )}
           </div>
-          <span className="muted" style={{ fontSize: 11 }}>
-            {pnlManual
-              ? 'Manual — tap Auto to recompute from prices.'
-              : pnlUnconverted
-                ? `Auto in ${quoteCcy} (rate to ${acctCcy} unavailable) — type to override.`
-                : isIndia
-                  ? 'Auto NET from entry, close, size − brokerage − taxes. A close very near entry = breakeven.'
-                  : `Auto in ${acctCcy} from entry, close price, direction & size — type to override.`}
-          </span>
           {isIndia && autoPnl != null && (
             <div className="cost-breakdown">
               <span>Gross <strong>{fmtMoney(autoPnl, 'INR')}</strong></span>
@@ -565,7 +560,6 @@ export function TradeForm({
           <div className="field">
             <label>Taxes & charges (₹ · this trade)</label>
             <input className="input" type="number" step="any" value={t.taxes ?? ''} onChange={(e) => setNum('taxes', e.target.value)} placeholder="e.g. 32 (STT, exchange…)" />
-            <span className="muted" style={{ fontSize: 11 }}>Deducted from this trade's P/L. Brokerage comes from Settings.</span>
           </div>
         )}
         {!isIndia && <div className="field"><label>Pips</label><input className="input" type="number" step="any" value={t.pips ?? ''} onChange={(e) => setNum('pips', e.target.value)} /></div>}
@@ -614,11 +608,7 @@ export function TradeForm({
               </div>
             ))}
           </div>
-        ) : (
-          <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>
-            Snap your chart from the camera or gallery — images are compressed automatically.
-          </p>
-        )}
+        ) : null}
       </div>
     </Modal>
   )

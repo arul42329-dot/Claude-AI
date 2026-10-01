@@ -181,11 +181,6 @@ export default function SettingsPage() {
           <h3 style={{ margin: 0 }}>{isIndia ? <><IndiaFlag size={15} /> Indian trading accounts</> : 'Trading accounts'}</h3>
           <button className="btn primary sm" onClick={() => setEditing(null)}>＋ Add {isIndia ? 'Indian ' : ''}account</button>
         </div>
-        <p className="muted" style={{ marginTop: 6, fontSize: 13 }}>
-          {isIndia
-            ? 'Indian accounts are journalled separately from your forex accounts and are always in ₹ INR. Switch between them (or view all combined) using the selector in the sidebar.'
-            : 'Journal each account separately — e.g. your prop-firm evaluation phases, funded account and live account. Switch between them (or view all combined) using the selector in the sidebar.'}
-        </p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 }}>
           {(accounts ?? []).map((a) => (
             <div key={a.id} className="acct-row">
@@ -211,7 +206,6 @@ export default function SettingsPage() {
       <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', maxWidth: 900 }}>
         <div className="card">
           <h3>Appearance &amp; currency</h3>
-          <p className="muted" style={{ marginTop: -6, fontSize: 13 }}>Currency is used for the combined view and any account without its own.</p>
           <div className="field" style={{ marginBottom: 16 }}>
             <label>Currency</label>
             <select className="select" value={form.accountCurrency} onChange={(e) => setForm({ ...form, accountCurrency: e.target.value })}>
@@ -253,16 +247,10 @@ export default function SettingsPage() {
             </div>
           </div>
           <button className="btn primary" onClick={saveCurrency} style={{ marginTop: 12 }}>Save {isIndia ? 'India' : 'forex'} goals</button>
-          <p className="muted" style={{ fontSize: 11.5, marginTop: 10, marginBottom: 0 }}>
-            Goals are separate for Forex and India — switch the app mode (top-left) to edit the other set.
-          </p>
         </div>
 
         <div className="card">
           <h3>Backup &amp; restore</h3>
-          <p className="muted" style={{ marginTop: -6, fontSize: 13 }}>
-            All your data lives on this device. Export regularly to keep a safe copy, or to move to another device.
-          </p>
           <div className="row" style={{ marginTop: 8 }}>
             <button className="btn" onClick={doExport}>⬇️ Export backup</button>
             <button className="btn" onClick={() => fileRef.current?.click()}>⬆️ Import backup</button>
@@ -292,20 +280,13 @@ export default function SettingsPage() {
             <button className="btn" onClick={loadSample}>✨ Load sample trades</button>
             <button className="btn danger" onClick={wipe}>🗑️ Clear my data</button>
           </div>
-          <p className="muted" style={{ fontSize: 12, marginTop: 10, marginBottom: 0 }}>
-            Recalculate outcomes re-derives Win/Loss/Breakeven from each trade's close price & net P/L (a close very near entry = breakeven). Clear-my-data clears your trades, pre-trade checks, journal and checklists you created. Your default checklists, accounts and Google Drive connection are kept.
-          </p>
         </div>
 
         <UpdateCard />
 
         <div className="card">
           <h3>About</h3>
-          <p className="muted" style={{ fontSize: 13 }}>
-            <strong>Edgefolio</strong> — a private, offline Forex trade journal.<br />
-            Log trades across multiple accounts, build custom checklists, and analyse your edge daily, weekly and monthly.<br /><br />
-            Available for Android and Windows. Your data never leaves your device.
-          </p>
+          <p className="muted" style={{ fontSize: 13 }}>v{appVersion()} · Android &amp; Windows · Your data never leaves your device.</p>
         </div>
       </div>
 
@@ -351,9 +332,6 @@ function SecurityCard() {
       {enabled && !setting && (
         <>
           <div className="drive-status"><span className="live-dot" /> App lock is ON · PIN required on open</div>
-          <p className="muted" style={{ fontSize: 12.5, marginTop: 10 }}>
-            On Android, fingerprint / face unlock is offered automatically when your phone supports it — the PIN always works as backup.
-          </p>
           <div className="row" style={{ marginTop: 14 }}>
             <button className="btn" onClick={() => setSetting(true)}>Change PIN</button>
             <button className="btn danger" onClick={turnOff}>Turn off</button>
@@ -363,9 +341,6 @@ function SecurityCard() {
 
       {!enabled && !setting && (
         <>
-          <p className="muted" style={{ marginTop: -6, fontSize: 13 }}>
-            Lock Edgefolio with a PIN so your journal stays private if someone else picks up your phone.
-          </p>
           <button className="btn primary" onClick={() => setSetting(true)} style={{ marginTop: 4 }}>Set up a PIN</button>
         </>
       )}
@@ -497,19 +472,10 @@ function NewsAlertsCard() {
           )}
         </div>
       )}
-      {supported && (
-        <p className="muted" style={{ fontSize: 11.5, marginTop: -4, marginBottom: 12 }}>
-          If alerts are delayed or missing on Xiaomi / Redmi / Poco / Realme / Oppo / Vivo / Samsung: phone Settings → Battery → remove Edgefolio from
-          restrictions ("No restrictions" / "Unrestricted") and allow Auto-start. Android delays notifications from restricted apps even when allowed above.
-        </p>
-      )}
 
       {enabled ? (
         <>
           <div className="drive-status"><span className="live-dot" /> News alerts ON · ~{LEAD_MINUTES} min before red-folder events</div>
-          <p className="muted" style={{ fontSize: 13, marginTop: 10 }}>
-            Covers the currencies in your logged trades (all currencies until you log some). Fires even when the app is closed.
-          </p>
           <div className="row" style={{ marginTop: 12 }}>
             <button className="btn" onClick={test} disabled={busy}>Send test alert</button>
             <button className="btn danger" onClick={turnOff} disabled={busy}>Turn off news alerts</button>
@@ -517,10 +483,6 @@ function NewsAlertsCard() {
         </>
       ) : (
         <>
-          <p className="muted" style={{ marginTop: -6, fontSize: 13 }}>
-            Get a phone notification ~{LEAD_MINUTES} minutes before high-impact (red) economic events for the
-            currencies you trade — even when Edgefolio is closed. No account or server needed.
-          </p>
           <button className="btn primary" onClick={turnOn} disabled={busy} style={{ marginTop: 4 }}>Turn on news alerts</button>
         </>
       )}
@@ -534,9 +496,6 @@ function NewsAlertsCard() {
         <input type="checkbox" checked={sessions.newyork} onChange={(e) => toggleSession('newyork', e.target.checked)} />
         <span>🇺🇸 New York session open <span className="muted" style={{ fontSize: 12 }}>(08:00 New York time)</span></span>
       </label>
-      <p className="muted" style={{ fontSize: 12, marginTop: 8, marginBottom: 0 }}>
-        Session alerts fire at the session open in your local timezone — following daylight-saving changes — even when the app is closed.
-      </p>
     </div>
   )
 }
@@ -642,17 +601,14 @@ function IndiaDefaultsCard() {
   return (
     <div className="card">
       <h3>🇮🇳 India trading defaults</h3>
-      <p className="muted" style={{ marginTop: -6, fontSize: 13 }}>
-        Pre-fills the trade form: lot sizes per instrument and your brokerage — both deducted from every trade's P/L automatically.
-      </p>
 
       <div className="form-grid" style={{ marginTop: 4 }}>
         <div className="field">
-          <label>Options brokerage · BUY leg (₹ per lot)</label>
+          <label>Options brokerage · BUY leg (₹ per order)</label>
           <input className="input" type="number" step="any" value={d.brokerageOptionsBuy} onChange={(e) => setBrokerage({ brokerageOptionsBuy: Number(e.target.value) || 0 })} />
         </div>
         <div className="field">
-          <label>Options brokerage · SELL leg (₹ per lot)</label>
+          <label>Options brokerage · SELL leg (₹ per order)</label>
           <input className="input" type="number" step="any" value={d.brokerageOptionsSell} onChange={(e) => setBrokerage({ brokerageOptionsSell: Number(e.target.value) || 0 })} />
         </div>
         <div className="field">
@@ -679,9 +635,6 @@ function IndiaDefaultsCard() {
         <button className="btn" style={{ marginTop: 12 }} onClick={() => setEditor({ name: '', qty: 75 })}>＋ Add instrument</button>
       </div>
 
-      <p className="muted" style={{ fontSize: 11.5, marginTop: 12, marginBottom: 0 }}>
-        Changes save automatically. Editing here never rewrites past trades — each trade keeps the values it was saved with.
-      </p>
 
       {editor && (
         <Modal

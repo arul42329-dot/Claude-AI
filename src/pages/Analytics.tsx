@@ -154,7 +154,6 @@ export default function Analytics() {
           <div className="card" style={{ marginBottom: 20 }}>
             <h3>
               {chartTitle}
-              {scope !== 'overall' && <span className="muted" style={{ fontWeight: 500, fontSize: 12, marginLeft: 8 }}>· tap a bar to inspect that {scope.replace('ly', '')}</span>}
             </h3>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={chartData} margin={{ top: 6, right: 10, left: 0, bottom: 0 }}>
@@ -193,9 +192,6 @@ export default function Analytics() {
             <div className="card" style={{ marginBottom: 20 }}>
               <h3>
                 R-multiple distribution
-                <span className="muted" style={{ fontWeight: 500, fontSize: 12, marginLeft: 8 }}>
-                  · realized risk-multiples (entry→stop = 1R)
-                </span>
               </h3>
               <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, margin: '6px 0 16px' }}>
                 <div className="stat"><div className="stat-label">Avg R</div><div className={'stat-value ' + (rStats.avgR >= 0 ? 'pos' : 'neg')}>{fmtNum(rStats.avgR, 2)}R</div></div>
@@ -227,7 +223,6 @@ export default function Analytics() {
           {compliance && (
             <div className="card" style={{ marginBottom: 20 }}>
               <h3>Checklist discipline vs. results</h3>
-              <p className="muted" style={{ marginTop: -6, fontSize: 13 }}>Do you win more when you follow your checklists? (based on {compliance.count} checklisted trades{scope !== 'overall' ? ` in ${scopeLabel}` : ''})</p>
               <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                 <div className="stat">
                   <div className="label">≥80% checklist done</div>
@@ -248,7 +243,6 @@ export default function Analytics() {
           <div className="card" style={{ marginBottom: 20 }}>
             <h3>
               💡 Insights · pros &amp; cons
-              <span className="muted" style={{ fontWeight: 500, fontSize: 12, marginLeft: 8 }}>auto-generated from your trades</span>
             </h3>
             <div className="insight-grid">
               <div className="insight-col pros">

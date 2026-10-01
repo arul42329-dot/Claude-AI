@@ -17,10 +17,14 @@ export function Modal({
     window.addEventListener('keydown', onKey)
     // Lock background scroll while the dialog is open (restore prior value on close).
     const prevOverflow = document.body.style.overflow
+    const prevScrollY = window.scrollY
     document.body.style.overflow = 'hidden'
     return () => {
       window.removeEventListener('keydown', onKey)
       document.body.style.overflow = prevOverflow
+      // Android WebView can leave the page offset after the keyboard closes —
+      // restore the exact position the page had before the dialog opened.
+      window.scrollTo(0, prevScrollY)
     }
   }, [onClose])
 

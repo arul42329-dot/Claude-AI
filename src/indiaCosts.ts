@@ -68,12 +68,10 @@ export function lotSizeFor(pair: string): number {
 }
 
 // Brokerage for a trade, from the user's saved defaults.
-// Options: buy leg + sell leg (a closed position pays both). Others: flat.
-export function brokerageFor(pair: string, segment: 'equity' | 'futures' | 'options' | 'commodity' | undefined, lots: number | undefined): number {
+// Options: flat per ORDER — the buy leg + the sell leg (₹5 + ₹5 = ₹10 per
+// completed trade, regardless of lot count — how discount brokers charge).
+export function brokerageFor(pair: string, segment: 'equity' | 'futures' | 'options' | 'commodity' | undefined, _lots?: number): number {
   const d = getIndiaDefaults()
-  if (segment === 'options') {
-    const n = Math.max(1, lots ?? 1) // per-lot brokerage like most discount brokers
-    return (d.brokerageOptionsBuy + d.brokerageOptionsSell) * n
-  }
+  if (segment === 'options') return d.brokerageOptionsBuy + d.brokerageOptionsSell
   return d.brokerageFlat
 }
