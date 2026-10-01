@@ -121,7 +121,10 @@ export interface Trade {
   // Result
   outcome: Outcome
   pips?: number
-  pnl?: number // profit/loss in account currency
+  pnl?: number // NET profit/loss in account currency (after brokerage & taxes)
+  grossPnl?: number // P/L from prices only, before brokerage/taxes (India)
+  brokerage?: number // broker charge snapshot at save time (India)
+  taxes?: number // manually entered charges for this trade (India)
 
   // Emotional / behavioural
   emotion?: string

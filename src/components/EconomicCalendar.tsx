@@ -179,7 +179,6 @@ export function EconomicCalendar({ title = '📅 Economic Calendar' }: { title?:
         </>
       )}
 
-      <p className="muted" style={{ fontSize: 11, marginTop: 12 }}>Times shown in your local timezone · 🔴 high-impact events are highlighted. Source: ForexFactory (faireconomy.media).</p>
     </div>
   )
 }

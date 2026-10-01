@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { db, nextTradeSerial } from '../db'
-import { useLiveQuery } from '../util'
+import { useLiveQuery, fmtMoney } from '../util'
 import { useAccountScope } from '../accounts'
 import { useAppMode, marketOf, type AppMode } from '../mode'
 import type { Trade, Direction, Outcome, Session } from '../types'
@@ -9,6 +9,7 @@ import { Combobox } from './Combobox'
 import { NumberStepper } from './NumberStepper'
 import { useToast } from './Toast'
 import { SESSIONS, SEGMENTS, instrumentsFor, indiaInstruments, defaultInstrument, type Segment } from '../util'
+import { lotSizeFor, brokerageFor } from '../indiaCosts'
 import { getUsdRates, readCachedRates, convertAmount } from '../fxrates'
 import { format } from 'date-fns'
 
@@ -134,6 +135,21 @@ export function TradeForm({
     return t.lotSize ?? undefined // forex: lotSize holds units
   }, [isIndia, seg, t.lots, t.lotSize])
 
+  // India: pre-fill "Qty per lot" from the Settings defaults whenever the
+  // instrument changes (tracked so a manual per-trade override is kept).
+  const lotAutoRef = useRef(true)
+  const prevPairRef = useRef<string | undefined>(undefined)
+  useEffect(() => {
+    const p = t.pair
+    if (!isIndia || !p) { prevPairRef.current = p; return }
+    if (seg === 'options' || seg === 'futures' || seg === 'commodity') {
+      if (prevPairRef.current !== p && (lotAutoRef.current || t.lotSize == null)) {
+        set('lotSize', lotSizeFor(p))
+      }
+    }
+    prevPairRef.current = p
+  }, [t.pair, seg, isIndia]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Account currency this trade is journalled in (India is always INR).
   const acctCcy = isIndia
     ? 'INR'
@@ -161,18 +177,51 @@ export function TradeForm({
   // Whether the auto P/L is still shown in the quote currency (rates unavailable).
   const pnlUnconverted = !isIndia && quoteCcy !== acctCcy && (!rates || convertAmount(1, quoteCcy, acctCcy, rates) == null)
 
+  // India costs: brokerage comes from the Settings defaults (per buy/sell leg
+  // for options, flat otherwise); taxes/charges are typed in per trade.
+  const brokerage = useMemo(
+    () => (isIndia ? brokerageFor(t.pair, seg, t.lots) : 0),
+    [isIndia, t.pair, seg, t.lots],
+  )
+  const taxes = isIndia ? (t.taxes ?? 0) : 0
+  // Net P/L (what actually hits the balance) = gross move − brokerage − taxes.
+  const autoNet = autoPnl != null ? Math.round((autoPnl - brokerage - taxes) * 100) / 100 : undefined
+
+  // Breakeven band: a close "very near" the entry counts as breakeven, not a
+  // win/loss. With a stop loss → within 0.15R; without → 0.5% of position value.
+  const beBand = useMemo(() => {
+    if (autoPnl == null || totalQty == null) return 0
+    const e = t.entryPrice
+    if (e == null) return 0
+    const sl = t.stopLoss
+    if (sl != null) {
+      const riskPerUnit = Math.abs(e - sl)
+      if (riskPerUnit > 0) return 0.15 * riskPerUnit * totalQty
+    }
+    return 0.005 * Math.abs(e) * totalQty
+  }, [autoPnl, totalQty, t.entryPrice, t.stopLoss])
+
   // Keep P/L (and the win/loss outcome) synced to the auto value unless the user
   // has chosen to type P/L manually.
   const [pnlManual, setPnlManual] = useState(() => initial?.pnl != null)
   useEffect(() => {
-    if (pnlManual || autoPnl == null) return
+    if (pnlManual || autoNet == null) return
     setT((prev) => {
-      const outcome: Outcome = prev.outcome === 'open'
-        ? prev.outcome
-        : autoPnl > 0 ? 'win' : autoPnl < 0 ? 'loss' : 'breakeven'
-      return { ...prev, pnl: autoPnl, outcome }
+      // With a close price the trade is closed: win / loss / breakeven from NET
+      // P/L (after brokerage & taxes), with a small breakeven band near entry.
+      let outcome: Outcome = prev.outcome
+      if (t.exitPrice != null) {
+        outcome = autoNet > beBand ? 'win' : autoNet < -beBand ? 'loss' : 'breakeven'
+      }
+      return {
+        ...prev,
+        pnl: autoNet,
+        grossPnl: isIndia ? autoPnl : undefined,
+        brokerage: isIndia ? brokerage : undefined,
+        outcome,
+      }
     })
-  }, [autoPnl, pnlManual])
+  }, [autoNet, beBand, pnlManual]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Entries that can be linked: still pending, or already linked to THIS trade.
   const linkable = (entries ?? []).filter((e) => !e.linkedTradeId || e.linkedTradeId === t.id)
@@ -228,6 +277,10 @@ export function TradeForm({
       accountId,
       serial,
       riskReward: autoRr ?? t.riskReward,
+      // Snapshot India costs at save time so later Settings changes don't
+      // rewrite history; pnl is already NET of these.
+      grossPnl: isIndia ? (autoPnl ?? t.grossPnl) : undefined,
+      brokerage: isIndia ? brokerage : undefined,
       checklists,
       updatedAt: Date.now(),
     }
@@ -368,7 +421,7 @@ export function TradeForm({
             <div className="field"><label>Strike price</label><NumberStepper value={t.strike} onChange={(v) => set('strike', v)} step={50} min={0} placeholder="e.g. 25000" /></div>
             <div className="field"><label>Expiry</label><input className="input" type="date" value={t.expiry ?? ''} onChange={(e) => set('expiry', e.target.value)} /></div>
             <div className="field"><label>Lots</label><NumberStepper value={t.lots} onChange={(v) => set('lots', v)} step={1} min={0} placeholder="e.g. 2" /></div>
-            <div className="field"><label>Qty per lot</label><NumberStepper value={t.lotSize} onChange={(v) => set('lotSize', v)} step={5} min={0} placeholder="NIFTY 75, BANKNIFTY 30" /></div>
+            <div className="field"><label>Qty per lot</label><NumberStepper value={t.lotSize} onChange={(v) => { lotAutoRef.current = false; set('lotSize', v) }} step={5} min={0} placeholder="from Settings" /></div>
           </div>
         </>
       )}
@@ -378,7 +431,7 @@ export function TradeForm({
           <div className="form-grid">
             <div className="field"><label>Expiry</label><input className="input" type="date" value={t.expiry ?? ''} onChange={(e) => set('expiry', e.target.value)} /></div>
             <div className="field"><label>Lots</label><NumberStepper value={t.lots} onChange={(v) => set('lots', v)} step={1} min={0} placeholder="e.g. 1" /></div>
-            <div className="field"><label>Qty per lot</label><NumberStepper value={t.lotSize} onChange={(v) => set('lotSize', v)} step={5} min={0} placeholder="e.g. 50" /></div>
+            <div className="field"><label>Qty per lot</label><NumberStepper value={t.lotSize} onChange={(v) => { lotAutoRef.current = false; set('lotSize', v) }} step={5} min={0} placeholder="from Settings" /></div>
           </div>
         </>
       )}
@@ -435,8 +488,8 @@ export function TradeForm({
         </div>
         <div className="field">
           <label>
-            P/L ({isIndia ? '₹ INR' : 'account currency'})
-            {!pnlManual && autoPnl != null && <span className="muted" style={{ fontSize: 11, fontWeight: 400 }}> · auto</span>}
+            P/L ({isIndia ? '₹ INR net' : 'account currency'})
+            {!pnlManual && autoNet != null && <span className="muted" style={{ fontSize: 11, fontWeight: 400 }}> · auto</span>}
           </label>
           <div className="row" style={{ gap: 6 }}>
             <input
@@ -445,12 +498,12 @@ export function TradeForm({
               step="any"
               value={t.pnl ?? ''}
               onChange={(e) => { setPnlManual(true); setNum('pnl', e.target.value) }}
-              placeholder={autoPnl != null ? String(autoPnl) : 'e.g. 125 or -80'}
-              style={!pnlManual && autoPnl != null ? { background: 'var(--bg-2)', fontWeight: 700 } : undefined}
+              placeholder={autoNet != null ? String(autoNet) : 'e.g. 125 or -80'}
+              style={!pnlManual && autoNet != null ? { background: 'var(--bg-2)', fontWeight: 700 } : undefined}
             />
             {pnlManual && (
               <button type="button" className="btn sm" title="Recalculate automatically from prices & size"
-                onClick={() => { setPnlManual(false); if (autoPnl != null) setNum('pnl', String(autoPnl)) }}>
+                onClick={() => { setPnlManual(false); if (autoNet != null) setNum('pnl', String(autoNet)) }}>
                 Auto
               </button>
             )}
@@ -460,9 +513,26 @@ export function TradeForm({
               ? 'Manual — tap Auto to recompute from prices.'
               : pnlUnconverted
                 ? `Auto in ${quoteCcy} (rate to ${acctCcy} unavailable) — type to override.`
-                : `Auto in ${acctCcy} from entry, close price, direction & size — type to override.`}
+                : isIndia
+                  ? 'Auto NET from entry, close, size − brokerage − taxes. A close very near entry = breakeven.'
+                  : `Auto in ${acctCcy} from entry, close price, direction & size — type to override.`}
           </span>
+          {isIndia && autoPnl != null && (
+            <div className="cost-breakdown">
+              <span>Gross <strong>{fmtMoney(autoPnl, 'INR')}</strong></span>
+              <span className="muted">− brokerage <strong>{fmtMoney(brokerage, 'INR')}</strong></span>
+              <span className="muted">− taxes <strong>{fmtMoney(taxes, 'INR')}</strong></span>
+              <span>= net <strong className={autoNet != null && autoNet >= 0 ? 'pos' : 'neg'}>{autoNet != null ? fmtMoney(autoNet, 'INR') : '—'}</strong></span>
+            </div>
+          )}
         </div>
+        {isIndia && (
+          <div className="field">
+            <label>Taxes & charges (₹ · this trade)</label>
+            <input className="input" type="number" step="any" value={t.taxes ?? ''} onChange={(e) => setNum('taxes', e.target.value)} placeholder="e.g. 32 (STT, exchange…)" />
+            <span className="muted" style={{ fontSize: 11 }}>Deducted from this trade's P/L. Brokerage comes from Settings.</span>
+          </div>
+        )}
         {!isIndia && <div className="field"><label>Pips</label><input className="input" type="number" step="any" value={t.pips ?? ''} onChange={(e) => setNum('pips', e.target.value)} /></div>}
         <div className="field">
           <label>Execution rating</label>

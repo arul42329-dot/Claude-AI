@@ -4,6 +4,7 @@ import { useLiveQuery, fmtMoney, fmtNum, fmtPct } from '../util'
 import { useAccountScope, scopeTrades } from '../accounts'
 import { useAppMode, marketOf } from '../mode'
 import { computeStats, groupByPeriod, tradeDate, computeRStats, type Period } from '../stats'
+import { computeInsights } from '../insights'
 import { StatCard } from '../components/StatCard'
 import { PnlCalendar } from '../components/PnlCalendar'
 import {
@@ -52,6 +53,7 @@ export default function Analytics() {
   )
   const stats = computeStats(scopedTrades)
   const rStats = useMemo(() => computeRStats(scopedTrades), [scopedTrades])
+  const insights = useMemo(() => computeInsights(scopedTrades, currency), [scopedTrades, currency])
   const scopeLabel = scope === 'overall' ? 'All-time' : activeBucket?.label ?? '—'
 
   const chartData = buckets.map((b) => ({
@@ -99,7 +101,6 @@ export default function Analytics() {
       <div className="page-head">
         <div>
           <h1>Analytics</h1>
-          <p>{scopeName} · overall, or zoom into a single day, week or month</p>
         </div>
         <div className="seg">
           {SCOPES.map((s) => (
@@ -131,6 +132,24 @@ export default function Analytics() {
                 ))}
               </select>
             )}
+          </div>
+
+          <div className="card" style={{ marginBottom: 20 }}>
+            <h3>
+              💡 Insights · pros &amp; cons
+              <span className="muted" style={{ fontWeight: 500, fontSize: 12, marginLeft: 8 }}>auto-generated from your trades</span>
+            </h3>
+            <div className="insight-grid">
+              <div className="insight-col pros">
+                <h4>✅ What's working</h4>
+                {insights.pros.map((p, i) => <div className="insight-item" key={i}><span className="ic">📈</span><span>{p}</span></div>)}
+              </div>
+              <div className="insight-col cons">
+                <h4>⚠️ What's costing you</h4>
+                {insights.cons.map((c, i) => <div className="insight-item" key={i}><span className="ic">📉</span><span>{c}</span></div>)}
+              </div>
+            </div>
+            {insights.notes.map((n, i) => <div className="insight-note" key={i}>{n}</div>)}
           </div>
 
           <div className="grid stat-grid" style={{ marginBottom: 20 }}>

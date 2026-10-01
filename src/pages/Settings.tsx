@@ -3,6 +3,7 @@ import { db, getSettings, saveSettings, exportAll, importAll, saveAccount, delet
 import { useLiveQuery, downloadJson, fmtMoney } from '../util'
 import { ACCENTS, applyAccent, isAmoledEnabled, setAmoled } from '../theme'
 import { isNativePlatform } from '../candles'
+import { getIndiaDefaults, saveIndiaDefaults } from '../indiaCosts'
 import { useToast } from '../components/Toast'
 import { Modal } from '../components/Modal'
 import { ACCOUNT_TYPES, ACCOUNT_COLORS, accountTypeLabel, accountMarket } from '../accounts'
@@ -20,7 +21,7 @@ import {
   newsAlertsSupported, isNewsAlertsEnabled, setNewsAlertsEnabled,
   syncNewsAlerts, cancelAllNewsAlerts, sendTestNewsAlert, LEAD_MINUTES,
   getSessionAlertPrefs, setSessionAlertPrefs, syncSessionAlerts, cancelSessionAlerts,
-  ensureNotificationPermission, notificationPermission,
+  ensureNotificationPermission, notificationPermission, pendingAlertCount,
   type SessionAlertPrefs,
 } from '../newsAlerts'
 import { openNotificationSettings, openExactAlarmSettings, exactAlarmsAllowed } from '../biometric'
@@ -161,7 +162,6 @@ export default function SettingsPage() {
       <div className="page-head">
         <div>
           <h1>Settings</h1>
-          <p>Accounts, preferences, backups and data</p>
         </div>
       </div>
 
@@ -264,6 +264,8 @@ export default function SettingsPage() {
             <span className="chip">{(accounts ?? []).length} accounts</span>
           </div>
         </div>
+
+        <IndiaDefaultsCard />
 
         <DriveBackup />
 
@@ -385,11 +387,13 @@ function NewsAlertsCard() {
   const [sessions, setSessions] = useState<SessionAlertPrefs>(() => getSessionAlertPrefs())
   const [perm, setPerm] = useState<'granted' | 'denied' | 'prompt' | 'unknown'>('unknown')
   const [exact, setExact] = useState(true)
+  const [pending, setPending] = useState(-1)
   const [busy, setBusy] = useState(false)
 
   async function refreshPerm() {
     setPerm(await notificationPermission())
     setExact(await exactAlarmsAllowed())
+    setPending(await pendingAlertCount())
   }
 
   useEffect(() => { refreshPerm() }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -475,7 +479,16 @@ function NewsAlertsCard() {
           {perm === 'granted' && !exact && (
             <button className="btn sm" onClick={() => openExactAlarmSettings()} title="Allows alerts to fire at the exact minute">Enable exact alarms</button>
           )}
+          {pending >= 0 && (
+            <span className="chip" title="Alerts booked on this phone right now">{pending} booked</span>
+          )}
         </div>
+      )}
+      {supported && (
+        <p className="muted" style={{ fontSize: 11.5, marginTop: -4, marginBottom: 12 }}>
+          If alerts are delayed or missing on Xiaomi / Redmi / Poco / Realme / Oppo / Vivo / Samsung: phone Settings → Battery → remove Edgefolio from
+          restrictions ("No restrictions" / "Unrestricted") and allow Auto-start. Android delays notifications from restricted apps even when allowed above.
+        </p>
       )}
 
       {enabled ? (
@@ -569,6 +582,85 @@ function UpdateCard() {
       <p className="muted" style={{ fontSize: 11.5, marginTop: 10, marginBottom: 0 }}>
         Edgefolio checks automatically once a day and notifies you when a new release is out.
       </p>
+    </div>
+  )
+}
+
+
+function IndiaDefaultsCard() {
+  const { isIndia } = useAppMode()
+  const [d, setD] = useState(() => getIndiaDefaults())
+  const [custom, setCustom] = useState('')
+  const toast = useToast()
+  if (!isIndia) return null // India-only card (switch to India mode to edit)
+
+  function setLot(name: string, v: number | undefined) {
+    setD((prev) => {
+      const next = { ...prev, lotSizes: { ...prev.lotSizes } }
+      if (v == null || Number.isNaN(v) || v <= 0) delete next.lotSizes[name]
+      else next.lotSizes[name] = v
+      return next
+    })
+  }
+
+  function addCustom() {
+    const name = custom.trim().toUpperCase()
+    if (!name) return
+    setD((prev) => ({ ...prev, lotSizes: { ...prev.lotSizes, [name]: prev.lotSizes[name] ?? 1 } }))
+    setCustom('')
+  }
+
+  function save() {
+    saveIndiaDefaults(d)
+    toast('India trading defaults saved ✓')
+  }
+
+  const names = Object.keys(d.lotSizes).sort()
+
+  return (
+    <div className="card">
+      <h3>🇮🇳 India trading defaults</h3>
+      <p className="muted" style={{ marginTop: -6, fontSize: 13 }}>
+        Pre-fills the trade form: lot sizes per instrument and your brokerage. Costs are deducted from every trade's P/L.
+      </p>
+
+      <div className="form-grid" style={{ marginTop: 4 }}>
+        <div className="field">
+          <label>Options brokerage · BUY leg (₹ per lot)</label>
+          <input className="input" type="number" step="any" value={d.brokerageOptionsBuy} onChange={(e) => setD({ ...d, brokerageOptionsBuy: Number(e.target.value) || 0 })} />
+        </div>
+        <div className="field">
+          <label>Options brokerage · SELL leg (₹ per lot)</label>
+          <input className="input" type="number" step="any" value={d.brokerageOptionsSell} onChange={(e) => setD({ ...d, brokerageOptionsSell: Number(e.target.value) || 0 })} />
+        </div>
+        <div className="field">
+          <label>Futures / equity / commodity brokerage (₹ per trade)</label>
+          <input className="input" type="number" step="any" value={d.brokerageFlat} onChange={(e) => setD({ ...d, brokerageFlat: Number(e.target.value) || 0 })} />
+        </div>
+      </div>
+
+      <div className="field" style={{ marginTop: 14 }}>
+        <label>Lot sizes (qty per lot · auto-filled per instrument)</label>
+        <div className="lot-table">
+          {names.map((n) => (
+            <div key={n} className="lot-row">
+              <span className="lot-name">{n}</span>
+              <input
+                className="input"
+                type="number" min={1} step={1}
+                value={d.lotSizes[n]}
+                onChange={(e) => setLot(n, e.target.value === '' ? undefined : Number(e.target.value))}
+              />
+            </div>
+          ))}
+        </div>
+        <div className="row" style={{ marginTop: 8, gap: 6 }}>
+          <input className="input" style={{ maxWidth: 220 }} value={custom} onChange={(e) => setCustom(e.target.value)} placeholder="Add instrument (e.g. NIFTY NEXT 50)" onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCustom() } }} />
+          <button className="btn sm" onClick={addCustom}>Add</button>
+        </div>
+      </div>
+
+      <button className="btn primary" style={{ marginTop: 14 }} onClick={save}>Save defaults</button>
     </div>
   )
 }

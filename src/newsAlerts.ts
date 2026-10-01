@@ -64,7 +64,9 @@ async function tradedCurrencies(): Promise<Set<string>> {
     const s = new Set<string>()
     for (const t of trades) for (const c of (t.pair || '').split('/')) {
       const v = c.trim().toUpperCase()
-      if (v) s.add(v)
+      // Only real ISO currency codes (USD, EUR, INR…) count — India instruments
+      // like "NIFTY 50" must not shrink the alert filter and hide all news.
+      if (/^[A-Z]{3}$/.test(v)) s.add(v)
     }
     return s
   } catch { return new Set() }
@@ -300,6 +302,16 @@ export async function cancelSessionAlerts(): Promise<void> {
     const ids = pend.notifications.map((n) => n.id).filter(isSessionAlertId)
     if (ids.length) await LN.cancel({ notifications: ids.map((id) => ({ id })) })
   } catch { /* ignore */ }
+}
+
+// How many alerts are currently booked on the device (diagnostics in Settings).
+export async function pendingAlertCount(): Promise<number> {
+  const LN = await loadPlugin()
+  if (!LN) return -1
+  try {
+    const pend = await LN.getPending()
+    return pend.notifications.length
+  } catch { return -1 }
 }
 
 // Fire a one-off sample notification a few seconds out, so the user can

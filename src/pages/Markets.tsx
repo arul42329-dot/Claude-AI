@@ -102,7 +102,6 @@ export default function Markets() {
       <div className="page-head">
         <div>
           <h1>Markets</h1>
-          <p>{mode === 'india' ? 'Indian indices · daily bias & news' : 'Live prices & day bias · XAU/USD priority'}</p>
         </div>
         <div className="row" style={{ gap: 10 }}>
           {mode === 'forex' && snap && <span className="muted" style={{ fontSize: 12 }}>Updated {timeAgo(snap.at)}</span>}
@@ -157,9 +156,6 @@ export default function Markets() {
           </div>
           {filtered.length === 0 && <p className="muted" style={{ textAlign: 'center', marginTop: 30 }}>No pairs match your search.</p>}
 
-          <p className="muted" style={{ fontSize: 11.5, marginTop: 24, textAlign: 'center' }}>
-            DXY &amp; bias: Yahoo Finance. Metals &amp; crypto: gold-api.com (real-time). FX: frankfurter.dev (ECB reference). Indicative prices for journaling — not tradable quotes.
-          </p>
         </>
       )}
 

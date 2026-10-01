@@ -135,9 +135,6 @@ export function IndiaMarkets({ refreshSignal = 0 }: { refreshSignal?: number }) 
         </div>
       )}
 
-      <p className="muted" style={{ fontSize: 11.5, marginTop: 24, textAlign: 'center' }}>
-        Indices: Yahoo Finance (may be ~15 min delayed). News: Economic Times. Indicative data for journaling — not tradable quotes.
-      </p>
 
       {selectedLive && <BiasPanel q={selectedLive} onClose={() => setSelected(null)} />}
     </>

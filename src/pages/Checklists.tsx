@@ -32,7 +32,6 @@ export default function Checklists() {
       <div className="page-head">
         <div>
           <h1>Checklists</h1>
-          <p>Build your own checklist <strong>templates</strong> here. Run them before a trade on the <strong>Pre-Trade</strong> tab.</p>
         </div>
         <button className="btn primary" onClick={() => setEditing(emptyChecklist())}>
           ＋ New checklist

@@ -1,8 +1,29 @@
 import { useEffect, useRef, useState } from 'react'
 import { setActiveAccount } from '../db'
 import { useAccountScope, accountTypeLabel } from '../accounts'
-import { useAppMode } from '../mode'
+import { useAppMode, type AppMode } from '../mode'
 import { fmtMoney } from '../util'
+import { IndiaFlag, GlobeIcon } from './Icons'
+
+// Small App-mode (Forex/India) dropdown shown next to the account switcher on
+// every page — replaces the big mode card that used to live on the Dashboard.
+function ModeMini() {
+  const { mode, setMode } = useAppMode()
+  return (
+    <label className="mode-mini" title="App mode — switches the whole app (journal, Markets, colour)">
+      {mode === 'india' ? <IndiaFlag size={13} /> : <GlobeIcon size={13} />}
+      <select
+        value={mode}
+        onChange={(e) => setMode(e.target.value as AppMode)}
+        aria-label="App mode"
+        style={{ background: 'transparent', border: 'none', color: 'inherit', font: 'inherit', cursor: 'pointer', padding: '9px 2px' }}
+      >
+        <option value="forex">Forex</option>
+        <option value="india">India</option>
+      </select>
+    </label>
+  )
+}
 
 export function AccountSwitcher() {
   const { accounts, activeId, account, currency } = useAccountScope()
@@ -29,7 +50,9 @@ export function AccountSwitcher() {
   }
 
   return (
-    <div className={'acct-switch' + (open ? ' open' : '')} ref={ref}>
+    <div className="acct-switch-wrap">
+      <ModeMini />
+      <div className={'acct-switch' + (open ? ' open' : '')} ref={ref}>
       <button className="acct-trigger" onClick={() => setOpen((v) => !v)} aria-haspopup="listbox" aria-expanded={open}>
         <span className="acct-dot" style={isAll ? { background: 'transparent', backgroundImage: 'linear-gradient(135deg,#e8b458,#3ddc97,#5b8cff)' } : { background: dot }} />
         <span className="acct-label">
@@ -59,6 +82,7 @@ export function AccountSwitcher() {
           ))}
         </div>
       )}
+      </div>
     </div>
   )
 }

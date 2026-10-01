@@ -69,7 +69,6 @@ export default function Trades() {
       <div className="page-head">
         <div>
           <h1>Trades{mode === 'india' && <span className="mode-badge"><IndiaFlag size={13} /> India</span>}</h1>
-          <p>{scopeName} · {trades.length} logged</p>
         </div>
         <button className="btn primary" onClick={openNew}>＋ New trade</button>
       </div>

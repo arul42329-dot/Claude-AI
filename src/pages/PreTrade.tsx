@@ -60,7 +60,6 @@ export default function PreTrade() {
       <div className="page-head">
         <div>
           <h1>Pre-Trade Checklist</h1>
-          <p>Fill a checklist <strong>before</strong> you take a trade. Each one gets a serial # — link your trade log to it later.</p>
         </div>
         <div className="row" style={{ gap: 8 }}>
           <button className="btn" onClick={() => setShowCalc(true)}>🧮 Risk calc</button>
