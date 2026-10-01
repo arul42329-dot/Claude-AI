@@ -1,0 +1,177 @@
+name: Build apps (Android APK + Windows installer)
+
+# Builds the installable binaries for you automatically.
+#  - Run manually from the Actions tab (Run workflow), or
+#  - Push a tag like v1.0.0 to also publish a GitHub Release with the files attached.
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+    branches:
+      - 'arena/**'
+
+permissions:
+  contents: write
+
+jobs:
+  # ----------------------------- ANDROID (.apk) -----------------------------
+  android:
+    name: Android APK
+    runs-on: ubuntu-latest
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web app
+        run: npm run build
+
+      - name: Add Android platform
+        run: npx cap add android
+
+      - name: Sync Capacitor
+        run: npx cap sync android
+
+      - name: Brand Android launcher icon (same logo as Windows)
+        continue-on-error: true
+        run: |
+          set -e
+          if ! command -v convert >/dev/null 2>&1; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq imagemagick
+          fi
+          RES=android/app/src/main/res
+          # per density: legacy icon px | adaptive layer px (108dp scaled)
+          for pair in "mdpi 48 108" "hdpi 72 162" "xhdpi 96 216" "xxhdpi 144 324" "xxxhdpi 192 432"; do
+            set -- $pair
+            d=$1; leg=$2; adp=$3
+            mkdir -p "$RES/mipmap-$d"
+            convert assets/icon-only.png -resize ${leg}x${leg} "$RES/mipmap-$d/ic_launcher.png"
+            convert assets/icon-only.png -resize ${leg}x${leg} "$RES/mipmap-$d/ic_launcher_round.png"
+            convert assets/icon-foreground.png -resize ${adp}x${adp} "$RES/mipmap-$d/ic_launcher_foreground.png"
+            convert assets/icon-background.png -resize ${adp}x${adp} "$RES/mipmap-$d/ic_launcher_background.png"
+          done
+          # Adaptive icon (API 26+): our foreground mark over our navy background
+          mkdir -p "$RES/mipmap-anydpi-v26"
+          printf '<?xml version="1.0" encoding="utf-8"?>\n<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">\n    <background android:drawable="@mipmap/ic_launcher_background"/>\n    <foreground android:drawable="@mipmap/ic_launcher_foreground"/>\n</adaptive-icon>\n' > "$RES/mipmap-anydpi-v26/ic_launcher.xml"
+          cp "$RES/mipmap-anydpi-v26/ic_launcher.xml" "$RES/mipmap-anydpi-v26/ic_launcher_round.xml"
+          # Navy launch/splash background (avoid a white flash on cold start)
+          for splash in $(find "$RES" -name 'splash.png'); do
+            convert assets/icon-background.png -resize 1080x1920^ -gravity center -extent 1080x1920 "$splash" || true
+          done
+          echo "Android launcher icons branded (matches Windows)."
+
+      - name: Set up Android SDK (use pre-installed SDK on runner)
+        run: |
+          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          echo "Using Android SDK at: $SDK"
+          ls "$SDK" || true
+          SDKMANAGER="$SDK/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then SDKMANAGER="$(command -v sdkmanager || true)"; fi
+          echo "sdkmanager: $SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
+          "$SDKMANAGER" "platform-tools" "platforms;android-34" "build-tools;34.0.0" >/dev/null 2>&1 || true
+          echo "sdk.dir=$SDK" > android/local.properties
+          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
+
+      - name: Compute version
+        id: ver
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            V="${GITHUB_REF_NAME#v}"
+          else
+            V=$(node -p "require('./package.json').version")
+          fi
+          echo "name=$V" >> "$GITHUB_OUTPUT"
+          echo "code=${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+          echo "Version name=$V  code=${{ github.run_number }}"
+
+      - name: Build release APK (unsigned)
+        run: |
+          cd android
+          chmod +x ./gradlew
+          ./gradlew assembleRelease --no-daemon --stacktrace \
+            -Pandroid.injected.version.code=${{ steps.ver.outputs.code }} \
+            -Pandroid.injected.version.name=${{ steps.ver.outputs.name }}
+
+      - name: Sign APK with the stable release key
+        run: |
+          set -e
+          # Pick the newest installed build-tools (contains zipalign & apksigner).
+          BT="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
+          echo "Using build-tools at: $BT"
+          UNSIGNED="$(ls android/app/build/outputs/apk/release/*.apk | head -1)"
+          echo "Unsigned APK: $UNSIGNED"
+          mkdir -p output
+          "$BT/zipalign" -f -p 4 "$UNSIGNED" output/aligned.apk
+          "$BT/apksigner" sign \
+            --ks signing/edgefolio-release.p12 \
+            --ks-pass pass:edgefolio \
+            --ks-key-alias edgefolio \
+            --out output/Edgefolio.apk \
+            output/aligned.apk
+          rm -f output/aligned.apk
+          echo "--- signer certificate (stable across versions) ---"
+          "$BT/apksigner" verify --print-certs output/Edgefolio.apk | head -8
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Edgefolio-Android
+          path: output/Edgefolio.apk
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: output/Edgefolio.apk
+
+  # ----------------------------- WINDOWS (.exe) -----------------------------
+  windows:
+    name: Windows installer
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web app
+        run: npm run build
+
+      - name: Build Windows installer + portable
+        run: npx electron-builder --win nsis portable --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Edgefolio-Windows
+          path: |
+            release/*.exe
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*.exe
