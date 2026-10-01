@@ -8,7 +8,7 @@ import { TradeForm } from '../components/TradeForm'
 import { useToast } from '../components/Toast'
 import { IndiaFlag } from '../components/Icons'
 import { format } from 'date-fns'
-import { tradeDate } from '../stats'
+import { tradeDate, netPnlOf } from '../stats'
 
 // Number of screenshots attached to a trade (new multi-image + legacy single).
 function shotCount(t: Trade): number {
@@ -132,8 +132,8 @@ export default function Trades() {
                     <td className="muted">{t.strategy || '—'}</td>
                     <td>{t.riskReward ? fmtNum(t.riskReward, 2) : '—'}</td>
                     <td><span className={'badge ' + t.outcome}>{t.outcome}</span></td>
-                    <td style={{ textAlign: 'right' }} className={(t.pnl ?? 0) > 0 ? 'pos' : (t.pnl ?? 0) < 0 ? 'neg' : ''}>
-                      {t.pnl != null ? fmtMoney(t.pnl, currency) : '—'}
+                    <td style={{ textAlign: 'right' }} className={netPnlOf(t) > 0 ? 'pos' : netPnlOf(t) < 0 ? 'neg' : ''}>
+                      {t.pnl != null || t.grossPnl != null ? fmtMoney(netPnlOf(t), currency) : '—'}
                     </td>
                     <td className="muted">
                       {t.checklistSerial != null

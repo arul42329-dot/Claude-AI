@@ -3,7 +3,7 @@ import { db } from '../db'
 import { useLiveQuery, fmtMoney, fmtNum, fmtPct, instrumentLabel } from '../util'
 import { useAppMode, marketOf } from '../mode'
 import { useAccountScope, scopeTrades } from '../accounts'
-import { computeStats, equityCurve, tradeDate } from '../stats'
+import { computeStats, equityCurve, tradeDate, netPnlOf } from '../stats'
 import { StatCard } from '../components/StatCard'
 import { TradeForm } from '../components/TradeForm'
 import { JournalCard } from '../components/JournalCard'
@@ -27,7 +27,7 @@ export default function Dashboard() {
   const monthStart = startOfMonth(new Date())
   const monthPnl = trades
     .filter((t) => t.outcome !== 'open' && tradeDate(t) >= monthStart)
-    .reduce((a, t) => a + (t.pnl ?? 0), 0)
+    .reduce((a, t) => a + netPnlOf(t), 0)
   // Goals are separate per app mode (forex vs India journals are separate too).
   const goal = (isIndia ? settings?.monthlyProfitGoalIndia : settings?.monthlyProfitGoal) ?? 0
   const lossLimit = (isIndia ? settings?.maxLossLimitIndia : settings?.maxLossLimit) ?? 0
@@ -129,7 +129,7 @@ export default function Dashboard() {
                     <td><strong>{instrumentLabel(t)}</strong></td>
                     <td><span className={t.direction === 'long' ? 'dir-buy' : 'dir-sell'}>{t.direction === 'long' ? '▲ Buy' : '▼ Sell'}</span></td>
                     <td><span className={'badge ' + t.outcome}>{t.outcome}</span></td>
-                    <td style={{ textAlign: 'right' }} className={(t.pnl ?? 0) > 0 ? 'pos' : (t.pnl ?? 0) < 0 ? 'neg' : ''}>{t.pnl != null ? fmtMoney(t.pnl, currency) : '—'}</td>
+                    <td style={{ textAlign: 'right' }} className={netPnlOf(t) > 0 ? 'pos' : netPnlOf(t) < 0 ? 'neg' : ''}>{t.pnl != null || t.grossPnl != null ? fmtMoney(netPnlOf(t), currency) : '—'}</td>
                   </tr>
                 ))}
               </tbody>

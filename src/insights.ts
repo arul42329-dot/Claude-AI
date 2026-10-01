@@ -3,7 +3,7 @@
 // from the currently scoped trades, so the card follows the Analytics filters.
 
 import type { Trade } from './types'
-import { tradeDate } from './stats'
+import { tradeDate, netPnlOf } from './stats'
 
 export interface Insights {
   pros: string[]
@@ -25,7 +25,7 @@ function aggBy(trades: Trade[], keyFn: (t: Trade) => string): { key: string; a: 
     const a = m.get(k) ?? { n: 0, wins: 0, net: 0 }
     a.n++
     if (t.outcome === 'win') a.wins++
-    a.net += t.pnl ?? 0
+    a.net += netPnlOf(t)
     m.set(k, a)
   }
   return Array.from(m.entries()).map(([key, a]) => ({ key, a }))
@@ -54,15 +54,15 @@ export function computeInsights(trades: Trade[], currency = 'USD'): Insights {
   const wins = closed.filter((t) => t.outcome === 'win')
   const losses = closed.filter((t) => t.outcome === 'loss')
   const winRate = (wins.length / closed.length) * 100
-  const net = closed.reduce((a, t) => a + (t.pnl ?? 0), 0)
+  const net = closed.reduce((a, t) => a + netPnlOf(t), 0)
 
   // ---- Overall tone ----
   if (net > 0) pros.push(`Net profitable over this period: ${money(net, currency)} across ${closed.length} closed trades.`)
   else if (net < 0) cons.push(`Net down ${money(net, currency)} over ${closed.length} closed trades — size down or refine entries while you rebuild.`)
 
   // ---- Win rate vs payoff ----
-  const avgWin = wins.length ? wins.reduce((a, t) => a + (t.pnl ?? 0), 0) / wins.length : 0
-  const avgLoss = losses.length ? Math.abs(losses.reduce((a, t) => a + (t.pnl ?? 0), 0) / losses.length) : 0
+  const avgWin = wins.length ? wins.reduce((a, t) => a + netPnlOf(t), 0) / wins.length : 0
+  const avgLoss = losses.length ? Math.abs(losses.reduce((a, t) => a + netPnlOf(t), 0) / losses.length) : 0
   if (wins.length >= 2 && losses.length >= 2) {
     if (avgWin > avgLoss * 1.3) {
       pros.push(`Payoff ratio is healthy: avg win ${money(avgWin, currency)} vs avg loss ${money(avgLoss, currency)} — your winners outpace your losers.`)
@@ -132,7 +132,7 @@ export function computeInsights(trades: Trade[], currency = 'USD'): Insights {
   // ---- Missing stop losses ----
   const noSl = closed.filter((t) => t.stopLoss == null)
   if (noSl.length >= 3 && closed.length >= 5 && noSl.length / closed.length >= 0.4) {
-    const noSlNet = noSl.reduce((a, t) => a + (t.pnl ?? 0), 0)
+    const noSlNet = noSl.reduce((a, t) => a + netPnlOf(t), 0)
     cons.push(`${noSl.length} of ${closed.length} trades had no stop loss${noSlNet < 0 ? ` (net ${money(noSlNet, currency)})` : ''} — unplanned risk is the fastest account-killer.`)
   }
 
@@ -158,7 +158,7 @@ export function computeInsights(trades: Trade[], currency = 'USD'): Insights {
   // ---- Cost drag (India: brokerage + taxes) ----
   const costs = closed.reduce((a, t) => a + (t.brokerage ?? 0) + (t.taxes ?? 0), 0)
   if (costs > 0) {
-    const grossProfit = closed.reduce((a, t) => a + Math.max(0, t.pnl ?? 0), 0)
+    const grossProfit = closed.reduce((a, t) => a + Math.max(0, netPnlOf(t)), 0)
     if (grossProfit > 0) {
       const share = (costs / (grossProfit + costs)) * 100
       notes.push(`Brokerage & taxes so far: ${money(costs, currency)} (${Math.round(share)}% of gross profit) — already netted out of every trade.`)

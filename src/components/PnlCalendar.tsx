@@ -1,4 +1,5 @@
 import { useMemo, useState, type CSSProperties } from 'react'
+import { netPnlOf } from '../stats'
 import {
   startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval,
   addMonths, format, isSameMonth, isToday,
@@ -17,7 +18,7 @@ export function PnlCalendar({ trades, currency }: { trades: Trade[]; currency: s
       if (t.outcome === 'open') continue
       const k = format(tradeDate(t), 'yyyy-MM-dd')
       const e = m.get(k) || { pnl: 0, count: 0 }
-      e.pnl += t.pnl ?? 0
+      e.pnl += netPnlOf(t)
       e.count += 1
       m.set(k, e)
     }

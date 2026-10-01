@@ -4,7 +4,7 @@ import { useLiveQuery, downloadJson, fmtMoney } from '../util'
 import { ACCENTS, applyAccent, isAmoledEnabled, setAmoled } from '../theme'
 import { isNativePlatform } from '../candles'
 import { getIndiaDefaults, saveIndiaDefaults } from '../indiaCosts'
-import { recomputeOutcomes } from '../outcome'
+import { recomputeNetAndOutcomes } from '../outcome'
 import { useToast } from '../components/Toast'
 import { Modal } from '../components/Modal'
 import { ACCOUNT_TYPES, ACCOUNT_COLORS, accountTypeLabel, accountMarket } from '../accounts'
@@ -131,13 +131,15 @@ export default function SettingsPage() {
     }
   }
 
-  // Win/Loss/Breakeven is derived: re-derive it from each stored trade's own
-  // close price & net P/L (same rule the trade form uses live).
-  async function doRecomputeOutcomes() {
-    const r = await recomputeOutcomes()
-    toast(r.updated
-      ? `Outcomes recalculated — ${r.updated} of ${r.checked} trades updated ✓`
-      : `All ${r.checked} closed trades already have the right outcome ✓`)
+  // Maintenance: rewrite P/L as NET (gross move − brokerage − taxes) for India
+  // trades with price/size data, and re-derive Win/Loss/Breakeven from net.
+  async function doRecompute() {
+    const r = await recomputeNetAndOutcomes()
+    const bits: string[] = []
+    if (r.pnlUpdated) bits.push(`${r.pnlUpdated} P/L → net`)
+    if (r.outcomeUpdated) bits.push(`${r.outcomeUpdated} outcomes fixed`)
+    if (r.skipped) bits.push(`${r.skipped} skipped (no size)`)
+    toast(bits.length ? `Done — ${bits.join(' · ')} ✓` : `All ${r.pnlChecked} trades already net & correct ✓`)
   }
 
   async function loadSample() {
@@ -276,7 +278,7 @@ export default function SettingsPage() {
         <div className="card">
           <h3>Data tools</h3>
           <div className="row">
-            <button className="btn" onClick={doRecomputeOutcomes}>↻ Recalculate outcomes</button>
+            <button className="btn" onClick={doRecompute}>↻ Recalculate to net P/L</button>
             <button className="btn" onClick={loadSample}>✨ Load sample trades</button>
             <button className="btn danger" onClick={wipe}>🗑️ Clear my data</button>
           </div>

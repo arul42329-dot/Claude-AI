@@ -35,6 +35,16 @@ export interface Stats {
   avgRating: number
 }
 
+// NET P/L of a trade — the single source of truth for EVERY money number in
+// the app (stats, analytics, equity curve, calendar, insights, goals). The
+// trade form stores P/L net of brokerage & taxes; grossPnl is snapshotted for
+// the cost breakdown. This helper makes the net explicit and derivable.
+export function netPnlOf(t: Trade): number {
+  if (t.pnl != null) return t.pnl // final value: auto-calculated net, or manually entered
+  if (t.grossPnl != null) return t.grossPnl - (t.brokerage ?? 0) - (t.taxes ?? 0)
+  return 0
+}
+
 export function tradeDate(t: Trade): Date {
   try {
     return parseISO(t.date + (t.time ? 'T' + t.time : 'T00:00'))
@@ -43,15 +53,31 @@ export function tradeDate(t: Trade): Date {
   }
 }
 
-// Realized R multiple of a closed trade, derived purely from prices:
-// R = (move in your favour) / (planned risk = entry → stop).
-// Works for any instrument/lot size because it's currency-agnostic.
+// Realized R multiple of a closed trade. Preferred form is NET:
+// R = net P/L (after brokerage & taxes) / planned risk in money
+// (|entry − stop| × quantity) — so costs drag the R down, matching what
+// actually hit the balance. Falls back to the pure price move when money
+// values or size are unavailable.
+function tradeQty(t: Trade): number | null {
+  if (t.market === 'india') {
+    if (t.segment === 'options' || t.segment === 'futures' || t.segment === 'commodity') {
+      if (t.lots == null || t.lotSize == null) return null
+      return t.lots * t.lotSize
+    }
+    return t.lots ?? null // equity: lots holds share quantity
+  }
+  return t.lotSize ?? null // forex: lotSize holds units
+}
+
 export function tradeR(t: Trade): number | null {
   const e = t.entryPrice, x = t.exitPrice, s = t.stopLoss
   if (typeof e !== 'number' || typeof x !== 'number' || typeof s !== 'number') return null
   if (!Number.isFinite(e) || !Number.isFinite(x) || !Number.isFinite(s)) return null
   const risk = Math.abs(e - s)
   if (risk <= 0) return null
+  const qty = tradeQty(t)
+  const net = t.pnl != null ? t.pnl : t.grossPnl != null ? t.grossPnl - (t.brokerage ?? 0) - (t.taxes ?? 0) : null
+  if (net != null && qty != null && qty > 0) return net / (risk * qty)
   const move = t.direction === 'short' ? e - x : x - e
   return move / risk
 }
@@ -99,13 +125,13 @@ export function computeStats(trades: Trade[]): Stats {
   const losses = closed.filter((t) => t.outcome === 'loss')
   const be = closed.filter((t) => t.outcome === 'breakeven')
 
-  const pnls = closed.map((t) => t.pnl ?? 0)
+  const pnls = closed.map(netPnlOf)
   const netPnl = pnls.reduce((a, b) => a + b, 0)
   const grossProfit = pnls.filter((p) => p > 0).reduce((a, b) => a + b, 0)
   const grossLoss = Math.abs(pnls.filter((p) => p < 0).reduce((a, b) => a + b, 0))
 
-  const winPnls = wins.map((t) => t.pnl ?? 0)
-  const lossPnls = losses.map((t) => t.pnl ?? 0)
+  const winPnls = wins.map(netPnlOf)
+  const lossPnls = losses.map(netPnlOf)
   const avgWin = winPnls.length ? winPnls.reduce((a, b) => a + b, 0) / winPnls.length : 0
   const avgLoss = lossPnls.length ? lossPnls.reduce((a, b) => a + b, 0) / lossPnls.length : 0
 
@@ -227,7 +253,7 @@ export function equityCurve(trades: Trade[], startingBalance: number) {
   let bal = startingBalance
   const points = [{ index: 0, label: 'Start', balance: bal }]
   chrono.forEach((t, i) => {
-    bal += t.pnl ?? 0
+    bal += netPnlOf(t)
     points.push({ index: i + 1, label: format(tradeDate(t), 'dd MMM'), balance: Math.round(bal * 100) / 100 })
   })
   return points
