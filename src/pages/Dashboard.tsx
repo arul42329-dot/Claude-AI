@@ -7,7 +7,7 @@ import { computeStats, equityCurve, tradeDate } from '../stats'
 import { StatCard } from '../components/StatCard'
 import { TradeForm } from '../components/TradeForm'
 import { JournalCard } from '../components/JournalCard'
-import { IndiaFlag, GlobeIcon } from '../components/Icons'
+import { IndiaFlag } from '../components/Icons'
 import { useToast } from '../components/Toast'
 import { format, startOfMonth } from 'date-fns'
 import {
@@ -17,7 +17,7 @@ import {
 export default function Dashboard() {
   const allTrades = useLiveQuery(() => db.trades.toArray(), [], [])
   const { activeId, account, currency, startingBalance, settings } = useAccountScope()
-  const { mode, isIndia, setMode } = useAppMode()
+  const { mode, isIndia } = useAppMode()
   const [showForm, setShowForm] = useState(false)
   const toast = useToast()
 
@@ -46,19 +46,6 @@ export default function Dashboard() {
           <p>{scopeName} · {isIndia ? <><IndiaFlag size={13} /> Indian markets journal</> : 'performance at a glance'}</p>
         </div>
         <button className="btn primary" onClick={() => setShowForm(true)}>＋ New trade</button>
-      </div>
-
-      <div className="card mode-switch-card" style={{ marginBottom: 20 }}>
-        <div>
-          <strong style={{ fontSize: 14 }}>App mode</strong>
-          <p className="muted" style={{ fontSize: 12.5, margin: '2px 0 0' }}>
-            Switches the whole app — colour, Markets and a fully separate {isIndia ? 'Indian' : 'forex'} trade journal.
-          </p>
-        </div>
-        <div className="seg mode-toggle">
-          <button className={mode === 'forex' ? 'active' : ''} onClick={() => setMode('forex')}><GlobeIcon size={15} /> Forex</button>
-          <button className={mode === 'india' ? 'active' : ''} onClick={() => setMode('india')}><IndiaFlag size={15} /> India</button>
-        </div>
       </div>
 
       <div className="grid stat-grid" style={{ marginBottom: 20 }}>

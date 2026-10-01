@@ -9,6 +9,7 @@ import { SplashIntro } from './components/SplashIntro'
 import { LockScreen } from './components/LockScreen'
 import { isLockEnabled } from './lock'
 import { AccountSwitcher } from './components/AccountSwitcher'
+import { AppModeSwitcher } from './components/AppModeSwitcher'
 import { IndiaFlag } from './components/Icons'
 import {
   IconDashboard,
@@ -79,7 +80,7 @@ function AppShell() {
           ))}
         </div>
         <div className="sidebar-footer">
-          <span className="dot-live" /> v1.3.16 · Local &amp; private
+          <span className="dot-live" /> v1.3.17 · Local &amp; private
           <br />
           Your data never leaves this device.
         </div>
@@ -90,10 +91,8 @@ function AppShell() {
         <span className="logo-shell sm">
           <img className="logo-img" src={logoUrl} alt="Edgefolio" />
         </span>
-        <span className="topbar-name">Edgefolio{isIndia && <span className="mode-badge"><IndiaFlag size={13} /> India</span>}</span>
-        <div style={{ marginLeft: 'auto' }}>
-          <AccountSwitcher />
-        </div>
+        <AppModeSwitcher />
+        <AccountSwitcher />
       </header>
 
       <main className="main">
