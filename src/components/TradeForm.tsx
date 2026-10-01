@@ -201,27 +201,44 @@ export function TradeForm({
     return 0.005 * Math.abs(e) * totalQty
   }, [autoPnl, totalQty, t.entryPrice, t.stopLoss])
 
-  // Keep P/L (and the win/loss outcome) synced to the auto value unless the user
-  // has chosen to type P/L manually.
+  // Keep P/L synced to the auto value unless the user has chosen to type P/L
+  // manually (India gross/brokerage snapshot moves in step).
   const [pnlManual, setPnlManual] = useState(() => initial?.pnl != null)
   useEffect(() => {
     if (pnlManual || autoNet == null) return
+    setT((prev) => ({
+      ...prev,
+      pnl: autoNet,
+      grossPnl: isIndia ? autoPnl : undefined,
+      brokerage: isIndia ? brokerage : undefined,
+    }))
+  }, [autoNet, pnlManual]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ---- Outcome is always CALCULATED ----
+  // Win / loss / breakeven follows the final P/L (auto OR manually typed)
+  // whenever a close price exists; no close price → the trade stays Open.
+  // A manual pick in the dropdown is honoured only until any price, size,
+  // direction, P/L or tax changes — then it recalculates on its own again.
+  const [outcomeManual, setOutcomeManual] = useState(false)
+  const outcomeInputsRef = useRef('')
+  const outcomeInputs = `${t.direction ?? ''}|${t.entryPrice ?? ''}|${t.exitPrice ?? ''}|${t.lots ?? ''}|${t.lotSize ?? ''}|${t.pnl ?? ''}|${t.taxes ?? ''}`
+  useEffect(() => {
+    if (outcomeInputsRef.current !== outcomeInputs) {
+      outcomeInputsRef.current = outcomeInputs
+      setOutcomeManual(false) // inputs changed → back to automatic
+    }
+  }, [outcomeInputs]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const finalPnl = t.pnl ?? autoNet
+  useEffect(() => {
     setT((prev) => {
-      // With a close price the trade is closed: win / loss / breakeven from NET
-      // P/L (after brokerage & taxes), with a small breakeven band near entry.
-      let outcome: Outcome = prev.outcome
-      if (t.exitPrice != null) {
-        outcome = autoNet > beBand ? 'win' : autoNet < -beBand ? 'loss' : 'breakeven'
-      }
-      return {
-        ...prev,
-        pnl: autoNet,
-        grossPnl: isIndia ? autoPnl : undefined,
-        brokerage: isIndia ? brokerage : undefined,
-        outcome,
-      }
+      if (outcomeManual) return prev
+      let next: Outcome = prev.outcome
+      if (t.exitPrice == null) next = 'open'
+      else if (finalPnl != null) next = finalPnl > beBand ? 'win' : finalPnl < -beBand ? 'loss' : 'breakeven'
+      return next === prev.outcome ? prev : { ...prev, outcome: next }
     })
-  }, [autoNet, beBand, pnlManual]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [finalPnl, beBand, t.exitPrice, outcomeManual]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Entries that can be linked: still pending, or already linked to THIS trade.
   const linkable = (entries ?? []).filter((e) => !e.linkedTradeId || e.linkedTradeId === t.id)
@@ -478,13 +495,19 @@ export function TradeForm({
           <div className="field"><label>Quantity (shares)</label><NumberStepper value={t.lots} onChange={(v) => set('lots', v)} step={1} min={0} placeholder="e.g. 100" /></div>
         )}
         <div className="field">
-          <label>Outcome</label>
-          <select className="select" value={t.outcome} onChange={(e) => { setPnlManual(true); set('outcome', e.target.value as Outcome) }}>
+          <label>
+            Outcome
+            {!outcomeManual && t.exitPrice != null && <span className="muted" style={{ fontSize: 11, fontWeight: 400 }}> · auto</span>}
+          </label>
+          <select className="select" value={t.outcome} onChange={(e) => { setOutcomeManual(true); set('outcome', e.target.value as Outcome) }}>
             <option value="open">Open</option>
             <option value="win">Win</option>
             <option value="loss">Loss</option>
             <option value="breakeven">Breakeven</option>
           </select>
+          <span className="muted" style={{ fontSize: 11 }}>
+            Calculated automatically from entry, exit &amp; net P/L — a close very near entry counts as breakeven.
+          </span>
         </div>
         <div className="field">
           <label>
@@ -503,7 +526,7 @@ export function TradeForm({
             />
             {pnlManual && (
               <button type="button" className="btn sm" title="Recalculate automatically from prices & size"
-                onClick={() => { setPnlManual(false); if (autoNet != null) setNum('pnl', String(autoNet)) }}>
+                onClick={() => { setPnlManual(false); setOutcomeManual(false); if (autoNet != null) setNum('pnl', String(autoNet)) }}>
                 Auto
               </button>
             )}

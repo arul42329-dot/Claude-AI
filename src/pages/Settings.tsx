@@ -4,6 +4,7 @@ import { useLiveQuery, downloadJson, fmtMoney } from '../util'
 import { ACCENTS, applyAccent, isAmoledEnabled, setAmoled } from '../theme'
 import { isNativePlatform } from '../candles'
 import { getIndiaDefaults, saveIndiaDefaults } from '../indiaCosts'
+import { recomputeOutcomes } from '../outcome'
 import { useToast } from '../components/Toast'
 import { Modal } from '../components/Modal'
 import { ACCOUNT_TYPES, ACCOUNT_COLORS, accountTypeLabel, accountMarket } from '../accounts'
@@ -128,6 +129,15 @@ export default function SettingsPage() {
     } catch (e: any) {
       alert('Import failed: ' + e.message)
     }
+  }
+
+  // Win/Loss/Breakeven is derived: re-derive it from each stored trade's own
+  // close price & net P/L (same rule the trade form uses live).
+  async function doRecomputeOutcomes() {
+    const r = await recomputeOutcomes()
+    toast(r.updated
+      ? `Outcomes recalculated — ${r.updated} of ${r.checked} trades updated ✓`
+      : `All ${r.checked} closed trades already have the right outcome ✓`)
   }
 
   async function loadSample() {
@@ -276,11 +286,12 @@ export default function SettingsPage() {
         <div className="card">
           <h3>Data tools</h3>
           <div className="row">
+            <button className="btn" onClick={doRecomputeOutcomes}>↻ Recalculate outcomes</button>
             <button className="btn" onClick={loadSample}>✨ Load sample trades</button>
             <button className="btn danger" onClick={wipe}>🗑️ Clear my data</button>
           </div>
           <p className="muted" style={{ fontSize: 12, marginTop: 10, marginBottom: 0 }}>
-            Clears your trades, pre-trade checks, journal and checklists you created. Your default checklists, accounts and Google Drive connection are kept.
+            Recalculate outcomes re-derives Win/Loss/Breakeven from each trade's close price & net P/L (a close very near entry = breakeven). Clear-my-data clears your trades, pre-trade checks, journal and checklists you created. Your default checklists, accounts and Google Drive connection are kept.
           </p>
         </div>
 
