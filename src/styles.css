@@ -521,7 +521,13 @@ tbody tr:hover { background: rgba(255, 255, 255, 0.035); }
 .mobile-nav { display: none; }
 @media (max-width: 820px) {
   body { overflow-y: auto; overflow-x: hidden; } /* page scrolls vertically only — never sideways */
-  .app { grid-template-columns: 1fr; height: auto; min-height: 100dvh; }
+  /* Block flow on phones. The previous single-column GRID stretched its auto
+     rows to satisfy min-height:100dvh on SHORT pages (Trades with few/no rows,
+     Pre-Trade's empty state) — which inflated the top bar's row (measured up
+     to 127px vs 66px) and pushed the page title far down the screen. Block
+     layout keeps the top bar at its exact content height on EVERY page and
+     gives position:sticky its full-page range. */
+  .app { display: block; height: auto; min-height: 100dvh; }
   .sidebar { display: none; }
 
   /* Sticky glass top bar — everything shrinks to fit narrow screens */
