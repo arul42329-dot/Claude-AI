@@ -48,6 +48,13 @@ function AppShell() {
   const nav = useNavigate()
   const toast = useToast()
   const { mode, isIndia } = useAppMode()
+  // Every tab switch starts at the top — the top bar then sits in exactly the
+  // same place on every page (previously the scroll position carried over
+  // between tabs, making pages look pushed down).
+  useEffect(() => {
+    window.scrollTo(0, 0)
+    document.querySelector('.main')?.scrollTo(0, 0)
+  }, [location.pathname])
   // Auto-backup to Google Drive once per day, on app open (best-effort, silent).
   useEffect(() => {
     const t = window.setTimeout(() => { maybeDailyBackup() }, 2500)

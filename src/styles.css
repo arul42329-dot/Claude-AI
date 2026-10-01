@@ -569,11 +569,14 @@ tbody tr:hover { background: rgba(255, 255, 255, 0.035); }
   .mobile-nav .nav-link.active .ic svg { opacity: 1; color: var(--accent); }
 
   .form-grid { grid-template-columns: 1fr 1fr; }
+
+  /* One uniform header on EVERY page: title row first (flush at the top),
+     action buttons on their own row underneath, right-aligned. The header
+     never wraps mid-row, so its height is identical on all tabs. */
+  .page-head { flex-direction: column; align-items: stretch; gap: 12px; min-height: 0; margin-bottom: 18px; }
   .page-head h1 { font-size: 24px; }
-  .page-head p { font-size: 12.5px; }
-  /* Wrapped headers: title flush at the top (no gap above it), actions right. */
-  .page-head { align-items: flex-start; min-height: 0; }
-  .page-head > .btn, .page-head > .row, .page-head > .seg { margin-left: auto; }
+  .page-head > .btn, .page-head > .row, .page-head > .seg { margin-left: auto; width: fit-content; }
+  .main { padding-top: 14px; }
 }
 @media (max-width: 480px) {
   .topbar-name { display: none; } /* logo is enough on small phones */
