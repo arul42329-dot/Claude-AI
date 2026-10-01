@@ -136,18 +136,19 @@ export function TradeForm({
   }, [isIndia, seg, t.lots, t.lotSize])
 
   // India: pre-fill "Qty per lot" from the Settings defaults whenever the
-  // instrument changes (tracked so a manual per-trade override is kept).
-  const lotAutoRef = useRef(true)
-  const prevPairRef = useRef<string | undefined>(undefined)
+  // instrument OR segment changes (each instrument carries its own size).
+  // Manual per-trade edits are kept until the instrument/segment changes, and
+  // opening an existing trade never touches its saved size.
+  const lotKeyRef = useRef<string>()
   useEffect(() => {
-    const p = t.pair
-    if (!isIndia || !p) { prevPairRef.current = p; return }
+    const key = `${seg}|${t.pair ?? ''}`
+    const prev = lotKeyRef.current
+    lotKeyRef.current = key
+    if (prev === undefined || prev === key) return // first run = keep current value
+    if (!isIndia || !t.pair) return
     if (seg === 'options' || seg === 'futures' || seg === 'commodity') {
-      if (prevPairRef.current !== p && (lotAutoRef.current || t.lotSize == null)) {
-        set('lotSize', lotSizeFor(p))
-      }
+      set('lotSize', lotSizeFor(t.pair))
     }
-    prevPairRef.current = p
   }, [t.pair, seg, isIndia]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Account currency this trade is journalled in (India is always INR).
@@ -201,6 +202,24 @@ export function TradeForm({
     return 0.005 * Math.abs(e) * totalQty
   }, [autoPnl, totalQty, t.entryPrice, t.stopLoss])
 
+  // Price-move fallback: the outcome can be judged from entry→exit alone
+  // (direction aware) even before lots are filled, with the breakeven band in
+  // price terms (0.15R of the stop, else ~0.5% of the entry price).
+  const movePerUnit = useMemo(() => {
+    const { entryPrice: e, exitPrice: x, direction } = t
+    if (e == null || x == null) return undefined
+    return (x - e) * (direction === 'short' ? -1 : 1)
+  }, [t.entryPrice, t.exitPrice, t.direction])
+  const beBandPrice = useMemo(() => {
+    const e = t.entryPrice
+    if (e == null) return 0
+    if (t.stopLoss != null) {
+      const risk = Math.abs(e - t.stopLoss)
+      if (risk > 0) return 0.15 * risk
+    }
+    return 0.005 * Math.abs(e)
+  }, [t.entryPrice, t.stopLoss])
+
   // Keep P/L synced to the auto value unless the user has chosen to type P/L
   // manually (India gross/brokerage snapshot moves in step).
   const [pnlManual, setPnlManual] = useState(() => initial?.pnl != null)
@@ -236,9 +255,10 @@ export function TradeForm({
       let next: Outcome = prev.outcome
       if (t.exitPrice == null) next = 'open'
       else if (finalPnl != null) next = finalPnl > beBand ? 'win' : finalPnl < -beBand ? 'loss' : 'breakeven'
+      else if (movePerUnit != null) next = movePerUnit > beBandPrice ? 'win' : movePerUnit < -beBandPrice ? 'loss' : 'breakeven'
       return next === prev.outcome ? prev : { ...prev, outcome: next }
     })
-  }, [finalPnl, beBand, t.exitPrice, outcomeManual]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [finalPnl, beBand, t.exitPrice, outcomeManual, movePerUnit, beBandPrice]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Entries that can be linked: still pending, or already linked to THIS trade.
   const linkable = (entries ?? []).filter((e) => !e.linkedTradeId || e.linkedTradeId === t.id)
@@ -330,7 +350,6 @@ export function TradeForm({
       }
     >
       {/* Link to pre-trade checklist — first, so it's front and centre */}
-      <h3 style={{ margin: '0 0 12px' }}>Link pre-trade checklist</h3>
       {linkable.length === 0 ? (
         <p className="muted" style={{ fontSize: 13 }}>
           No pre-trade checks available to link. Run a checklist on the <strong>Pre-Trade</strong> tab before your trade, then link it here by its serial #.
@@ -373,7 +392,6 @@ export function TradeForm({
       )}
 
       {/* Basics */}
-      <h3 style={{ margin: '10px 0 12px' }}>Trade details</h3>
       <div className="form-grid">
         <div className="field">
           <label>Account</label>
@@ -426,7 +444,7 @@ export function TradeForm({
       {/* Option contract details (India options only) */}
       {isOption && (
         <>
-          <h3 style={{ margin: '22px 0 12px' }}>Option contract</h3>
+          <div style={{ height: 14 }} />
           <div className="form-grid">
             <div className="field">
               <label>Call / Put</label>
@@ -438,26 +456,23 @@ export function TradeForm({
             <div className="field"><label>Strike price</label><NumberStepper value={t.strike} onChange={(v) => set('strike', v)} step={50} min={0} placeholder="e.g. 25000" /></div>
             <div className="field"><label>Expiry</label><input className="input" type="date" value={t.expiry ?? ''} onChange={(e) => set('expiry', e.target.value)} /></div>
             <div className="field"><label>Lots</label><NumberStepper value={t.lots} onChange={(v) => set('lots', v)} step={1} min={0} placeholder="e.g. 2" /></div>
-            <div className="field"><label>Qty per lot</label><NumberStepper value={t.lotSize} onChange={(v) => { lotAutoRef.current = false; set('lotSize', v) }} step={5} min={0} placeholder="from Settings" /></div>
+            <div className="field"><label>Qty per lot</label><NumberStepper value={t.lotSize} onChange={(v) => set('lotSize', v)} step={5} min={0} placeholder="from Settings" /></div>
           </div>
         </>
       )}
       {isIndia && (seg === 'futures' || seg === 'commodity') && (
         <>
-          <h3 style={{ margin: '22px 0 12px' }}>Contract</h3>
+          <div style={{ height: 14 }} />
           <div className="form-grid">
             <div className="field"><label>Expiry</label><input className="input" type="date" value={t.expiry ?? ''} onChange={(e) => set('expiry', e.target.value)} /></div>
             <div className="field"><label>Lots</label><NumberStepper value={t.lots} onChange={(v) => set('lots', v)} step={1} min={0} placeholder="e.g. 1" /></div>
-            <div className="field"><label>Qty per lot</label><NumberStepper value={t.lotSize} onChange={(v) => { lotAutoRef.current = false; set('lotSize', v) }} step={5} min={0} placeholder="from Settings" /></div>
+            <div className="field"><label>Qty per lot</label><NumberStepper value={t.lotSize} onChange={(v) => set('lotSize', v)} step={5} min={0} placeholder="from Settings" /></div>
           </div>
         </>
       )}
 
       {/* Plan — your intended stop & target. Used only to compute Risk:Reward. */}
-      <h3 style={{ margin: '22px 0 4px' }}>Plan · risk</h3>
-      <p className="muted" style={{ fontSize: 12.5, margin: '0 0 12px' }}>
-        Where you <em>planned</em> to get out. These only drive Risk : Reward — leave blank if you don't use them.
-      </p>
+      <div style={{ height: 14 }} />
       <div className="form-grid">
         <div className="field"><label>Stop loss</label><input className="input" type="number" step="any" value={t.stopLoss ?? ''} onChange={(e) => setNum('stopLoss', e.target.value)} placeholder="planned SL price" /></div>
         <div className="field"><label>Take profit</label><input className="input" type="number" step="any" value={t.takeProfit ?? ''} onChange={(e) => setNum('takeProfit', e.target.value)} placeholder="planned TP price" /></div>
@@ -477,10 +492,7 @@ export function TradeForm({
       </div>
 
       {/* Execution — what actually happened. P/L is computed from these. */}
-      <h3 style={{ margin: '22px 0 4px' }}>Execution · result</h3>
-      <p className="muted" style={{ fontSize: 12.5, margin: '0 0 12px' }}>
-        What <em>actually</em> happened. P/L is calculated automatically from entry, close price, direction &amp; size.
-      </p>
+      <div style={{ height: 14 }} />
       <div className="form-grid">
         <div className="field"><label>{isOption ? 'Entry premium' : 'Entry price'}</label><input className="input" type="number" step="any" value={t.entryPrice ?? ''} onChange={(e) => setNum('entryPrice', e.target.value)} placeholder="fill price" /></div>
         <div className="field"><label>{isOption ? 'Exit / close premium' : 'Exit / close price'}</label><input className="input" type="number" step="any" value={t.exitPrice ?? ''} onChange={(e) => setNum('exitPrice', e.target.value)} placeholder="close price" /></div>
@@ -568,7 +580,7 @@ export function TradeForm({
       </div>
 
       {/* Notes / tags / screenshot */}
-      <h3 style={{ margin: '22px 0 12px' }}>Notes</h3>
+      <div style={{ height: 14 }} />
       <div className="field full" style={{ marginBottom: 16 }}>
         <label>Trade notes</label>
         <textarea className="textarea" value={t.notes ?? ''} onChange={(e) => set('notes', e.target.value)} placeholder="What was the idea? What did you learn?" />

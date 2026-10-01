@@ -149,6 +149,8 @@ export interface Settings {
   activeAccountIdIndia?: string // India-mode active account (kept separate from forex)
   theme: 'dark' | 'light'
   accent?: string // accent theme key (e.g. 'gold', 'emerald', 'azure'…)
-  monthlyProfitGoal?: number // target net profit for the month (currency)
-  maxLossLimit?: number // max acceptable loss for the month (positive currency amount)
+  monthlyProfitGoal?: number // target net profit for the month — forex mode
+  maxLossLimit?: number // max acceptable loss for the month — forex mode
+  monthlyProfitGoalIndia?: number // target net profit for the month — India mode (INR)
+  maxLossLimitIndia?: number // max acceptable loss for the month — India mode (INR)
 }

@@ -28,8 +28,9 @@ export default function Dashboard() {
   const monthPnl = trades
     .filter((t) => t.outcome !== 'open' && tradeDate(t) >= monthStart)
     .reduce((a, t) => a + (t.pnl ?? 0), 0)
-  const goal = settings?.monthlyProfitGoal ?? 0
-  const lossLimit = settings?.maxLossLimit ?? 0
+  // Goals are separate per app mode (forex vs India journals are separate too).
+  const goal = (isIndia ? settings?.monthlyProfitGoalIndia : settings?.monthlyProfitGoal) ?? 0
+  const lossLimit = (isIndia ? settings?.maxLossLimitIndia : settings?.maxLossLimit) ?? 0
   const startBal = startingBalance
   const stats = computeStats(trades)
   const curve = equityCurve(trades, startBal)

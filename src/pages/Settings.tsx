@@ -241,19 +241,21 @@ export default function SettingsPage() {
         </div>
 
         <div className="card">
-          <h3>🎯 Goals &amp; targets</h3>
-          <p className="muted" style={{ marginTop: -6, fontSize: 13 }}>Set a monthly profit goal and a max-loss limit — progress shows on your Dashboard. Leave blank to hide.</p>
+          <h3>🎯 Goals &amp; targets · {isIndia ? 'India (₹)' : 'Forex'}</h3>
           <div className="form-grid">
             <div className="field">
-              <label>Monthly profit goal ({form.accountCurrency})</label>
-              <input className="input" inputMode="decimal" value={form.monthlyProfitGoal ?? ''} onChange={(e) => setForm({ ...form, monthlyProfitGoal: e.target.value ? Number(e.target.value.replace(/[^0-9.]/g, '')) : undefined })} placeholder="e.g. 2000" />
+              <label>Monthly profit goal ({isIndia ? '₹ INR' : form.accountCurrency})</label>
+              <input className="input" inputMode="decimal" value={isIndia ? form.monthlyProfitGoalIndia ?? '' : form.monthlyProfitGoal ?? ''} onChange={(e) => { const v = e.target.value ? Number(e.target.value.replace(/[^0-9.]/g, '')) : undefined; setForm(isIndia ? { ...form, monthlyProfitGoalIndia: v } : { ...form, monthlyProfitGoal: v }) }} placeholder="e.g. 2000" />
             </div>
             <div className="field">
-              <label>Max monthly loss ({form.accountCurrency})</label>
-              <input className="input" inputMode="decimal" value={form.maxLossLimit ?? ''} onChange={(e) => setForm({ ...form, maxLossLimit: e.target.value ? Number(e.target.value.replace(/[^0-9.]/g, '')) : undefined })} placeholder="e.g. 1000" />
+              <label>Max monthly loss ({isIndia ? '₹ INR' : form.accountCurrency})</label>
+              <input className="input" inputMode="decimal" value={isIndia ? form.maxLossLimitIndia ?? '' : form.maxLossLimit ?? ''} onChange={(e) => { const v = e.target.value ? Number(e.target.value.replace(/[^0-9.]/g, '')) : undefined; setForm(isIndia ? { ...form, maxLossLimitIndia: v } : { ...form, maxLossLimit: v }) }} placeholder="e.g. 1000" />
             </div>
           </div>
-          <button className="btn primary" onClick={saveCurrency} style={{ marginTop: 12 }}>Save goals</button>
+          <button className="btn primary" onClick={saveCurrency} style={{ marginTop: 12 }}>Save {isIndia ? 'India' : 'forex'} goals</button>
+          <p className="muted" style={{ fontSize: 11.5, marginTop: 10, marginBottom: 0 }}>
+            Goals are separate for Forex and India — switch the app mode (top-left) to edit the other set.
+          </p>
         </div>
 
         <div className="card">
