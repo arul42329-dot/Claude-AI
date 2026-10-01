@@ -571,6 +571,9 @@ tbody tr:hover { background: rgba(255, 255, 255, 0.035); }
   .form-grid { grid-template-columns: 1fr 1fr; }
   .page-head h1 { font-size: 24px; }
   .page-head p { font-size: 12.5px; }
+  /* Wrapped headers: title flush at the top (no gap above it), actions right. */
+  .page-head { align-items: flex-start; min-height: 0; }
+  .page-head > .btn, .page-head > .row, .page-head > .seg { margin-left: auto; }
 }
 @media (max-width: 480px) {
   .topbar-name { display: none; } /* logo is enough on small phones */

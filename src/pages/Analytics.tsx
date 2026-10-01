@@ -134,24 +134,6 @@ export default function Analytics() {
             )}
           </div>
 
-          <div className="card" style={{ marginBottom: 20 }}>
-            <h3>
-              💡 Insights · pros &amp; cons
-              <span className="muted" style={{ fontWeight: 500, fontSize: 12, marginLeft: 8 }}>auto-generated from your trades</span>
-            </h3>
-            <div className="insight-grid">
-              <div className="insight-col pros">
-                <h4>✅ What's working</h4>
-                {insights.pros.map((p, i) => <div className="insight-item" key={i}><span className="ic">📈</span><span>{p}</span></div>)}
-              </div>
-              <div className="insight-col cons">
-                <h4>⚠️ What's costing you</h4>
-                {insights.cons.map((c, i) => <div className="insight-item" key={i}><span className="ic">📉</span><span>{c}</span></div>)}
-              </div>
-            </div>
-            {insights.notes.map((n, i) => <div className="insight-note" key={i}>{n}</div>)}
-          </div>
-
           <div className="grid stat-grid" style={{ marginBottom: 20 }}>
             <StatCard label="Total trades" numeric={stats.totalTrades} format={(n) => String(Math.round(n))} sub={`${stats.open} still open`} />
             <StatCard label="Net P/L" numeric={stats.netPnl} format={(n) => fmtMoney(n, currency)} tone={stats.netPnl >= 0 ? 'pos' : 'neg'} />
@@ -262,6 +244,24 @@ export default function Analytics() {
           )}
 
           <PnlCalendar trades={all} currency={currency} />
+
+          <div className="card" style={{ marginBottom: 20 }}>
+            <h3>
+              💡 Insights · pros &amp; cons
+              <span className="muted" style={{ fontWeight: 500, fontSize: 12, marginLeft: 8 }}>auto-generated from your trades</span>
+            </h3>
+            <div className="insight-grid">
+              <div className="insight-col pros">
+                <h4>✅ What's working</h4>
+                {insights.pros.map((p, i) => <div className="insight-item" key={i}><span className="ic">📈</span><span>{p}</span></div>)}
+              </div>
+              <div className="insight-col cons">
+                <h4>⚠️ What's costing you</h4>
+                {insights.cons.map((c, i) => <div className="insight-item" key={i}><span className="ic">📉</span><span>{c}</span></div>)}
+              </div>
+            </div>
+            {insights.notes.map((n, i) => <div className="insight-note" key={i}>{n}</div>)}
+          </div>
 
           <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', marginBottom: 20 }}>
             <BreakdownCard title={mode === 'india' ? 'By instrument' : 'By pair'} rows={byPair} currency={currency} />
