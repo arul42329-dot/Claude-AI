@@ -206,10 +206,13 @@ h1, h2, h3, .stat .value, .brand .name, .topbar-name {
 }
 
 .page-head {
-  display: flex; align-items: flex-end; justify-content: space-between;
-  margin-bottom: 26px; gap: 16px; flex-wrap: wrap;
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 26px; gap: 16px; flex-wrap: wrap; min-height: 42px;
 }
-.page-head h1 { font-size: 30px; margin: 0; letter-spacing: -0.8px; line-height: 1.05; }
+.page-head h1 {
+  font-size: 30px; margin: 0; letter-spacing: -0.8px; line-height: 1.1;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+}
 .page-head p { margin: 7px 0 0; color: var(--text-dim); font-size: 13.5px; }
 
 /* Eyebrow tag (microscopic pill above headings when used) */
@@ -1330,28 +1333,23 @@ html[data-amoled='on'] .aurora { display: none; }
 .cost-breakdown .pos { color: var(--green); }
 .cost-breakdown .neg { color: var(--red); }
 
-.lot-table {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-  gap: 8px 14px; margin-top: 6px;
-}
-.lot-row { display: flex; align-items: center; gap: 8px; }
-.lot-name {
-  flex: 1; min-width: 0; font-size: 12.5px; font-weight: 600;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.lot-row .input { width: 86px; text-align: right; padding: 6px 8px; }
+.lot-list { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; max-height: 330px; overflow-y: auto; padding-right: 2px; }
+.lot-line { padding: 10px 12px; }
+.lot-line .chip { font-variant-numeric: tabular-nums; font-weight: 700; }
+.lot-line .row { flex-shrink: 0; }
 
-/* ===== App-mode mini dropdown (next to the account switcher) ===== */
-.acct-switch-wrap { display: flex; gap: 6px; align-items: stretch; }
-.acct-switch-wrap .acct-switch { flex: 1; margin: 0; }
-.mode-mini {
-  display: flex; align-items: center; gap: 4px;
-  background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.015));
-  border: 1px solid var(--border); border-radius: 13px;
-  color: var(--text); padding: 0 4px; cursor: pointer; font-size: 12px;
-}
-.mode-mini:active, .mode-mini:focus-within { border-color: var(--border-strong); }
-.mode-mini option { background: var(--surface-2); color: var(--text); }
+/* ===== App-mode dropdown (matches the account switcher) ===== */
+/* Sidebar (desktop): stacked, full width. Top bar (phones): side by side. */
+.acct-switch-wrap { display: flex; flex-direction: column; gap: 6px; }
+.acct-switch-wrap .acct-switch { margin: 0; }
+.topbar .acct-switch-wrap { flex-direction: row; align-items: stretch; gap: 6px; }
+.topbar .acct-switch-wrap .acct-switch { flex: 0 1 auto; }
+.mode-drop { position: relative; }
+.mode-drop .acct-trigger { padding: 7px 10px; }
+.mode-ic { display: inline-flex; align-items: center; justify-content: center; width: 18px; flex-shrink: 0; }
+.mode-menu { min-width: 210px; }
+.topbar .mode-drop .acct-menu { left: auto; right: 0; }
+.topbar-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Page-head action buttons stay right-aligned even when they wrap (mobile) */
 .page-head > .btn, .page-head > .row { margin-left: auto; }
@@ -1381,3 +1379,7 @@ html[data-amoled='on'] .aurora { display: none; }
   font-size: 13.5px; line-height: 1.45; color: var(--text-dim);
 }
 .insight-note strong { color: var(--text); }
+.lot-name {
+  flex: 1; min-width: 0; font-size: 13.5px; font-weight: 700;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}

@@ -5,23 +5,56 @@ import { useAppMode, type AppMode } from '../mode'
 import { fmtMoney } from '../util'
 import { IndiaFlag, GlobeIcon } from './Icons'
 
-// Small App-mode (Forex/India) dropdown shown next to the account switcher on
-// every page — replaces the big mode card that used to live on the Dashboard.
+// App-mode (Forex/India) dropdown, styled exactly like the account switcher
+// next to it — shown on every page (sidebar on desktop, top bar on phones).
 function ModeMini() {
   const { mode, setMode } = useAppMode()
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    function onDoc(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [open])
+
+  function pick(m: AppMode) {
+    setMode(m)
+    setOpen(false)
+  }
+
   return (
-    <label className="mode-mini" title="App mode — switches the whole app (journal, Markets, colour)">
-      {mode === 'india' ? <IndiaFlag size={13} /> : <GlobeIcon size={13} />}
-      <select
-        value={mode}
-        onChange={(e) => setMode(e.target.value as AppMode)}
-        aria-label="App mode"
-        style={{ background: 'transparent', border: 'none', color: 'inherit', font: 'inherit', cursor: 'pointer', padding: '9px 2px' }}
-      >
-        <option value="forex">Forex</option>
-        <option value="india">India</option>
-      </select>
-    </label>
+    <div className={'mode-drop' + (open ? ' open' : '')} ref={ref}>
+      <button className="acct-trigger mode-trigger" onClick={() => setOpen((v) => !v)} aria-haspopup="listbox" aria-expanded={open} title="App mode — switches journal, Markets & colour">
+        <span className="mode-ic">{mode === 'india' ? <IndiaFlag size={15} /> : <GlobeIcon size={15} />}</span>
+        <span className="acct-label">
+          <span className="acct-name">{mode === 'india' ? 'India' : 'Forex'}</span>
+          <span className="acct-sub">App mode</span>
+        </span>
+        <svg className="acct-caret" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
+      </button>
+      {open && (
+        <div className="acct-menu mode-menu" role="listbox">
+          <button className={'acct-item' + (mode === 'forex' ? ' active' : '')} onClick={() => pick('forex')} role="option" aria-selected={mode === 'forex'}>
+            <span className="mode-ic"><GlobeIcon size={16} /></span>
+            <span className="acct-label">
+              <span className="acct-name">Forex</span>
+              <span className="acct-sub">FX · metals · crypto</span>
+            </span>
+          </button>
+          <button className={'acct-item' + (mode === 'india' ? ' active' : '')} onClick={() => pick('india')} role="option" aria-selected={mode === 'india'}>
+            <span className="mode-ic"><IndiaFlag size={16} /></span>
+            <span className="acct-label">
+              <span className="acct-name">India</span>
+              <span className="acct-sub">NSE · BSE · MCX</span>
+            </span>
+          </button>
+        </div>
+      )}
+    </div>
   )
 }
 

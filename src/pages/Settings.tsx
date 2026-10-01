@@ -589,30 +589,39 @@ function UpdateCard() {
 
 function IndiaDefaultsCard() {
   const { isIndia } = useAppMode()
-  const [d, setD] = useState(() => getIndiaDefaults())
-  const [custom, setCustom] = useState('')
   const toast = useToast()
+  const [d, setD] = useState(() => getIndiaDefaults())
+  // Lot editor modal: null = closed; { original } = editing, undefined original = adding.
+  const [editor, setEditor] = useState<{ original?: string; name: string; qty: number } | null>(null)
   if (!isIndia) return null // India-only card (switch to India mode to edit)
 
-  function setLot(name: string, v: number | undefined) {
-    setD((prev) => {
-      const next = { ...prev, lotSizes: { ...prev.lotSizes } }
-      if (v == null || Number.isNaN(v) || v <= 0) delete next.lotSizes[name]
-      else next.lotSizes[name] = v
-      return next
-    })
+  function persist(next: ReturnType<typeof getIndiaDefaults>) {
+    setD(next)
+    saveIndiaDefaults(next)
   }
 
-  function addCustom() {
-    const name = custom.trim().toUpperCase()
-    if (!name) return
-    setD((prev) => ({ ...prev, lotSizes: { ...prev.lotSizes, [name]: prev.lotSizes[name] ?? 1 } }))
-    setCustom('')
+  function setBrokerage(patch: Partial<ReturnType<typeof getIndiaDefaults>>) {
+    persist({ ...d, ...patch })
   }
 
-  function save() {
-    saveIndiaDefaults(d)
-    toast('India trading defaults saved ✓')
+  function saveLot() {
+    if (!editor) return
+    const key = editor.name.trim().toUpperCase()
+    if (!key) { toast('Enter an instrument name'); return }
+    if (!Number.isFinite(editor.qty) || editor.qty < 1) { toast('Qty per lot must be at least 1'); return }
+    const lotSizes = { ...d.lotSizes }
+    if (editor.original && editor.original !== key) delete lotSizes[editor.original]
+    lotSizes[key] = Math.round(editor.qty)
+    persist({ ...d, lotSizes })
+    setEditor(null)
+    toast(editor.original ? `${key} lot size updated ✓` : `${key} added ✓`)
+  }
+
+  function removeLot(name: string) {
+    const lotSizes = { ...d.lotSizes }
+    delete lotSizes[name]
+    persist({ ...d, lotSizes })
+    toast(`${name} removed`)
   }
 
   const names = Object.keys(d.lotSizes).sort()
@@ -621,46 +630,72 @@ function IndiaDefaultsCard() {
     <div className="card">
       <h3>🇮🇳 India trading defaults</h3>
       <p className="muted" style={{ marginTop: -6, fontSize: 13 }}>
-        Pre-fills the trade form: lot sizes per instrument and your brokerage. Costs are deducted from every trade's P/L.
+        Pre-fills the trade form: lot sizes per instrument and your brokerage — both deducted from every trade's P/L automatically.
       </p>
 
       <div className="form-grid" style={{ marginTop: 4 }}>
         <div className="field">
           <label>Options brokerage · BUY leg (₹ per lot)</label>
-          <input className="input" type="number" step="any" value={d.brokerageOptionsBuy} onChange={(e) => setD({ ...d, brokerageOptionsBuy: Number(e.target.value) || 0 })} />
+          <input className="input" type="number" step="any" value={d.brokerageOptionsBuy} onChange={(e) => setBrokerage({ brokerageOptionsBuy: Number(e.target.value) || 0 })} />
         </div>
         <div className="field">
           <label>Options brokerage · SELL leg (₹ per lot)</label>
-          <input className="input" type="number" step="any" value={d.brokerageOptionsSell} onChange={(e) => setD({ ...d, brokerageOptionsSell: Number(e.target.value) || 0 })} />
+          <input className="input" type="number" step="any" value={d.brokerageOptionsSell} onChange={(e) => setBrokerage({ brokerageOptionsSell: Number(e.target.value) || 0 })} />
         </div>
         <div className="field">
           <label>Futures / equity / commodity brokerage (₹ per trade)</label>
-          <input className="input" type="number" step="any" value={d.brokerageFlat} onChange={(e) => setD({ ...d, brokerageFlat: Number(e.target.value) || 0 })} />
+          <input className="input" type="number" step="any" value={d.brokerageFlat} onChange={(e) => setBrokerage({ brokerageFlat: Number(e.target.value) || 0 })} />
         </div>
       </div>
 
-      <div className="field" style={{ marginTop: 14 }}>
+      <div className="field" style={{ marginTop: 16 }}>
         <label>Lot sizes (qty per lot · auto-filled per instrument)</label>
-        <div className="lot-table">
+        {names.length === 0 && <p className="muted" style={{ fontSize: 12.5 }}>No instruments yet — add one below.</p>}
+        <div className="lot-list">
           {names.map((n) => (
-            <div key={n} className="lot-row">
+            <div key={n} className="acct-row lot-line">
               <span className="lot-name">{n}</span>
-              <input
-                className="input"
-                type="number" min={1} step={1}
-                value={d.lotSizes[n]}
-                onChange={(e) => setLot(n, e.target.value === '' ? undefined : Number(e.target.value))}
-              />
+              <span className="chip">{d.lotSizes[n]} <span className="muted" style={{ fontSize: 10.5 }}>/ lot</span></span>
+              <span className="row" style={{ gap: 4, marginLeft: 'auto' }}>
+                <button className="icon-btn" title="Edit lot size" onClick={() => setEditor({ original: n, name: n, qty: d.lotSizes[n] })}>✏️</button>
+                <button className="icon-btn" title="Remove" onClick={() => removeLot(n)}>🗑️</button>
+              </span>
             </div>
           ))}
         </div>
-        <div className="row" style={{ marginTop: 8, gap: 6 }}>
-          <input className="input" style={{ maxWidth: 220 }} value={custom} onChange={(e) => setCustom(e.target.value)} placeholder="Add instrument (e.g. NIFTY NEXT 50)" onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCustom() } }} />
-          <button className="btn sm" onClick={addCustom}>Add</button>
-        </div>
+        <button className="btn" style={{ marginTop: 12 }} onClick={() => setEditor({ name: '', qty: 75 })}>＋ Add instrument</button>
       </div>
 
-      <button className="btn primary" style={{ marginTop: 14 }} onClick={save}>Save defaults</button>
+      <p className="muted" style={{ fontSize: 11.5, marginTop: 12, marginBottom: 0 }}>
+        Changes save automatically. Editing here never rewrites past trades — each trade keeps the values it was saved with.
+      </p>
+
+      {editor && (
+        <Modal
+          title={editor.original ? `Edit · ${editor.original}` : 'Add instrument'}
+          onClose={() => setEditor(null)}
+          footer={
+            <>
+              <button className="btn ghost" onClick={() => setEditor(null)}>Cancel</button>
+              <button className="btn primary" onClick={saveLot}>{editor.original ? 'Save changes' : 'Add instrument'}</button>
+            </>
+          }
+        >
+          <div className="form-grid">
+            <div className="field">
+              <label>Instrument name</label>
+              <input className="input" value={editor.name} onChange={(e) => setEditor({ ...editor, name: e.target.value })} placeholder="e.g. NIFTY NEXT 50" autoFocus />
+            </div>
+            <div className="field">
+              <label>Qty per lot</label>
+              <input className="input" type="number" min={1} step={1} value={editor.qty} onChange={(e) => setEditor({ ...editor, qty: Number(e.target.value) })} />
+            </div>
+          </div>
+          {editor.original && (
+            <p className="muted" style={{ fontSize: 12 }}>New trades on {editor.original} will use this size. Past trades keep their saved values.</p>
+          )}
+        </Modal>
+      )}
     </div>
   )
 }
