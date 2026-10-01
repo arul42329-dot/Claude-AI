@@ -225,22 +225,26 @@ export function TradeForm({
     return 0.005 * Math.abs(e)
   }, [t.entryPrice, t.stopLoss])
 
-  // Keep P/L synced to the auto value unless the user has chosen to type P/L
-  // manually (India gross/brokerage snapshot moves in step).
-  const [pnlManual, setPnlManual] = useState(() => initial?.pnl != null)
+  // ---- P/L is always CALCULATED ----
+  // Never typed: it follows entry, exit, direction, size and costs. No close
+  // price → the trade is open and carries no P/L. Legacy trades whose size is
+  // unknown (P/L not computable) keep their stored value instead of being wiped.
   useEffect(() => {
-    if (pnlManual || autoNet == null) return
-    setT((prev) => ({
-      ...prev,
-      pnl: autoNet,
-      grossPnl: isIndia ? autoPnl : undefined,
-      brokerage: isIndia ? brokerage : undefined,
-    }))
-  }, [autoNet, pnlManual]) // eslint-disable-line react-hooks/exhaustive-deps
+    setT((prev) => {
+      if (autoNet != null) {
+        if (prev.pnl === autoNet && prev.grossPnl === (isIndia ? autoPnl : undefined) && prev.brokerage === (isIndia ? brokerage : undefined)) return prev
+        return { ...prev, pnl: autoNet, grossPnl: isIndia ? autoPnl : undefined, brokerage: isIndia ? brokerage : undefined }
+      }
+      if (t.exitPrice == null && prev.pnl != null) {
+        return { ...prev, pnl: undefined, grossPnl: undefined, brokerage: undefined }
+      }
+      return prev
+    })
+  }, [autoNet, autoPnl, brokerage, isIndia, t.exitPrice]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---- Outcome is always CALCULATED ----
-  // Win / loss / breakeven follows the final P/L (auto OR manually typed)
-  // whenever a close price exists; no close price → the trade stays Open.
+  // Win / loss / breakeven follows the calculated P/L whenever a close price
+  // exists; no close price → the trade stays Open.
   // A manual pick in the dropdown is honoured only until any price, size,
   // direction, P/L or tax changes — then it recalculates on its own again.
   const [outcomeManual, setOutcomeManual] = useState(false)
@@ -319,9 +323,11 @@ export function TradeForm({
       accountId,
       serial,
       riskReward: autoRr ?? t.riskReward,
-      // Snapshot India costs at save time so later Settings changes don't
-      // rewrite history; pnl is already NET of these.
-      grossPnl: isIndia ? (autoPnl ?? t.grossPnl) : undefined,
+      // P/L is always the calculated net value — never typed. No close price →
+      // open trade, no P/L. Snapshot India costs at save time so later Settings
+      // changes don't rewrite history; pnl is already NET of these.
+      pnl: autoNet ?? (t.exitPrice == null ? undefined : t.pnl),
+      grossPnl: isIndia ? (autoPnl ?? (t.exitPrice == null ? undefined : t.grossPnl)) : undefined,
       brokerage: isIndia ? brokerage : undefined,
       checklists,
       updatedAt: Date.now(),
@@ -528,25 +534,17 @@ export function TradeForm({
         <div className="field">
           <label>
             P/L ({isIndia ? '₹ INR net' : 'account currency'})
-            {!pnlManual && autoNet != null && <span className="muted" style={{ fontSize: 11, fontWeight: 400 }}> · auto</span>}
+            <span className="muted" style={{ fontSize: 11, fontWeight: 400 }}> · auto</span>
           </label>
-          <div className="row" style={{ gap: 6 }}>
-            <input
-              className="input"
-              type="number"
-              step="any"
-              value={t.pnl ?? ''}
-              onChange={(e) => { setPnlManual(true); setNum('pnl', e.target.value) }}
-              placeholder={autoNet != null ? String(autoNet) : 'e.g. 125 or -80'}
-              style={!pnlManual && autoNet != null ? { background: 'var(--bg-2)', fontWeight: 700 } : undefined}
-            />
-            {pnlManual && (
-              <button type="button" className="btn sm" title="Recalculate automatically from prices & size"
-                onClick={() => { setPnlManual(false); setOutcomeManual(false); if (autoNet != null) setNum('pnl', String(autoNet)) }}>
-                Auto
-              </button>
-            )}
-          </div>
+          <input
+            className="input"
+            type="number"
+            step="any"
+            readOnly
+            value={autoNet ?? t.pnl ?? ''}
+            placeholder={t.exitPrice == null ? 'needs exit price' : totalQty == null ? 'needs size' : 'auto'}
+            style={{ background: 'var(--bg-2)', cursor: 'default', fontWeight: 700 }}
+          />
           {isIndia && autoPnl != null && (
             <div className="cost-breakdown">
               <span>Gross <strong>{fmtMoney(autoPnl, 'INR')}</strong></span>
