@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { verifyPin } from '../lock'
 import { biometricAvailable, biometricVerify } from '../biometric'
-import logoUrl from '../assets/logo.png'
 
 export function LockScreen({ onUnlock }: { onUnlock: () => void }) {
   const [pin, setPin] = useState('')
@@ -73,7 +72,7 @@ export function LockScreen({ onUnlock }: { onUnlock: () => void }) {
     <div className="lock-screen">
       <div className="aurora" aria-hidden="true"><span /><span /><span /></div>
       <div className={'lock-card' + (shake ? ' shake' : '')}>
-        <img className="lock-logo" src={logoUrl} alt="Edgefolio" />
+        <span className="lock-logo" aria-hidden="true" />
         <h2>Enter PIN</h2>
         <p className="muted" style={{ fontSize: 13, marginTop: -4 }}>{error ? 'Wrong PIN, try again' : 'Unlock your journal'}</p>
         <div className="pin-dots">

@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import logoUrl from '../assets/logo.png'
 
 // Animated launch intro: logo + app name reveal, then fades away.
 export function SplashIntro({ onDone }: { onDone: () => void }) {
@@ -20,7 +19,7 @@ export function SplashIntro({ onDone }: { onDone: () => void }) {
       <div className="splash-inner">
         <div className="splash-logo-wrap">
           <span className="splash-ring" />
-          <img src={logoUrl} alt="Edgefolio" className="splash-logo" />
+          <span className="splash-logo" aria-hidden="true" />
         </div>
         <h1 className="splash-name">
           {'Edgefolio'.split('').map((ch, i) => (

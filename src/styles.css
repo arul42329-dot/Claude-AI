@@ -149,10 +149,16 @@ h1, h2, h3, .stat .value, .brand .name, .topbar-name {
   flex-shrink: 0;
 }
 .logo-shell.sm { width: 38px; height: 38px; border-radius: 12px; padding: 4px; }
+/* The logo is painted with the ACTIVE ACCENT: the PNG's silhouette (alpha
+   channel) becomes a CSS mask over a two-tone accent gradient, so the mark
+   recolours instantly with the Settings accent (and India mode's saffron). */
 .brand .logo-img,
 .topbar .logo-img {
-  width: 100%; height: 100%; object-fit: contain;
-  filter: drop-shadow(0 4px 10px rgba(232, 180, 88, 0.28));
+  width: 100%; height: 100%;
+  background: linear-gradient(165deg, var(--accent-2) 15%, var(--accent) 85%);
+  -webkit-mask: url('./assets/logo.png') center / contain no-repeat;
+  mask: url('./assets/logo.png') center / contain no-repeat;
+  filter: drop-shadow(0 4px 10px var(--accent-soft));
 }
 .brand .name { font-weight: 700; font-size: 17px; letter-spacing: -0.2px; }
 .brand .name small {
@@ -623,8 +629,11 @@ tbody tr:hover { background: rgba(255, 255, 255, 0.035); }
 .splash-inner { position: relative; text-align: center; }
 .splash-logo-wrap { position: relative; display: inline-grid; place-items: center; margin-bottom: 24px; }
 .splash-logo {
-  width: 120px; height: 120px; object-fit: contain;
-  filter: drop-shadow(0 14px 44px rgba(232, 180, 88, 0.55));
+  width: 120px; height: 120px;
+  background: linear-gradient(165deg, var(--accent-2) 15%, var(--accent) 85%);
+  -webkit-mask: url('./assets/logo.png') center / contain no-repeat;
+  mask: url('./assets/logo.png') center / contain no-repeat;
+  filter: drop-shadow(0 14px 44px var(--accent-soft));
   animation: logoPop 0.9s cubic-bezier(0.22, 1, 0.36, 1) both, floaty 3s ease-in-out 0.9s infinite;
 }
 .splash-ring {
@@ -966,7 +975,12 @@ tbody tr { transition: background 0.14s var(--ease); }
 .lock-screen { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; background: var(--bg); padding: 24px; }
 .lock-card { position: relative; z-index: 1; width: 100%; max-width: 320px; text-align: center; }
 .lock-card h2 { margin: 14px 0 0; }
-.lock-logo { width: 68px; height: 68px; border-radius: 18px; }
+.lock-logo {
+  width: 68px; height: 68px; border-radius: 18px;
+  background: linear-gradient(165deg, var(--accent-2) 15%, var(--accent) 85%);
+  -webkit-mask: url('./assets/logo.png') center / contain no-repeat;
+  mask: url('./assets/logo.png') center / contain no-repeat;
+}
 .lock-card.shake { animation: lock-shake 0.45s; }
 @keyframes lock-shake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-9px)} 40%,80%{transform:translateX(9px)} }
 .pin-dots { display: flex; justify-content: center; gap: 12px; margin: 22px 0 26px; }

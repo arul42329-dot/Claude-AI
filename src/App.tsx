@@ -24,7 +24,6 @@ import {
   IconMarkets,
   IconSettings,
 } from './components/Icons'
-import logoUrl from './assets/logo.png'
 import Dashboard from './pages/Dashboard'
 import Trades from './pages/Trades'
 import PreTrade from './pages/PreTrade'
@@ -129,7 +128,7 @@ function AppShell() {
       <aside className="sidebar">
         <div className="brand">
           <span className="logo-shell">
-            <img className="logo-img" src={logoUrl} alt="Edgefolio" />
+            <span className="logo-img" aria-hidden="true" />
           </span>
           <div className="name">
             Edgefolio
@@ -161,7 +160,7 @@ function AppShell() {
       {/* Compact top bar for phones */}
       <header className="topbar">
         <span className="logo-shell sm">
-          <img className="logo-img" src={logoUrl} alt="Edgefolio" />
+          <span className="logo-img" aria-hidden="true" />
         </span>
         <span className="topbar-name">Edgefolio{isIndia && <span className="mode-badge"><IndiaFlag size={13} /> India</span>}</span>
         <div style={{ marginLeft: 'auto' }}>
