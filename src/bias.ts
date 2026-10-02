@@ -40,6 +40,8 @@ export interface BiasResult {
   support: number[]
   resistance: number[]
   reversal: string | null
+  // Main support & resistance ladder (pivots + prev-day H/L + swings).
+  levels: KeyLevel[]
 }
 
 // ---------------------------------------------------------------------------
@@ -205,8 +207,9 @@ export function computeBias(candles: Candle[]): BiasResult | null {
 
   const { support, resistance } = supportResistance(h, l, price)
   const reversal = reversalWatch(candles[i], atr, support, resistance)
+  const levels = keyLevels(candles, price)
 
-  return { label, score, votes, structure, price, ema20, ema50, rsi, macdHist, atr, support, resistance, reversal }
+  return { label, score, votes, structure, price, ema20, ema50, rsi, macdHist, atr, support, resistance, reversal, levels }
 }
 
 // ---------------------------------------------------------------------------
@@ -221,6 +224,83 @@ export function supportResistance(highs: number[], lows: number[], price: number
   const resistance = Array.from(new Set(sh)).sort((a, b) => a - b).slice(0, 2) // nearest above first
   const support = Array.from(new Set(sl)).sort((a, b) => b - a).slice(0, 2) // nearest below first
   return { support, resistance }
+}
+
+// ---------------------------------------------------------------------------
+// Main support & resistance (key levels)
+// ---------------------------------------------------------------------------
+
+export interface KeyLevel {
+  label: string
+  price: number
+  source: 'pivot' | 'prevday' | 'swing'
+}
+
+// Classic floor-trader pivots from the previous session's H/L/C.
+export function pivotPoints(h: number, l: number, c: number) {
+  const p = (h + l + c) / 3
+  return {
+    p,
+    r1: 2 * p - l,
+    s1: 2 * p - h,
+    r2: p + (h - l),
+    s2: p - (h - l),
+    r3: h + 2 * (p - l),
+    s3: l - 2 * (h - p),
+  }
+}
+
+// The main S/R ladder for a pair: daily pivots (R3..R1, Pivot, S1..S3), the
+// previous session's high/low and the nearest swing highs/lows — merged,
+// de-duplicated and sorted highest → lowest. This is what the tap-to-open
+// market panel shows when a pair is clicked.
+export function keyLevels(candles: Candle[], price: number): KeyLevel[] {
+  if (!candles || candles.length < 2 || !Number.isFinite(price) || price <= 0) return []
+  // The previous COMPLETED session: skip today's forming candle when present.
+  const todayStart = new Date()
+  todayStart.setHours(0, 0, 0, 0)
+  let i = candles.length - 1
+  if (candles[i].t >= todayStart.getTime()) i--
+  if (i < 0) return []
+  const prev = candles[i]
+
+  const piv = pivotPoints(prev.h, prev.l, prev.c)
+  const out: KeyLevel[] = [
+    { label: 'R3', price: piv.r3, source: 'pivot' },
+    { label: 'R2', price: piv.r2, source: 'pivot' },
+    { label: 'R1', price: piv.r1, source: 'pivot' },
+    { label: 'Pivot', price: piv.p, source: 'pivot' },
+    { label: 'S1', price: piv.s1, source: 'pivot' },
+    { label: 'S2', price: piv.s2, source: 'pivot' },
+    { label: 'S3', price: piv.s3, source: 'pivot' },
+    { label: 'PDH', price: prev.h, source: 'prevday' },
+    { label: 'PDL', price: prev.l, source: 'prevday' },
+  ]
+
+  // Nearest 3 swing highs above the live price and 3 swing lows below it.
+  const highs = candles.map((x) => x.h)
+  const lows = candles.map((x) => x.l)
+  const sh = Array.from(new Set(swingHighs(highs).slice(-8).map((sw) => sw.price)))
+    .filter((pv) => pv > price).sort((a, b) => a - b).slice(0, 3)
+  const sl = Array.from(new Set(swingLows(lows).slice(-8).map((sw) => sw.price)))
+    .filter((pv) => pv < price).sort((a, b) => b - a).slice(0, 3)
+  for (const pv of sh) out.push({ label: 'Swing high', price: pv, source: 'swing' })
+  for (const pv of sl) out.push({ label: 'Swing low', price: pv, source: 'swing' })
+
+  // Sort highest → lowest, then merge levels that sit on practically the same
+  // price (within 0.05% — R1 often equals PDH, S1 equals PDL), joining labels.
+  const tol = price * 0.0005
+  const sorted = out.filter((lv) => Number.isFinite(lv.price)).sort((a, b) => b.price - a.price)
+  const merged: KeyLevel[] = []
+  for (const lv of sorted) {
+    const last = merged[merged.length - 1]
+    if (last && Math.abs(last.price - lv.price) <= tol) {
+      if (!last.label.includes(lv.label)) last.label += ' · ' + lv.label
+      continue
+    }
+    merged.push({ ...lv })
+  }
+  return merged
 }
 
 // Rejection wick near a level: wick > 2x body and > 40% of the candle's range,

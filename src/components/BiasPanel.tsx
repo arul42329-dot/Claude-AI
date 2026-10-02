@@ -1,5 +1,5 @@
 import { Modal } from './Modal'
-import { tradeCall, type BiasResult } from '../bias'
+import { tradeCall, type BiasResult, type KeyLevel } from '../bias'
 
 // Minimal shape the panel needs — satisfied by both forex Quote and IndiaQuote.
 export interface BiasQuote {
@@ -83,20 +83,24 @@ export function BiasPanel({ q, onClose }: { q: BiasQuote; onClose: () => void })
             <Metric label="Structure" value={d.structure} />
           </div>
 
-          {/* Support / Resistance */}
-          <h4 className="bp-h">Support &amp; resistance</h4>
-          <div className="bp-sr">
-            <div className="bp-sr-col">
-              <div className="bp-sr-lab res">Resistance</div>
-              {d.resistance.length ? d.resistance.map((r, i) => <div key={i} className="bp-sr-val res">{fmt(r, dec)}</div>)
-                : <div className="bp-sr-val muted">—</div>}
+          {/* Main support & resistance */}
+          <h4 className="bp-h">Key levels · S&amp;R</h4>
+          {d.levels.length ? (
+            <KeyLevels levels={d.levels} price={q.price} dec={dec} />
+          ) : (
+            <div className="bp-sr">
+              <div className="bp-sr-col">
+                <div className="bp-sr-lab res">Resistance</div>
+                {d.resistance.length ? d.resistance.map((r, i) => <div key={i} className="bp-sr-val res">{fmt(r, dec)}</div>)
+                  : <div className="bp-sr-val muted">—</div>}
+              </div>
+              <div className="bp-sr-col">
+                <div className="bp-sr-lab sup">Support</div>
+                {d.support.length ? d.support.map((sv, i) => <div key={i} className="bp-sr-val sup">{fmt(sv, dec)}</div>)
+                  : <div className="bp-sr-val muted">—</div>}
+              </div>
             </div>
-            <div className="bp-sr-col">
-              <div className="bp-sr-lab sup">Support</div>
-              {d.support.length ? d.support.map((s, i) => <div key={i} className="bp-sr-val sup">{fmt(s, dec)}</div>)
-                : <div className="bp-sr-val muted">—</div>}
-            </div>
-          </div>
+          )}
 
           {/* Reversal watch */}
           {d.reversal && (
@@ -119,6 +123,67 @@ function Metric({ label, value }: { label: string; value: string }) {
     <div className="bp-metric">
       <div className="bp-metric-lab">{label}</div>
       <div className="bp-metric-val">{value}</div>
+    </div>
+  )
+}
+
+// Main support & resistance ladder: hero boxes for the nearest levels either
+// side of the live price, then every level top-down with the live price row
+// inserted where it sits right now.
+function KeyLevels({ levels, price, dec }: { levels: KeyLevel[]; price: number; dec: number }) {
+  const sorted = [...levels].sort((a, b) => b.price - a.price)
+  const above = sorted.filter((l) => l.price > price)
+  const below = sorted.filter((l) => l.price <= price)
+  const mainRes = above.length ? above[above.length - 1] : null // nearest above
+  const mainSup = below.length ? below[0] : null // nearest below
+  const dist = (p: number) => ((p - price) / price) * 100
+
+  const rows: { kind: 'level' | 'live'; level?: KeyLevel }[] = []
+  let liveInserted = false
+  for (const lv of sorted) {
+    if (!liveInserted && lv.price <= price) { rows.push({ kind: 'live' }); liveInserted = true }
+    rows.push({ kind: 'level', level: lv })
+  }
+  if (!liveInserted) rows.push({ kind: 'live' })
+
+  return (
+    <div>
+      <div className="kl-heroes">
+        <div className="kl-hero res">
+          <div className="kl-hero-k">Main resistance</div>
+          <div className="kl-hero-v">{mainRes ? fmt(mainRes.price, dec) : '—'}</div>
+          <div className="kl-hero-d">{mainRes ? `${dist(mainRes.price) >= 0 ? '+' : ''}${dist(mainRes.price).toFixed(2)}% away` : 'price at highs'}</div>
+        </div>
+        <div className="kl-hero sup">
+          <div className="kl-hero-k">Main support</div>
+          <div className="kl-hero-v">{mainSup ? fmt(mainSup.price, dec) : '—'}</div>
+          <div className="kl-hero-d">{mainSup ? `${dist(mainSup.price) >= 0 ? '+' : ''}${dist(mainSup.price).toFixed(2)}% away` : 'price at lows'}</div>
+        </div>
+      </div>
+      <div className="kl-ladder">
+        {rows.map((row, i) =>
+          row.kind === 'live' ? (
+            <div key={'live' + i} className="kl-row live">
+              <span className="kl-tag">LIVE</span>
+              <span className="kl-price">{fmt(price, dec)}</span>
+            </div>
+          ) : (
+            (() => {
+              const lv = row.level!
+              const res = lv.price > price
+              const isMain = lv === mainRes || lv === mainSup
+              return (
+                <div key={lv.label + i} className={'kl-row ' + (res ? 'res' : 'sup')}>
+                  <span className="kl-tag">{lv.label}</span>
+                  <span className="kl-price">{fmt(lv.price, dec)}</span>
+                  {isMain && <span className="kl-main">MAIN</span>}
+                  <span className="kl-dist">{dist(lv.price) >= 0 ? '+' : ''}{dist(lv.price).toFixed(2)}%</span>
+                </div>
+              )
+            })()
+          ),
+        )}
+      </div>
     </div>
   )
 }

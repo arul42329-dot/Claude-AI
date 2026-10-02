@@ -1530,3 +1530,45 @@ html[data-amoled='on'] .aurora { display: none; }
   .detail-pnl { font-size: 30px; }
   .detail-costs { text-align: left; }
 }
+
+/* ---------------- Key levels (S/R ladder) ---------------- */
+.kl-heroes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+.kl-hero {
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface-2); padding: 11px 13px; min-width: 0;
+}
+.kl-hero.res { border-color: rgba(255, 107, 129, 0.35); }
+.kl-hero.sup { border-color: rgba(61, 220, 151, 0.35); }
+.kl-hero-k {
+  font-size: 10px; font-weight: 700; color: var(--text-faint);
+  text-transform: uppercase; letter-spacing: 0.7px;
+}
+.kl-hero-v { font-size: 17px; font-weight: 800; margin-top: 5px; letter-spacing: -0.4px; font-variant-numeric: tabular-nums; }
+.kl-hero.res .kl-hero-v { color: var(--red); }
+.kl-hero.sup .kl-hero-v { color: var(--green); }
+.kl-hero-d { font-size: 11px; color: var(--text-dim); margin-top: 2px; font-variant-numeric: tabular-nums; }
+
+.kl-ladder { display: flex; flex-direction: column; gap: 4px; }
+.kl-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 10px; border-radius: 10px;
+  background: var(--surface-2); border: 1px solid var(--hairline);
+}
+.kl-row.res { border-left: 3px solid var(--red-dim); }
+.kl-row.sup { border-left: 3px solid var(--green-dim); }
+.kl-row.live { background: var(--accent-soft); border: 1px solid var(--accent-line); }
+.kl-tag {
+  font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px;
+  background: var(--surface-3); color: var(--text-dim); white-space: nowrap;
+  text-transform: uppercase; letter-spacing: 0.4px; min-width: 34px; text-align: center;
+}
+.kl-row.live .kl-tag { background: var(--accent); color: #14100a; }
+.kl-price { font-weight: 700; font-size: 13.5px; font-variant-numeric: tabular-nums; }
+.kl-main {
+  font-size: 9px; font-weight: 800; letter-spacing: 0.6px; padding: 2px 6px;
+  border-radius: 6px; text-transform: uppercase;
+}
+.kl-row.res .kl-main { background: rgba(255, 107, 129, 0.16); color: var(--red); }
+.kl-row.sup .kl-main { background: rgba(61, 220, 151, 0.16); color: var(--green); }
+.kl-dist { margin-left: auto; font-size: 11.5px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+@media (max-width: 420px) { .kl-heroes { grid-template-columns: 1fr; } }
