@@ -1404,3 +1404,129 @@ html[data-amoled='on'] .aurora { display: none; }
   flex: 1; min-width: 0; font-size: 13.5px; font-weight: 700;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+
+/* ---------------- v1.6 · Pro upgrade ---------------- */
+
+/* Bottom sheet on phones (desktop stays centred) */
+.modal-backdrop.sheet { place-items: end; padding: 0; }
+.modal.sheet {
+  width: 100%; max-height: 92dvh;
+  border-radius: 24px 24px 0 0;
+  border-left: none; border-right: none; border-bottom: none;
+  animation: sheetUp 0.32s var(--ease) both;
+}
+@keyframes sheetUp {
+  from { transform: translateY(72px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+/* Trade detail sheet */
+.detail-hero {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  gap: 16px; flex-wrap: wrap; margin-bottom: 18px;
+}
+.detail-pnl { font-size: 34px; font-weight: 800; letter-spacing: -1.2px; line-height: 1.1; }
+.detail-sub { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+.detail-r {
+  font-weight: 800; font-size: 13px; padding: 3px 10px; border-radius: 999px;
+  background: var(--surface-3); border: 1px solid var(--border);
+  font-variant-numeric: tabular-nums;
+}
+.detail-costs {
+  display: flex; flex-direction: column; gap: 4px; font-size: 12.5px;
+  color: var(--text-dim); text-align: right;
+  background: var(--surface-2); border: 1px solid var(--hairline);
+  padding: 10px 14px; border-radius: var(--radius-sm);
+}
+.detail-costs strong { color: var(--text); font-variant-numeric: tabular-nums; }
+.detail-facts {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
+  gap: 14px 18px; padding: 16px 0 4px; border-top: 1px solid var(--hairline);
+}
+.detail-fact .k {
+  font-size: 10.5px; font-weight: 600; color: var(--text-faint);
+  text-transform: uppercase; letter-spacing: 0.6px;
+}
+.detail-fact .v { font-size: 14.5px; font-weight: 600; margin-top: 3px; word-break: break-word; }
+.detail-notes {
+  margin: 16px 0 0; font-size: 13.5px; line-height: 1.65; color: var(--text-dim);
+  white-space: pre-wrap;
+}
+.detail-shots {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px; margin-top: 16px;
+}
+.detail-shots img {
+  width: 100%; display: block; border-radius: 12px;
+  border: 1px solid var(--border); background: var(--bg);
+}
+
+/* Dashboard performance strip */
+.perf-strip {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  background: linear-gradient(180deg, var(--surface), var(--bg-2));
+  border: 1px solid var(--border); border-radius: var(--radius);
+  box-shadow: var(--shadow), inset 0 1px 0 rgba(255, 255, 255, 0.045);
+  overflow: hidden; margin-bottom: 20px;
+}
+.perf-cell { padding: 16px 18px; min-width: 0; }
+.perf-cell + .perf-cell { border-left: 1px solid var(--hairline); }
+.perf-cell .k {
+  font-size: 10.5px; font-weight: 600; color: var(--text-faint);
+  text-transform: uppercase; letter-spacing: 0.6px; white-space: nowrap;
+}
+.perf-cell .v {
+  font-size: 19px; font-weight: 700; margin-top: 6px; letter-spacing: -0.5px;
+  font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The outcome filter chips must never push past the screen edge */
+.toolbar .seg { flex-wrap: wrap; max-width: 100%; }
+.toolbar .seg button { padding: 8px 11px; font-size: 12.5px; }
+@media (max-width: 480px) {
+  .toolbar .input { max-width: none; width: 100%; }
+}
+
+/* Trades filter summary */
+.filter-summary {
+  display: flex; gap: 22px; flex-wrap: wrap; align-items: baseline;
+  padding: 12px 18px; margin-bottom: 16px;
+  background: var(--surface-2); border: 1px solid var(--hairline); border-radius: var(--radius-sm);
+  font-size: 12.5px; color: var(--text-dim);
+}
+.filter-summary strong { color: var(--text); font-size: 14px; font-variant-numeric: tabular-nums; }
+
+/* Money columns line up */
+.table-wrap table { font-variant-numeric: tabular-nums; }
+
+/* Donut centre label */
+.donut-wrap { position: relative; }
+.donut-hole {
+  position: absolute; inset: 0; display: grid; place-content: center;
+  text-align: center; pointer-events: none;
+}
+.donut-value { font-size: 30px; font-weight: 800; letter-spacing: -1px; }
+.donut-label {
+  font-size: 10.5px; font-weight: 600; color: var(--text-faint);
+  text-transform: uppercase; letter-spacing: 0.7px; margin-top: 2px;
+}
+.donut-legend {
+  display: flex; justify-content: center; gap: 18px; flex-wrap: wrap;
+  font-size: 12.5px; color: var(--text-dim); margin-top: 6px;
+}
+.donut-legend .dot { display: inline-block; width: 8px; height: 8px; border-radius: 999px; margin-right: 6px; }
+
+/* Touch press feedback on rows / cards */
+@media (pointer: coarse) {
+  tbody tr { transition: background 0.12s ease; }
+  tbody tr:active { background: rgba(255, 255, 255, 0.05); }
+}
+
+@media (max-width: 820px) {
+  .perf-strip { grid-template-columns: 1fr 1fr; }
+  .perf-cell:nth-child(3) { border-left: none; }
+  .perf-cell:nth-child(n + 3) { border-top: 1px solid var(--hairline); }
+  .detail-pnl { font-size: 30px; }
+  .detail-costs { text-align: left; }
+}

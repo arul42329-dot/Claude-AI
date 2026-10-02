@@ -3,12 +3,13 @@ import { db } from '../db'
 import { useLiveQuery, fmtMoney, fmtNum, fmtPct } from '../util'
 import { useAccountScope, scopeTrades } from '../accounts'
 import { useAppMode, marketOf } from '../mode'
-import { computeStats, groupByPeriod, tradeDate, computeRStats, type Period } from '../stats'
+import { computeStats, groupByPeriod, tradeDate, computeRStats, tradeR, type Period } from '../stats'
 import { computeInsights } from '../insights'
 import { StatCard } from '../components/StatCard'
 import { PnlCalendar } from '../components/PnlCalendar'
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Cell,
+  PieChart, Pie, AreaChart, Area, ReferenceLine,
 } from 'recharts'
 
 type Scope = 'overall' | Period
@@ -63,6 +64,25 @@ export default function Analytics() {
     trades: b.stats.totalTrades,
     winRate: Math.round(b.stats.winRate),
   }))
+
+  const donutData = [
+    { name: 'Wins', value: stats.wins },
+    { name: 'Losses', value: stats.losses },
+    { name: 'Breakeven', value: stats.breakeven },
+  ]
+
+  // Cumulative R over time (net R multiples, oldest → newest).
+  const cumR = useMemo(() => {
+    const withR = scopedTrades
+      .map((t) => ({ t, r: tradeR(t) }))
+      .filter((x) => x.r != null)
+      .sort((a, b) => tradeDate(a.t).getTime() - tradeDate(b.t).getTime())
+    let acc = 0
+    return withR.map((x, i) => {
+      acc += x.r as number
+      return { label: `#${x.t.serial ?? i + 1}`, r: Math.round(acc * 100) / 100 }
+    })
+  }, [scopedTrades])
 
   // Breakdowns + discipline — all scoped to the current selection
   const byPair = useMemo(() => groupBy(scopedTrades, (t) => t.pair), [scopedTrades])
@@ -187,6 +207,74 @@ export default function Analytics() {
               </BarChart>
             </ResponsiveContainer>
           </div>
+
+          {(stats.wins + stats.losses + stats.breakeven > 0 || cumR.length > 1) && (
+            <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 20, marginBottom: 20 }}>
+              {stats.wins + stats.losses + stats.breakeven > 0 && (
+                <div className="card">
+                  <h3>Win rate</h3>
+                  <div className="donut-wrap">
+                    <div className="donut-hole">
+                      <div className="donut-value">{fmtPct(stats.winRate)}</div>
+                      <div className="donut-label">win rate</div>
+                    </div>
+                    <ResponsiveContainer width="100%" height={210}>
+                      <PieChart>
+                        <Pie
+                          data={donutData}
+                          dataKey="value"
+                          nameKey="name"
+                          innerRadius="70%"
+                          outerRadius="94%"
+                          paddingAngle={3}
+                          strokeWidth={0}
+                          startAngle={90}
+                          endAngle={-270}
+                        >
+                          <Cell fill="var(--green)" />
+                          <Cell fill="var(--red)" />
+                          <Cell fill="#3a4150" />
+                        </Pie>
+                        <Tooltip
+                          contentStyle={{ background: '#171a22', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, color: '#f3f5f9' }}
+                          formatter={(v: any, n: any) => [v, n]}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="donut-legend">
+                    <span><span className="dot" style={{ background: 'var(--green)' }} />Wins {stats.wins}</span>
+                    <span><span className="dot" style={{ background: 'var(--red)' }} />Losses {stats.losses}</span>
+                    <span><span className="dot" style={{ background: '#3a4150' }} />Breakeven {stats.breakeven}</span>
+                  </div>
+                </div>
+              )}
+              {cumR.length > 1 && (
+                <div className="card">
+                  <h3>Cumulative R</h3>
+                  <ResponsiveContainer width="100%" height={242}>
+                    <AreaChart data={cumR} margin={{ top: 6, right: 10, left: 0, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="cumRFill" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.35} />
+                          <stop offset="100%" stopColor="var(--accent)" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                      <XAxis dataKey="label" stroke="#6a7180" fontSize={11} tickLine={false} />
+                      <YAxis stroke="#6a7180" fontSize={11} tickLine={false} width={46} tickFormatter={(v: number) => v + 'R'} />
+                      <ReferenceLine y={0} stroke="rgba(255,255,255,0.16)" strokeDasharray="4 4" />
+                      <Tooltip
+                        contentStyle={{ background: '#171a22', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, color: '#f3f5f9' }}
+                        formatter={(v: number) => [fmtNum(v, 2) + 'R', 'Cumulative']}
+                      />
+                      <Area type="monotone" dataKey="r" stroke="var(--accent-2)" strokeWidth={2.4} fill="url(#cumRFill)" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </div>
+          )}
 
           {rStats.count > 0 && (
             <div className="card" style={{ marginBottom: 20 }}>

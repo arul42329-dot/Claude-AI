@@ -1,14 +1,15 @@
 import { useMemo, useState } from 'react'
 import { db } from '../db'
-import { useLiveQuery, fmtMoney, fmtNum, instrumentLabel } from '../util'
+import { useLiveQuery, fmtMoney, fmtNum, fmtPct, instrumentLabel } from '../util'
 import { useAccountScope, scopeTrades } from '../accounts'
 import { useAppMode, marketOf } from '../mode'
 import type { Trade } from '../types'
 import { TradeForm } from '../components/TradeForm'
+import { TradeDetail } from '../components/TradeDetail'
 import { useToast } from '../components/Toast'
 import { IndiaFlag } from '../components/Icons'
 import { format } from 'date-fns'
-import { tradeDate, netPnlOf } from '../stats'
+import { tradeDate, netPnlOf, tradeR } from '../stats'
 
 // Number of screenshots attached to a trade (new multi-image + legacy single).
 function shotCount(t: Trade): number {
@@ -22,6 +23,7 @@ export default function Trades() {
   const { accounts, activeId, account, currency } = useAccountScope()
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<Trade | undefined>(undefined)
+  const [detail, setDetail] = useState<Trade | undefined>(undefined)
   const [search, setSearch] = useState('')
   const [outcome, setOutcome] = useState('all')
   const toast = useToast()
@@ -48,11 +50,60 @@ export default function Trades() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allTrades, activeId, search, outcome])
 
+  // Summary of whatever the current filter/search shows.
+  const summary = useMemo(() => {
+    const closed = filtered.filter((t) => t.outcome !== 'open')
+    const wins = closed.filter((t) => t.outcome === 'win').length
+    return {
+      count: filtered.length,
+      net: filtered.reduce((a, t) => a + netPnlOf(t), 0),
+      winRate: closed.length ? (wins / closed.length) * 100 : 0,
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtered])
+
   async function remove(id: string, e: React.MouseEvent) {
     e.stopPropagation()
     if (!confirm('Delete this trade?')) return
     await db.trades.delete(id)
     toast('Trade deleted')
+  }
+
+  async function removeTrade(t: Trade) {
+    if (!confirm('Delete this trade?')) return
+    await db.trades.delete(t.id)
+    setDetail(undefined)
+    toast('Trade deleted')
+  }
+
+  // CSV of the trades currently in view (respects search + outcome filter).
+  function exportCsv() {
+    const cols = [
+      'serial', 'date', 'time', 'market', 'pair', 'segment', 'optionType', 'strike', 'expiry', 'lots',
+      'direction', 'session', 'strategy', 'entryPrice', 'exitPrice', 'stopLoss', 'takeProfit', 'lotSize',
+      'riskReward', 'outcome', 'pips', 'grossPnl', 'brokerage', 'taxes', 'pnl', 'rMultiple', 'emotion',
+      'rating', 'checklistSerial', 'tags', 'notes',
+    ]
+    const esc = (v: any) => {
+      if (v === undefined || v === null) return ''
+      const str = Array.isArray(v) ? v.join('; ') : String(v)
+      return /[",\n]/.test(str) ? '"' + str.replace(/"/g, '""') + '"' : str
+    }
+    const rows = [...filtered]
+      .sort((a, b) => (a.serial ?? 0) - (b.serial ?? 0))
+      .map((t) =>
+        cols
+          .map((c) => (c === 'rMultiple' ? esc(tradeR(t) != null ? Math.round(tradeR(t)! * 100) / 100 : '') : esc((t as any)[c])))
+          .join(','),
+      )
+    const csv = [cols.join(','), ...rows].join('\n')
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `edgefolio-trades-${format(new Date(), 'yyyy-MM-dd')}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+    toast(`Exported ${filtered.length} trade${filtered.length === 1 ? '' : 's'}`)
   }
 
   function openNew() {
@@ -82,7 +133,16 @@ export default function Trades() {
             </button>
           ))}
         </div>
+        <button className="btn" onClick={exportCsv} title="Export the trades in view as CSV">⬇ CSV</button>
       </div>
+
+      {filtered.length > 0 && (
+        <div className="filter-summary">
+          <span><strong>{summary.count}</strong> trades</span>
+          <span>Net P/L <strong className={summary.net > 0 ? 'pos' : summary.net < 0 ? 'neg' : ''}>{fmtMoney(summary.net, currency)}</strong></span>
+          <span>Win rate <strong>{fmtPct(summary.winRate)}</strong></span>
+        </div>
+      )}
 
       {filtered.length === 0 ? (
         <div className="empty">
@@ -103,6 +163,7 @@ export default function Trades() {
                 <th>Session</th>
                 <th>Strategy</th>
                 <th>R:R</th>
+                <th style={{ textAlign: 'right' }}>R</th>
                 <th>Outcome</th>
                 <th style={{ textAlign: 'right' }}>P/L</th>
                 <th>Checklist</th>
@@ -115,7 +176,7 @@ export default function Trades() {
                 const done = items.filter((i) => i.checked).length
                 const pct = items.length ? Math.round((done / items.length) * 100) : null
                 return (
-                  <tr key={t.id} onClick={() => openEdit(t)}>
+                  <tr key={t.id} onClick={() => setDetail(t)}>
                     <td><strong>{t.serial ? '#' + t.serial : '—'}</strong></td>
                     {showAccountCol && (
                       <td>
@@ -131,6 +192,9 @@ export default function Trades() {
                     <td className="muted" style={{ textTransform: 'capitalize' }}>{t.session}</td>
                     <td className="muted">{t.strategy || '—'}</td>
                     <td>{t.riskReward ? fmtNum(t.riskReward, 2) : '—'}</td>
+                    <td style={{ textAlign: 'right' }} className={tradeR(t) != null ? (tradeR(t)! >= 0 ? 'pos' : 'neg') : ''}>
+                      {tradeR(t) != null ? fmtNum(tradeR(t)!, 2) : '—'}
+                    </td>
                     <td><span className={'badge ' + t.outcome}>{t.outcome}</span></td>
                     <td style={{ textAlign: 'right' }} className={netPnlOf(t) > 0 ? 'pos' : netPnlOf(t) < 0 ? 'neg' : ''}>
                       {t.pnl != null || t.grossPnl != null ? fmtMoney(netPnlOf(t), currency) : '—'}
@@ -157,6 +221,15 @@ export default function Trades() {
             setShowForm(false)
             toast('Trade saved')
           }}
+        />
+      )}
+      {detail && (
+        <TradeDetail
+          trade={detail}
+          currency={currency}
+          onClose={() => setDetail(undefined)}
+          onEdit={(t) => { setDetail(undefined); openEdit(t) }}
+          onDelete={removeTrade}
         />
       )}
     </>

@@ -6,11 +6,14 @@ export function Modal({
   onClose,
   children,
   footer,
+  variant,
 }: {
   title: string
   onClose: () => void
   children: ReactNode
   footer?: ReactNode
+  /** 'sheet' docks to the bottom edge on phones (stays centred on desktop). */
+  variant?: 'sheet'
 }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
@@ -32,8 +35,8 @@ export function Modal({
   // (page-entrance transforms on ancestors would otherwise re-anchor `fixed`,
   // making the dialog appear off-centre / near the bottom on mobile).
   return createPortal(
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
+    <div className={'modal-backdrop' + (variant === 'sheet' ? ' sheet' : '')} onClick={onClose}>
+      <div className={'modal' + (variant === 'sheet' ? ' sheet' : '')} onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <h2>{title}</h2>
           <button className="icon-btn" onClick={onClose} aria-label="Close">✕</button>

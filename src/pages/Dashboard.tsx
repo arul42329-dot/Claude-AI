@@ -4,13 +4,15 @@ import { useLiveQuery, fmtMoney, fmtNum, fmtPct, instrumentLabel } from '../util
 import { useAppMode, marketOf } from '../mode'
 import { useAccountScope, scopeTrades } from '../accounts'
 import { computeStats, equityCurve, tradeDate, netPnlOf } from '../stats'
+import type { Trade } from '../types'
 import { StatCard } from '../components/StatCard'
 import { TradeForm } from '../components/TradeForm'
+import { TradeDetail } from '../components/TradeDetail'
 import { JournalCard } from '../components/JournalCard'
 import { useToast } from '../components/Toast'
-import { format, startOfMonth } from 'date-fns'
+import { format, startOfMonth, isToday, isSameWeek } from 'date-fns'
 import {
-  ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid,
+  ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceLine,
 } from 'recharts'
 
 export default function Dashboard() {
@@ -18,6 +20,8 @@ export default function Dashboard() {
   const { activeId, account, currency, startingBalance, settings } = useAccountScope()
   const { mode, isIndia } = useAppMode()
   const [showForm, setShowForm] = useState(false)
+  const [editing, setEditing] = useState<Trade | undefined>(undefined)
+  const [detail, setDetail] = useState<Trade | undefined>(undefined)
   const toast = useToast()
 
   // Forex and India journals are fully separate — only show this mode's trades.
@@ -25,9 +29,28 @@ export default function Dashboard() {
   const trades = scopeTrades(modeTrades, activeId)
 
   const monthStart = startOfMonth(new Date())
-  const monthPnl = trades
-    .filter((t) => t.outcome !== 'open' && tradeDate(t) >= monthStart)
+  const closed = trades.filter((t) => t.outcome !== 'open')
+  const monthPnl = closed
+    .filter((t) => tradeDate(t) >= monthStart)
     .reduce((a, t) => a + netPnlOf(t), 0)
+  const todayPnl = closed.filter((t) => isToday(tradeDate(t))).reduce((a, t) => a + netPnlOf(t), 0)
+  const weekPnl = closed
+    .filter((t) => isSameWeek(tradeDate(t), new Date(), { weekStartsOn: 1 }))
+    .reduce((a, t) => a + netPnlOf(t), 0)
+  // Current win/loss streak over closed trades, oldest → newest.
+  const streak = (() => {
+    const sorted = [...closed].sort((a, b) => tradeDate(a).getTime() - tradeDate(b).getTime())
+    let n = 0
+    let kind: 'win' | 'loss' | null = null
+    for (let i = sorted.length - 1; i >= 0; i--) {
+      const o = sorted[i].outcome
+      if (o !== 'win' && o !== 'loss') break
+      if (kind == null) { kind = o; n = 1 }
+      else if (o === kind) n++
+      else break
+    }
+    return { n, kind }
+  })()
   // Goals are separate per app mode (forex vs India journals are separate too).
   const goal = (isIndia ? settings?.monthlyProfitGoalIndia : settings?.monthlyProfitGoal) ?? 0
   const lossLimit = (isIndia ? settings?.maxLossLimitIndia : settings?.maxLossLimit) ?? 0
@@ -41,7 +64,28 @@ export default function Dashboard() {
     <>
       <div className="page-head">
         <h1>Dashboard</h1>
-        <button className="btn primary" onClick={() => setShowForm(true)}>＋ New trade</button>
+        <button className="btn primary" onClick={() => { setEditing(undefined); setShowForm(true) }}>＋ New trade</button>
+      </div>
+
+      <div className="perf-strip">
+        <div className="perf-cell">
+          <div className="k">Today</div>
+          <div className={'v ' + (todayPnl > 0 ? 'pos' : todayPnl < 0 ? 'neg' : '')}>{fmtMoney(todayPnl, currency)}</div>
+        </div>
+        <div className="perf-cell">
+          <div className="k">This week</div>
+          <div className={'v ' + (weekPnl > 0 ? 'pos' : weekPnl < 0 ? 'neg' : '')}>{fmtMoney(weekPnl, currency)}</div>
+        </div>
+        <div className="perf-cell">
+          <div className="k">This month</div>
+          <div className={'v ' + (monthPnl > 0 ? 'pos' : monthPnl < 0 ? 'neg' : '')}>{fmtMoney(monthPnl, currency)}</div>
+        </div>
+        <div className="perf-cell">
+          <div className="k">Streak</div>
+          <div className={'v ' + (streak.kind === 'win' ? 'pos' : streak.kind === 'loss' ? 'neg' : '')}>
+            {streak.n > 0 ? `${streak.n}${streak.kind === 'win' ? 'W' : 'L'}` : '—'}
+          </div>
+        </div>
       </div>
 
       <div className="grid stat-grid" style={{ marginBottom: 20 }}>
@@ -102,6 +146,9 @@ export default function Dashboard() {
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
               <XAxis dataKey="label" stroke="#6a7180" fontSize={11} tickLine={false} />
               <YAxis stroke="#6a7180" fontSize={11} tickLine={false} width={64} tickFormatter={(v) => fmtMoney(v, currency)} />
+              {startBal > 0 && (
+                <ReferenceLine y={startBal} stroke="rgba(255,255,255,0.16)" strokeDasharray="4 4" />
+              )}
               <Tooltip
                 contentStyle={{ background: '#171a22', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, color: '#f3f5f9' }}
                 formatter={(v: number) => [fmtMoney(v, currency), 'Balance']}
@@ -124,7 +171,7 @@ export default function Dashboard() {
               </thead>
               <tbody>
                 {recent.map((t) => (
-                  <tr key={t.id} style={{ cursor: 'default' }}>
+                  <tr key={t.id} style={{ cursor: 'pointer' }} onClick={() => setDetail(t)}>
                     <td>{format(tradeDate(t), 'dd MMM yy')}</td>
                     <td><strong>{instrumentLabel(t)}</strong></td>
                     <td><span className={t.direction === 'long' ? 'dir-buy' : 'dir-sell'}>{t.direction === 'long' ? '▲ Buy' : '▼ Sell'}</span></td>
@@ -143,7 +190,25 @@ export default function Dashboard() {
       </div>
 
       {showForm && (
-        <TradeForm onClose={() => setShowForm(false)} onSaved={() => { setShowForm(false); toast('Trade saved') }} />
+        <TradeForm
+          initial={editing}
+          onClose={() => { setShowForm(false); setEditing(undefined) }}
+          onSaved={() => { setShowForm(false); setEditing(undefined); toast('Trade saved') }}
+        />
+      )}
+      {detail && (
+        <TradeDetail
+          trade={detail}
+          currency={currency}
+          onClose={() => setDetail(undefined)}
+          onEdit={(t) => { setDetail(undefined); setEditing(t); setShowForm(true) }}
+          onDelete={async (t) => {
+            if (!confirm('Delete this trade?')) return
+            await db.trades.delete(t.id)
+            setDetail(undefined)
+            toast('Trade deleted')
+          }}
+        />
       )}
     </>
   )
