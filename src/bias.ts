@@ -227,6 +227,32 @@ export function supportResistance(highs: number[], lows: number[], price: number
 }
 
 // ---------------------------------------------------------------------------
+// Candle aggregation (e.g. 1h -> 4h for the multi-timeframe bias)
+// ---------------------------------------------------------------------------
+
+// Merge candles into fixed ms buckets (aligned to epoch): first open, highest
+// high, lowest low, last close per bucket.
+export function aggregateCandles(candles: Candle[], bucketMs: number): Candle[] {
+  const out: Candle[] = []
+  let cur: Candle | null = null
+  let curKey = -1
+  for (const c of candles) {
+    const key = Math.floor(c.t / bucketMs)
+    if (!cur || key !== curKey) {
+      if (cur) out.push(cur)
+      cur = { t: key * bucketMs, o: c.o, h: c.h, l: c.l, c: c.c }
+      curKey = key
+    } else {
+      cur.h = Math.max(cur.h, c.h)
+      cur.l = Math.min(cur.l, c.l)
+      cur.c = c.c
+    }
+  }
+  if (cur) out.push(cur)
+  return out
+}
+
+// ---------------------------------------------------------------------------
 // Main support & resistance (key levels)
 // ---------------------------------------------------------------------------
 

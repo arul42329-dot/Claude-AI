@@ -82,8 +82,8 @@ export function corsSafe(url: string): string {
 }
 
 // Direct (unproxied) Yahoo chart URL; feed it to corsFetch.
-export function yfDirectUrl(ySymbol: string, range = '2y'): string {
-  return `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ySymbol)}?interval=1d&range=${range}`
+export function yfDirectUrl(ySymbol: string, range = '2y', interval: '1d' | '1h' | '15m' = '1d'): string {
+  return `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ySymbol)}?interval=${interval}&range=${range}`
 }
 
 async function fetchYahoo(ySymbol: string): Promise<Candle[]> {
@@ -114,6 +114,42 @@ export async function getCandles(symbol: string, ySymbol: string): Promise<Candl
     const candles = await fetchYahoo(ySymbol)
     if (candles.length) {
       store[symbol] = { at: Date.now(), candles }
+      write(store)
+      return candles
+    }
+  } catch { /* fall through to stale cache */ }
+  if (cached?.candles?.length) return cached.candles
+  return null
+}
+
+// Intraday/multi-timeframe candles (1h, 15m…) for the tap-to-open market panel.
+// Cached per symbol+interval with a short TTL so re-opening a panel is instant
+// without hammering Yahoo. Daily candles stay on getCandles().
+const ITTL_MS = 30 * 60 * 1000
+export async function getCandlesInterval(
+  symbol: string,
+  ySymbol: string,
+  interval: '1h' | '15m',
+  range = '3mo',
+): Promise<Candle[] | null> {
+  const key = `${symbol}|${interval}`
+  const store = read()
+  const cached = store[key]
+  if (cached && Date.now() - cached.at < ITTL_MS && cached.candles?.length) return cached.candles
+  try {
+    const r = await corsFetch(yfDirectUrl(ySymbol, range, interval), { timeoutMs: 12000 })
+    if (!r.ok) throw new Error('candles ' + key)
+    const j = await r.json()
+    const res = j?.chart?.result?.[0]
+    const ts: number[] = res?.timestamp || []
+    const q = res?.indicators?.quote?.[0] || {}
+    const candles: Candle[] = []
+    for (let i = 0; i < ts.length; i++) {
+      const o = q.open?.[i], h = q.high?.[i], l = q.low?.[i], c = q.close?.[i]
+      if ([o, h, l, c].every((v) => Number.isFinite(v))) candles.push({ t: ts[i] * 1000, o, h, l, c })
+    }
+    if (candles.length) {
+      store[key] = { at: Date.now(), candles }
       write(store)
       return candles
     }

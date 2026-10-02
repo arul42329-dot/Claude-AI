@@ -1572,3 +1572,26 @@ html[data-amoled='on'] .aurora { display: none; }
 .kl-row.sup .kl-main { background: rgba(61, 220, 151, 0.16); color: var(--green); }
 .kl-dist { margin-left: auto; font-size: 11.5px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
 @media (max-width: 420px) { .kl-heroes { grid-template-columns: 1fr; } }
+
+/* ---------------- Multi-timeframe bias strip ---------------- */
+.mtf-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 14px; }
+.mtf-cell {
+  background: var(--surface-2); border: 1px solid var(--hairline);
+  border-radius: 12px; padding: 9px 4px 8px; text-align: center; min-width: 0;
+}
+.mtf-tf {
+  font-size: 10.5px; font-weight: 700; color: var(--text-faint);
+  letter-spacing: 0.7px; text-transform: uppercase;
+}
+.mtf-chip { margin-top: 5px; font-size: 11.5px; font-weight: 800; letter-spacing: -0.2px; }
+.mtf-chip.bull { color: var(--green); }
+.mtf-chip.bear { color: var(--red); }
+.mtf-chip.neu  { color: var(--text-dim); }
+.mtf-chip.load { color: var(--text-faint); }
+.mtf-chip.none { color: var(--text-faint); opacity: 0.6; }
+.mtf-note {
+  font-size: 12px; font-weight: 700; border-radius: 10px; padding: 8px 12px;
+  margin-bottom: 14px; text-align: center;
+}
+.mtf-note.bull { color: var(--green); background: rgba(61, 220, 151, 0.10); border: 1px solid rgba(61, 220, 151, 0.3); }
+.mtf-note.bear { color: var(--red); background: rgba(255, 107, 129, 0.10); border: 1px solid rgba(255, 107, 129, 0.3); }

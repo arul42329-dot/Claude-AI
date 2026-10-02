@@ -130,8 +130,15 @@ async function fetchFx(): Promise<Quote[]> {
 // Yahoo Finance daily-candle symbol for each quote (metals/crypto use their own
 // mapping; FX uses the "{BASE}{QUOTE}=X" convention).
 const YAHOO_SYMBOL: Record<string, string> = {
+  DXY: 'DX-Y.NYB',
   ...Object.fromEntries(METALS.map((m) => [m.symbol, m.yahoo])),
   ...Object.fromEntries(FX.map((d) => [d.symbol, `${d.base}${d.quote}=X`])),
+}
+
+// Yahoo candle symbol for a display symbol (e.g. "EUR/USD" -> "EURUSD=X"),
+// used by the tap-to-open panel for multi-timeframe bias. Undefined if unknown.
+export function yahooSymbolFor(symbol: string): string | undefined {
+  return YAHOO_SYMBOL[symbol]
 }
 
 const arrow = (v: BiasVote['value']) => (v > 0 ? '↑' : v < 0 ? '↓' : '–')

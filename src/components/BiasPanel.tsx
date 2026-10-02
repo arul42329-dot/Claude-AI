@@ -1,5 +1,8 @@
+import { useEffect, useState } from 'react'
 import { Modal } from './Modal'
-import { tradeCall, type BiasResult, type KeyLevel } from '../bias'
+import { tradeCall, computeBias, aggregateCandles, type BiasResult, type KeyLevel } from '../bias'
+import { getCandlesInterval } from '../candles'
+import { yahooSymbolFor } from '../market'
 
 // Minimal shape the panel needs — satisfied by both forex Quote and IndiaQuote.
 export interface BiasQuote {
@@ -10,6 +13,8 @@ export interface BiasQuote {
   bias: 'Bullish' | 'Bearish' | 'Neutral'
   biasVotes?: string[]
   biasDetail?: BiasResult
+  /** Yahoo candle symbol (India quotes carry it; forex resolves via lookup). */
+  ySymbol?: string
 }
 
 function fmt(n: number, d: number) {
@@ -21,9 +26,40 @@ function fmtChg(n: number) {
 
 // Tap-to-open Step-4 panel: full rule-based bias breakdown, support/resistance,
 // reversal watch and a daily-timeframe trade call.
+// Bias chip state per intraday timeframe: a label, '…' while loading, '—' when
+// the candles for that timeframe can't be fetched.
+type TfLabel = 'Bullish' | 'Bearish' | 'Neutral' | '…' | '—'
+
 export function BiasPanel({ q, onClose }: { q: BiasQuote; onClose: () => void }) {
   const d = q.biasDetail
   const dec = q.decimals
+  const [mtf, setMtf] = useState<{ '4H': TfLabel; '1H': TfLabel; '15m': TfLabel }>({ '4H': '…', '1H': '…', '15m': '…' })
+
+  // Intraday bias for the multi-timeframe strip. The 1h feed powers both the
+  // 1H chip and the 4H chip (1h candles aggregated into 4h buckets); 15m is a
+  // separate fetch. Results are cached, so re-opening a panel is instant.
+  useEffect(() => {
+    const ySym = q.ySymbol ?? yahooSymbolFor(q.symbol)
+    if (!ySym) { setMtf({ '4H': '—', '1H': '—', '15m': '—' }); return }
+    let alive = true
+    getCandlesInterval(q.symbol, ySym, '1h', '3mo')
+      .then((h1) => {
+        if (!alive) return
+        if (!h1) { setMtf((m) => ({ ...m, '4H': '—', '1H': '—' })); return }
+        const b1 = computeBias(h1)
+        const b4 = computeBias(aggregateCandles(h1, 4 * 60 * 60 * 1000))
+        setMtf((m) => ({ ...m, '1H': b1?.label ?? '—', '4H': b4?.label ?? '—' }))
+      })
+      .catch(() => { if (alive) setMtf((m) => ({ ...m, '4H': '—', '1H': '—' })) })
+    getCandlesInterval(q.symbol, ySym, '15m', '1mo')
+      .then((m15) => {
+        if (!alive) return
+        const b15 = m15 ? computeBias(m15) : null
+        setMtf((m) => ({ ...m, '15m': b15?.label ?? '—' }))
+      })
+      .catch(() => { if (alive) setMtf((m) => ({ ...m, '15m': '—' })) })
+    return () => { alive = false }
+  }, [q.symbol, q.ySymbol])
 
   return (
     <Modal title={`${q.symbol} · Daily Bias`} onClose={onClose}
@@ -36,6 +72,20 @@ export function BiasPanel({ q, onClose }: { q: BiasQuote; onClose: () => void })
         </div>
       ) : (
         <>
+          {/* Multi-timeframe bias — the first thing you see */}
+          <div className="mtf-strip">
+            <MtfCell tf="D" label={d.label} />
+            <MtfCell tf="4H" label={mtf['4H']} />
+            <MtfCell tf="1H" label={mtf['1H']} />
+            <MtfCell tf="15m" label={mtf['15m']} />
+          </div>
+          {(d.label === 'Bullish' || d.label === 'Bearish') &&
+            mtf['4H'] === d.label && mtf['1H'] === d.label && (
+            <div className={'mtf-note ' + (d.label === 'Bullish' ? 'bull' : 'bear')}>
+              {d.label === 'Bullish' ? '▲' : '▼'} {d.label} alignment across D · 4H · 1H
+            </div>
+          )}
+
           {/* Summary */}
           <div className="bp-summary">
             <div>
@@ -57,6 +107,25 @@ export function BiasPanel({ q, onClose }: { q: BiasQuote; onClose: () => void })
               return <span key={n} className={'bp-seg ' + (n < 0 ? 'neg' : 'pos') + (active ? ' on' : '')} />
             })}
           </div>
+
+          {/* Main support & resistance */}
+          <h4 className="bp-h">Key levels · S&amp;R</h4>
+          {d.levels.length ? (
+            <KeyLevels levels={d.levels} price={q.price} dec={dec} />
+          ) : (
+            <div className="bp-sr">
+              <div className="bp-sr-col">
+                <div className="bp-sr-lab res">Resistance</div>
+                {d.resistance.length ? d.resistance.map((r, i) => <div key={i} className="bp-sr-val res">{fmt(r, dec)}</div>)
+                  : <div className="bp-sr-val muted">—</div>}
+              </div>
+              <div className="bp-sr-col">
+                <div className="bp-sr-lab sup">Support</div>
+                {d.support.length ? d.support.map((sv, i) => <div key={i} className="bp-sr-val sup">{fmt(sv, dec)}</div>)
+                  : <div className="bp-sr-val muted">—</div>}
+              </div>
+            </div>
+          )}
 
           {/* Votes */}
           <h4 className="bp-h">Signal votes</h4>
@@ -83,25 +152,6 @@ export function BiasPanel({ q, onClose }: { q: BiasQuote; onClose: () => void })
             <Metric label="Structure" value={d.structure} />
           </div>
 
-          {/* Main support & resistance */}
-          <h4 className="bp-h">Key levels · S&amp;R</h4>
-          {d.levels.length ? (
-            <KeyLevels levels={d.levels} price={q.price} dec={dec} />
-          ) : (
-            <div className="bp-sr">
-              <div className="bp-sr-col">
-                <div className="bp-sr-lab res">Resistance</div>
-                {d.resistance.length ? d.resistance.map((r, i) => <div key={i} className="bp-sr-val res">{fmt(r, dec)}</div>)
-                  : <div className="bp-sr-val muted">—</div>}
-              </div>
-              <div className="bp-sr-col">
-                <div className="bp-sr-lab sup">Support</div>
-                {d.support.length ? d.support.map((sv, i) => <div key={i} className="bp-sr-val sup">{fmt(sv, dec)}</div>)
-                  : <div className="bp-sr-val muted">—</div>}
-              </div>
-            </div>
-          )}
-
           {/* Reversal watch */}
           {d.reversal && (
             <div className={'bp-flag ' + (d.reversal.startsWith('Bullish') ? 'bull' : 'bear')}>
@@ -123,6 +173,16 @@ function Metric({ label, value }: { label: string; value: string }) {
     <div className="bp-metric">
       <div className="bp-metric-lab">{label}</div>
       <div className="bp-metric-val">{value}</div>
+    </div>
+  )
+}
+
+function MtfCell({ tf, label }: { tf: string; label: TfLabel }) {
+  const cls = label === 'Bullish' ? 'bull' : label === 'Bearish' ? 'bear' : label === '…' ? 'load' : label === '—' ? 'none' : 'neu'
+  return (
+    <div className="mtf-cell">
+      <div className="mtf-tf">{tf}</div>
+      <div className={'mtf-chip ' + cls}>{label === '…' ? '…' : label === '—' ? '—' : label}</div>
     </div>
   )
 }
