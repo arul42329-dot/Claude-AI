@@ -87,7 +87,7 @@ export function AccountSwitcher() {
       <ModeMini />
       <div className={'acct-switch' + (open ? ' open' : '')} ref={ref}>
       <button className="acct-trigger" onClick={() => setOpen((v) => !v)} aria-haspopup="listbox" aria-expanded={open}>
-        <span className="acct-dot" style={isAll ? { background: 'transparent', backgroundImage: 'linear-gradient(135deg,#e8b458,#3ddc97,#5b8cff)' } : { background: dot }} />
+        <span className="acct-dot" style={isAll ? { background: 'transparent', backgroundImage: 'linear-gradient(135deg,var(--accent),#3ddc97,#5b8cff)' } : { background: dot }} />
         <span className="acct-label">
           <span className="acct-name">{label}</span>
           <span className="acct-sub">{isAll ? 'Combined' : accountTypeLabel(account!.type)}</span>
@@ -98,7 +98,7 @@ export function AccountSwitcher() {
       {open && (
         <div className="acct-menu" role="listbox">
           <button className={'acct-item' + (isAll ? ' active' : '')} onClick={() => pick('all')} role="option" aria-selected={isAll}>
-            <span className="acct-dot" style={{ backgroundImage: 'linear-gradient(135deg,#e8b458,#3ddc97,#5b8cff)' }} />
+            <span className="acct-dot" style={{ backgroundImage: 'linear-gradient(135deg,var(--accent),#3ddc97,#5b8cff)' }} />
             <span className="acct-label"><span className="acct-name">All accounts</span><span className="acct-sub">Combined view</span></span>
           </button>
           {accounts.length === 0 && (

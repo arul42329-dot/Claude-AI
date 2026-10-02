@@ -18,8 +18,10 @@
   /* Single accent: champagne gold (premium trading terminal) */
   --accent: #e8b458;
   --accent-2: #f2cd7f;
+  --accent-faint: rgba(232, 180, 88, 0.05);
   --accent-soft: rgba(232, 180, 88, 0.14);
   --accent-line: rgba(232, 180, 88, 0.35);
+  --accent-glow: rgba(232, 180, 88, 0.6);
 
   /* Semantic P/L — distinct from the brand accent */
   --green: #3ddc97;
@@ -49,7 +51,7 @@ html, body, #root {
 body {
   font-family: var(--font-body);
   background:
-    radial-gradient(1100px 520px at 82% -12%, rgba(232, 180, 88, 0.10) 0%, transparent 55%),
+    radial-gradient(1100px 520px at 82% -12%, var(--accent-soft) 0%, transparent 55%),
     radial-gradient(900px 520px at -8% 8%, rgba(61, 220, 151, 0.06) 0%, transparent 55%),
     var(--bg);
   color: var(--text);
@@ -96,7 +98,7 @@ h1, h2, h3, .stat .value, .brand .name, .topbar-name {
 .aurora span { position: absolute; border-radius: 50%; filter: blur(90px); will-change: transform; }
 .aurora span:nth-child(1) {
   width: 44vw; height: 44vw; top: -14%; right: -8%;
-  background: radial-gradient(circle, rgba(232, 180, 88, 0.20), transparent 66%);
+  background: radial-gradient(circle, var(--accent-soft), transparent 66%);
   animation: auroraA 20s ease-in-out infinite;
 }
 .aurora span:nth-child(2) {
@@ -179,7 +181,7 @@ h1, h2, h3, .stat .value, .brand .name, .topbar-name {
 .nav-link .ic svg { opacity: 0.85; }
 .nav-link:hover { background: rgba(255, 255, 255, 0.04); color: var(--text); }
 .nav-link.active {
-  background: linear-gradient(100deg, var(--accent-soft), rgba(232, 180, 88, 0.04));
+  background: linear-gradient(100deg, var(--accent-soft), var(--accent-faint));
   color: #fff;
   box-shadow: inset 0 0 0 1px var(--accent-line);
 }
@@ -246,9 +248,9 @@ h1, h2, h3, .stat .value, .brand .name, .topbar-name {
 .btn.primary {
   background: linear-gradient(135deg, var(--accent-2), var(--accent));
   border: none; color: #221803; font-weight: 700;
-  box-shadow: 0 12px 26px -10px rgba(232, 180, 88, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  box-shadow: 0 12px 26px -10px var(--accent-glow), inset 0 1px 0 rgba(255, 255, 255, 0.4);
 }
-.btn.primary:hover { filter: brightness(1.05); box-shadow: 0 16px 32px -10px rgba(232, 180, 88, 0.7); }
+.btn.primary:hover { filter: brightness(1.05); box-shadow: 0 16px 32px -10px var(--accent-glow); }
 .btn.danger { border-color: var(--red-dim); color: var(--red); background: transparent; }
 .btn.danger:hover { background: rgba(255, 107, 129, 0.12); border-color: var(--red); }
 .btn.ghost { background: transparent; }
@@ -616,14 +618,14 @@ tbody tr:hover { background: rgba(255, 255, 255, 0.035); }
 .splash {
   position: fixed; inset: 0; z-index: 1000;
   display: grid; place-items: center;
-  background: radial-gradient(1000px 620px at 50% 32%, rgba(232, 180, 88, 0.14) 0%, #08090c 60%), var(--bg);
+  background: radial-gradient(1000px 620px at 50% 32%, var(--accent-soft) 0%, #08090c 60%), var(--bg);
   animation: fadeIn 0.4s ease both;
   overflow: hidden; cursor: pointer;
 }
 .splash-leave { animation: fadeIn 0.5s ease reverse both; }
 .splash-glow {
   position: absolute; width: 540px; height: 540px; border-radius: 50%;
-  background: radial-gradient(circle, rgba(232, 180, 88, 0.32), transparent 62%);
+  background: radial-gradient(circle, var(--accent-line), transparent 62%);
   filter: blur(34px); animation: glowDrift 6s ease-in-out infinite;
 }
 .splash-inner { position: relative; text-align: center; }
@@ -692,7 +694,7 @@ tbody tr:hover { background: rgba(255, 255, 255, 0.035); }
 .stat .stat-spot {
   position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
   opacity: 0; transition: opacity 0.3s var(--ease); z-index: 0;
-  background: radial-gradient(260px circle at var(--mx, 50%) var(--my, 50%), rgba(232, 180, 88, 0.16), transparent 60%);
+  background: radial-gradient(260px circle at var(--mx, 50%) var(--my, 50%), var(--accent-soft), transparent 60%);
 }
 .stat.tilt:hover .stat-spot { opacity: 1; }
 /* plain (non-tilt) stat tiles still get a gentle lift */
@@ -762,7 +764,7 @@ tbody tr { transition: background 0.14s var(--ease); }
   flex-wrap: wrap;
   padding: 24px 26px;
   border-radius: var(--radius);
-  background: linear-gradient(135deg, rgba(232, 180, 88, 0.14), rgba(232, 180, 88, 0.03) 60%), var(--surface-2);
+  background: linear-gradient(135deg, var(--accent-soft), var(--accent-faint) 60%), var(--surface-2);
   border: 1px solid var(--accent-line);
   box-shadow: var(--shadow);
 }
@@ -770,7 +772,7 @@ tbody tr { transition: background 0.14s var(--ease); }
   position: absolute;
   top: -60%; right: -10%;
   width: 320px; height: 320px;
-  background: radial-gradient(circle, rgba(242, 205, 127, 0.28), transparent 65%);
+  background: radial-gradient(circle, var(--accent-line), transparent 65%);
   filter: blur(10px);
   pointer-events: none;
 }
@@ -1198,10 +1200,10 @@ tbody tr { transition: background 0.14s var(--ease); }
 .mkt-card.gold {
   border-color: var(--accent-line);
   background:
-    linear-gradient(180deg, rgba(232, 180, 88, 0.10), rgba(232, 180, 88, 0.02)),
+    linear-gradient(180deg, var(--accent-soft), var(--accent-faint)),
     var(--surface);
 }
-.mkt-card.gold:hover { border-color: var(--accent); box-shadow: 0 20px 44px -22px rgba(232, 180, 88, 0.5); }
+.mkt-card.gold:hover { border-color: var(--accent); box-shadow: 0 20px 44px -22px var(--accent-glow); }
 .mkt-card.gold .mkt-sym { color: var(--accent-2); }
 .mkt-card.gold .mkt-price { color: #fff; }
 
@@ -1609,3 +1611,48 @@ html[data-amoled='on'] .aurora { display: none; }
 }
 .mtf-note.bull { color: var(--green); background: rgba(61, 220, 151, 0.10); border: 1px solid rgba(61, 220, 151, 0.3); }
 .mtf-note.bear { color: var(--red); background: rgba(255, 107, 129, 0.10); border: 1px solid rgba(255, 107, 129, 0.3); }
+
+
+/* ---------------- Touch feedback (Settings → Appearance) ---------------- */
+/* ripple: accent-coloured ink spawned at the touch point (see App.tsx) */
+[data-touchfx="ripple"] .btn,
+[data-touchfx="ripple"] .icon-btn,
+[data-touchfx="ripple"] .link-btn,
+[data-touchfx="ripple"] .seg button,
+[data-touchfx="ripple"] .accent-swatch,
+[data-touchfx="ripple"] .nav-link,
+[data-touchfx="ripple"] .mkt-card,
+[data-touchfx="ripple"] .cmp-tile,
+[data-touchfx="ripple"] .news-item,
+[data-touchfx="ripple"] tbody tr,
+[data-touchfx="ripple"] .check-row { position: relative; overflow: hidden; }
+
+.ripple-ink {
+  position: absolute; border-radius: 50%; pointer-events: none;
+  background: var(--accent); opacity: 0.3;
+  transform: scale(0); animation: rippleInk 0.55s var(--ease) forwards;
+}
+@keyframes rippleInk { to { transform: scale(1); opacity: 0; } }
+
+/* pulse: quick press-down with an accent halo */
+[data-touchfx="pulse"] .btn:active,
+[data-touchfx="pulse"] .icon-btn:active,
+[data-touchfx="pulse"] .link-btn:active,
+[data-touchfx="pulse"] .seg button:active,
+[data-touchfx="pulse"] .accent-swatch:active,
+[data-touchfx="pulse"] .nav-link:active,
+[data-touchfx="pulse"] .mkt-card:active,
+[data-touchfx="pulse"] .cmp-tile:active,
+[data-touchfx="pulse"] .news-item:active,
+[data-touchfx="pulse"] tbody tr:active {
+  transform: scale(0.955);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+[data-touchfx="pulse"] .btn,
+[data-touchfx="pulse"] .icon-btn,
+[data-touchfx="pulse"] .seg button,
+[data-touchfx="pulse"] .nav-link,
+[data-touchfx="pulse"] .mkt-card,
+[data-touchfx="pulse"] .cmp-tile,
+[data-touchfx="pulse"] .news-item,
+[data-touchfx="pulse"] tbody tr { transition: transform 0.09s ease, box-shadow 0.09s ease; }

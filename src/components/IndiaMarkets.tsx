@@ -88,7 +88,6 @@ export function IndiaMarkets({ refreshSignal = 0 }: { refreshSignal?: number }) 
         <div className="empty">
           <div className="big">📡</div>
           <p>{navigator.onLine ? 'Could not reach the market feed right now.' : 'You appear to be offline.'}</p>
-          <p className="muted" style={{ fontSize: 13 }}>Indian index data needs an internet connection. It resumes automatically once you reconnect.</p>
           <button className="btn primary" onClick={load} disabled={loading}>Try again</button>
         </div>
       )}

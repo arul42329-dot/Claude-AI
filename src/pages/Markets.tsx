@@ -129,7 +129,6 @@ export default function Markets() {
         <div className="empty">
           <div className="big">📡</div>
           <p>{navigator.onLine ? 'Could not reach the price feed right now.' : 'You appear to be offline.'}</p>
-          <p className="muted" style={{ fontSize: 13 }}>Live market data needs an internet connection. Prices resume automatically once you reconnect.</p>
           <button className="btn primary" onClick={load} disabled={loading}>Try again</button>
         </div>
       )}

@@ -215,7 +215,7 @@ export default function Dashboard() {
 }
 
 function GoalBar({ label, valueTxt, pct, done, tone }: { label: string; valueTxt: string; pct: number; done: boolean; tone: 'pos' | 'neg' | 'warn' }) {
-  const color = tone === 'pos' ? 'var(--green)' : tone === 'neg' ? 'var(--red)' : '#e8b458'
+  const color = tone === 'pos' ? 'var(--green)' : tone === 'neg' ? 'var(--red)' : 'var(--accent)'
   return (
     <div>
       <div className="row" style={{ justifyContent: 'space-between', marginBottom: 8 }}>

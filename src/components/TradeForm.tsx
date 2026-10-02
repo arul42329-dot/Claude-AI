@@ -398,7 +398,6 @@ export function TradeForm({
               <span style={{ flex: 1, color: it.checked ? 'var(--text)' : 'var(--text-faint)' }}>{it.text}</span>
             </div>
           ))}
-          <p className="muted" style={{ fontSize: 12, marginBottom: 0 }}>Recorded on the Pre-Trade tab (read-only here).</p>
         </div>
       )}
 

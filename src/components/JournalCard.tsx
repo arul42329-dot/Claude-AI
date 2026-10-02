@@ -32,7 +32,7 @@ export function JournalCard() {
         </p>
       ) : (
         <p className="muted" style={{ marginBottom: 0, fontSize: 13 }}>
-          Reflect on your trading day — how you felt, what you did well, what to improve. {sorted.length > 0 ? `${sorted.length} past entr${sorted.length === 1 ? 'y' : 'ies'}.` : ''}
+          {sorted.length > 0 ? `${sorted.length} past entr${sorted.length === 1 ? 'y' : 'ies'}.` : 'No entries yet.'}
         </p>
       )}
       {open && <JournalModal entries={sorted} onClose={() => setOpen(false)} />}

@@ -198,7 +198,7 @@ export default function Analytics() {
                         key={d.key}
                         fill={d.pnl >= 0 ? '#3ddc97' : '#ff6b81'}
                         fillOpacity={activeKey && !active ? 0.4 : 1}
-                        stroke={active ? '#f2cd7f' : undefined}
+                        stroke={active ? 'var(--accent-2)' : undefined}
                         strokeWidth={active ? 2 : 0}
                       />
                     )
@@ -370,7 +370,7 @@ export default function Analytics() {
                         onClick={() => scope !== 'overall' && setSelectedKey(b.key)}
                         style={{
                           cursor: scope === 'overall' ? 'default' : 'pointer',
-                          background: active ? 'rgba(232,180,88,0.10)' : undefined,
+                          background: active ? 'var(--accent-soft)' : undefined,
                           boxShadow: active ? 'inset 3px 0 0 var(--accent)' : undefined,
                         }}
                       >

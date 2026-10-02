@@ -5,7 +5,7 @@ import { getSettings, ensureModeAccount } from './db'
 import { getEcon } from './econ'
 import { syncNewsAlerts, syncSessionAlerts, ensureNotificationPermission } from './newsAlerts'
 import { checkForUpdate, appVersion } from './updates'
-import { isAmoledEnabled, applyAmoled } from './theme'
+import { isAmoledEnabled, applyAmoled, getTouchFx, applyTouchFx } from './theme'
 import { isNativePlatform } from './candles'
 import { useLiveQuery } from './util'
 import { AppModeProvider, useAppMode } from './mode'
@@ -118,6 +118,31 @@ function AppShell() {
   }, [])
   // AMOLED pure-black display mode (persisted in localStorage, set in Settings).
   useEffect(() => { applyAmoled(isAmoledEnabled()) }, [])
+  // Touch feedback effect (ripple / pulse / off — persisted, set in Settings).
+  useEffect(() => { applyTouchFx(getTouchFx()) }, [])
+  // Ripple ink: one delegated listener spawns a themed ripple at the touch
+  // point on any interactive element while the ripple effect is selected.
+  useEffect(() => {
+    const TARGET = '.btn, .icon-btn, .link-btn, .seg button, .accent-swatch, .nav-link, .mkt-card, .cmp-tile, .news-item, tbody tr, .check-row'
+    const onDown = (e: PointerEvent) => {
+      if (document.documentElement.getAttribute('data-touchfx') !== 'ripple') return
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      const el = (e.target as Element | null)?.closest?.(TARGET) as HTMLElement | null
+      if (!el) return
+      const r = el.getBoundingClientRect()
+      const d = Math.max(r.width, r.height) * 2.2
+      const ink = document.createElement('span')
+      ink.className = 'ripple-ink'
+      ink.style.width = ink.style.height = d + 'px'
+      ink.style.left = e.clientX - r.left - d / 2 + 'px'
+      ink.style.top = e.clientY - r.top - d / 2 + 'px'
+      el.appendChild(ink)
+      ink.addEventListener('animationend', () => ink.remove(), { once: true })
+      window.setTimeout(() => ink.remove(), 900) // safety net
+    }
+    document.addEventListener('pointerdown', onDown)
+    return () => document.removeEventListener('pointerdown', onDown)
+  }, [])
   // Make sure the current mode has at least one account to journal under.
   useEffect(() => { ensureModeAccount(mode) }, [mode])
   return (

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { db, getSettings, saveSettings, exportAll, importAll, saveAccount, deleteAccount, wipeUserData, tradesToCsv } from '../db'
 import { useLiveQuery, downloadJson, fmtMoney } from '../util'
-import { ACCENTS, applyAccent, isAmoledEnabled, setAmoled } from '../theme'
+import { ACCENTS, applyAccent, isAmoledEnabled, setAmoled, setTouchFx, type TouchFx } from '../theme'
 import { isNativePlatform } from '../candles'
 import { getIndiaDefaults, saveIndiaDefaults } from '../indiaCosts'
 import { recomputeNetAndOutcomes } from '../outcome'
@@ -44,6 +44,7 @@ export default function SettingsPage() {
 
   const [editing, setEditing] = useState<Account | null | undefined>(undefined) // undefined = closed
   const [amoled, setAmoledState] = useState(() => isAmoledEnabled())
+  const [touchFx, setTouchFxState] = useState<TouchFx>(() => (localStorage.getItem('edgefolio-touchfx') as TouchFx) || 'ripple')
 
   // Load the form ONCE — don't overwrite what the user is typing on later emissions.
   useEffect(() => {
@@ -231,8 +232,18 @@ export default function SettingsPage() {
           </div>
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, cursor: 'pointer', fontSize: 13.5 }}>
             <input type="checkbox" checked={amoled} onChange={(e) => { setAmoled(e.target.checked); setAmoledState(e.target.checked) }} />
-            <span>🖤 Pure black (AMOLED) — saves battery on OLED screens</span>
+            <span>🖤 Pure black (AMOLED)</span>
           </label>
+          <div className="field" style={{ marginBottom: 16 }}>
+            <label>Touch feedback</label>
+            <div className="seg">
+              {(['ripple', 'pulse', 'off'] as TouchFx[]).map((fx) => (
+                <button key={fx} className={touchFx === fx ? 'active' : ''} onClick={() => { setTouchFx(fx); setTouchFxState(fx) }}>
+                  {fx === 'ripple' ? 'Ripple' : fx === 'pulse' ? 'Pulse' : 'Off'}
+                </button>
+              ))}
+            </div>
+          </div>
           <button className="btn primary" onClick={saveCurrency}>Save</button>
         </div>
 
@@ -286,10 +297,6 @@ export default function SettingsPage() {
 
         <UpdateCard />
 
-        <div className="card">
-          <h3>About</h3>
-          <p className="muted" style={{ fontSize: 13 }}>v{appVersion()} · Android &amp; Windows · Your data never leaves your device.</p>
-        </div>
       </div>
 
       {editing !== undefined && (
@@ -440,18 +447,7 @@ function NewsAlertsCard() {
     if (n > 0) toast('Session alert booked ✓')
   }
 
-  if (!supported) {
-    return (
-      <div className="card">
-        <h3>🔔 Alerts</h3>
-        <p className="muted" style={{ marginTop: -6, fontSize: 13 }}>
-          On the Android app: a phone notification ~{LEAD_MINUTES} minutes before high-impact (red) economic events
-          for the currencies you trade, and when the London / New York sessions open — even when Edgefolio is closed.
-          No account or server needed.
-        </p>
-      </div>
-    )
-  }
+  if (!supported) return null
 
   return (
     <div className="card">
@@ -543,9 +539,6 @@ function UpdateCard() {
             <button className="btn primary" onClick={() => openUpdateDownload(info)}>⬇️ Download v{info.latest}</button>
             <button className="btn" onClick={() => check(true)} disabled={busy}>{busy ? 'Checking…' : 'Check again'}</button>
           </div>
-          <p className="muted" style={{ fontSize: 11.5, marginTop: 10, marginBottom: 0 }}>
-            The download opens in your browser — then tap the downloaded file to install (allow “install from this source” if Android asks).
-          </p>
         </>
       ) : (
         <div className="row" style={{ marginTop: 8 }}>
@@ -553,9 +546,6 @@ function UpdateCard() {
           {info && !info.newer && <span className="muted" style={{ fontSize: 13, alignSelf: 'center' }}>You’re up to date ✓</span>}
         </div>
       )}
-      <p className="muted" style={{ fontSize: 11.5, marginTop: 10, marginBottom: 0 }}>
-        Edgefolio checks automatically once a day and notifies you when a new release is out.
-      </p>
     </div>
   )
 }
@@ -659,9 +649,7 @@ function IndiaDefaultsCard() {
               <input className="input" type="number" min={1} step={1} value={editor.qty} onChange={(e) => setEditor({ ...editor, qty: Number(e.target.value) })} />
             </div>
           </div>
-          {editor.original && (
-            <p className="muted" style={{ fontSize: 12 }}>New trades on {editor.original} will use this size. Past trades keep their saved values.</p>
-          )}
+
         </Modal>
       )}
     </div>
@@ -720,9 +708,6 @@ function DriveBackup() {
           <div className="drive-status">
             <span className="live-dot" /> Connected · auto-backup daily when you open the app
           </div>
-          <p className="muted" style={{ fontSize: 13, marginTop: 10 }}>
-            Your journal is saved to a single file (<strong>edgefolio-backup.json</strong>) in your Drive, replaced on each backup.
-          </p>
           <div className="chips" style={{ margin: '4px 0 14px' }}>
             <span className="chip">Last backup: {st.lastBackupAt ? format(new Date(st.lastBackupAt), 'd MMM yyyy, HH:mm') : 'not yet'}</span>
           </div>
@@ -734,10 +719,6 @@ function DriveBackup() {
         </>
       ) : (
         <>
-          <p className="muted" style={{ marginTop: -6, fontSize: 13 }}>
-            Connect once and Edgefolio will back up your whole journal to your own Google Drive automatically — once a day when you open the app — always replacing the same file.
-          </p>
-
           <button className="link-btn" onClick={() => setGuide((g) => !g)} style={{ margin: '6px 0 4px' }}>
             {guide ? '▾ Hide setup steps' : '▸ First time? How to get your Client ID (2 min)'}
           </button>
@@ -764,9 +745,6 @@ function DriveBackup() {
           <div className="row" style={{ marginTop: 12 }}>
             <button className="btn primary" onClick={connect} disabled={busy}>{busy ? 'Connecting…' : 'Connect Google Drive'}</button>
           </div>
-          <p className="muted" style={{ fontSize: 11.5, marginTop: 10 }}>
-            Your Client ID/secret and the login stay on this device. Edgefolio only ever touches the one backup file it creates (drive.file scope).
-          </p>
         </>
       )}
 
