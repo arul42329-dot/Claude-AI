@@ -1,25 +1,27 @@
-# JARWIS
+# JARWIS — Native Android application
 
-A mobile-first personal AI companion interface.
+JARWIS is now implemented as a native Android app in `android-app/` rather than as a website.
 
-## Run locally
+## Build and install
 
-Serve the repository with any static server, for example:
+Open `android-app/` in Android Studio, let Gradle sync, then run it on an Android phone or emulator. The app targets Android 8.0+ and uses the native Android SpeechRecognizer API.
 
 ```bash
-python3 -m http.server 4173
+# From the android-app directory, with Android Studio/Gradle installed
+gradle assembleDebug
+adb install app/build/outputs/apk/debug/app-debug.apk
 ```
 
-Then open `http://localhost:4173` on a phone or desktop browser.
+## Native capabilities in this version
 
-## What is included
+- Native Android portrait application
+- JARWIS voice command button using microphone permission
+- Quick actions for calls, messages, music, timers, and maps
+- Android intents to open the appropriate system app
+- Confirmation dialog before opening the phone dialer
+- Recent activity display
+- No backend or paid API required for the included voice recognition
 
-- Responsive mobile UI with voice-first command surface
-- Browser Speech Recognition integration when supported by the device/browser
-- Quick actions and a local activity feed
-- PWA manifest for adding the interface to a home screen
-- Privacy-first confirmation language for sensitive actions
+## Device-control boundary
 
-## Important platform limitation
-
-A normal web app cannot take complete control of a phone or bypass operating-system permission prompts. iOS and Android only expose specific capabilities to apps, and both require user-granted permissions. This prototype intentionally does not pretend to silently control calls, messages, camera, contacts, or other sensitive data. A production native app would need explicit platform integrations, a visible permission flow, and confirmation before consequential actions.
+Android does not allow an ordinary app to silently take complete control of a phone. Calls, messages, contacts, camera, location, accessibility, notifications, and settings each have separate platform restrictions and user-granted permissions. This app uses safe Android intents and asks before sensitive actions. A future production version can add specific integrations, but it should not bypass Android security or execute consequential actions without the user's approval.
