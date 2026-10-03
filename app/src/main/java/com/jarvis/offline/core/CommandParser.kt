@@ -44,8 +44,9 @@ class CommandParser(private val preferences: AssistantCommandSettings) {
         extractReminder(text)?.let { reminder -> return command(CommandType.CREATE_REMINDER, target = reminder.first, value = reminder.second) }
         extractTimer(text)?.let { return command(CommandType.SET_TIMER, value = it) }
         extractAlarm(text)?.let { return command(CommandType.SET_ALARM, value = it) }
-        extractCallTarget(text)?.let { return command(CommandType.CALL, target = it) }
+        // Parse full message drafts before call aliases so a body such as “I will call you” is not mistaken for a call command.
         extractMessage(text)?.let { message -> return command(CommandType.COMPOSE_MESSAGE, target = message.first, value = message.second) }
+        extractCallTarget(text)?.let { return command(CommandType.CALL, target = it) }
         extractContactTarget(text)?.let { return command(CommandType.CONTACT_SEARCH, target = it) }
 
         if (hasAny(text, "wifi settings", "wi fi settings", "wifi open", "wifi on", "wi-fi", "வைஃபை")) return command(CommandType.OPEN_WIFI_SETTINGS)
