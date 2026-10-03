@@ -36,6 +36,17 @@ jobs:
           set -o pipefail
           gradle --no-daemon test assembleDebug 2>&1 | tee gradle-build.log
 
+      - name: Publish build diagnostics
+        if: failure()
+        shell: bash
+        run: |
+          {
+            echo "## Gradle build failure"
+            echo '```text'
+            tail -n 180 gradle-build.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Upload build log
         if: always()
         uses: actions/upload-artifact@v4
