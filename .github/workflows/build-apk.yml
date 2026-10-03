@@ -31,9 +31,22 @@ jobs:
           gradle-version: "8.9"
 
       - name: Run parser tests and build APK
-        run: gradle --no-daemon test assembleDebug
+        shell: bash
+        run: |
+          set -o pipefail
+          gradle --no-daemon test assembleDebug 2>&1 | tee gradle-build.log
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: JARVIS-build-log
+          path: gradle-build.log
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Upload debug APK
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: JARVIS-debug-apk
