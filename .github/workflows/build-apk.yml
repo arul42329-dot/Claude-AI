@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  checks: write
 
 jobs:
   build:
@@ -46,6 +47,12 @@ jobs:
             tail -n 180 gradle-build.log
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+          check_id="$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/check-runs" --jq '.check_runs[] | select(.name == "Test and build debug APK").id' | head -n 1)"
+          if [ -n "$check_id" ]; then
+            gh api --method PATCH "repos/$GITHUB_REPOSITORY/check-runs/$check_id" \
+              -f 'output[title]=Gradle build failure' \
+              -f "output[summary]=$(tail -n 180 gradle-build.log)" >/dev/null
+          fi
 
       - name: Upload build log
         if: always()
