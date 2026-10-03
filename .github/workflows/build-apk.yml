@@ -40,6 +40,8 @@ jobs:
       - name: Publish build diagnostics
         if: failure()
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           {
             echo "## Gradle build failure"
