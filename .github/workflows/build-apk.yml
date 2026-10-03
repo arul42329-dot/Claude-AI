@@ -1,6 +1,9 @@
 name: Build JARVIS APK
 
 on:
+  push:
+    branches:
+      - arena/01a0ffb7-claude-ai
   workflow_dispatch:
 
 permissions:
