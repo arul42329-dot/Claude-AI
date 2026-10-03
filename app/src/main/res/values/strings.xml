@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">JARVIS</string>
+    <string name="accessibility_service_description">Optional JARVIS accessibility control. When you explicitly ask JARVIS, it can tap matching visible text, scroll, press Back or Home, and read visible screen text. It never runs silently or in the background.</string>
+</resources>

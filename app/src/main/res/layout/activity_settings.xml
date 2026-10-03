@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/jarvis_background">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+            <Button
+                android:id="@+id/backButton"
+                android:layout_width="50dp"
+                android:layout_height="50dp"
+                android:background="@drawable/bg_button"
+                android:contentDescription="Back"
+                android:text="‹"
+                android:textColor="@color/jarvis_text"
+                android:textSize="32sp" />
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="14dp"
+                android:layout_weight="1"
+                android:text="JARVIS SETTINGS"
+                android:textColor="@color/jarvis_text"
+                android:textSize="22sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="IDENTITY &amp; LANGUAGE"
+            android:textColor="@color/jarvis_cyan"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:background="@drawable/bg_card"
+            android:orientation="vertical">
+
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Assistant name" android:textColor="@color/jarvis_text" />
+            <EditText
+                android:id="@+id/nameInput"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:backgroundTint="@color/jarvis_cyan"
+                android:hint="JARVIS"
+                android:inputType="textCapWords"
+                android:maxLength="24"
+                android:textColor="@color/jarvis_text"
+                android:textColorHint="@color/jarvis_muted" />
+
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="16dp" android:text="Wake phrase (manual listening only)" android:textColor="@color/jarvis_text" />
+            <EditText
+                android:id="@+id/wakeWordInput"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:backgroundTint="@color/jarvis_cyan"
+                android:hint="Hey JARVIS"
+                android:inputType="textCapSentences"
+                android:maxLength="48"
+                android:textColor="@color/jarvis_text"
+                android:textColorHint="@color/jarvis_muted" />
+
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="16dp" android:text="Default language" android:textColor="@color/jarvis_text" />
+            <Spinner
+                android:id="@+id/defaultLanguageSpinner"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:entries="@array/language_choices"
+                android:popupBackground="@color/jarvis_surface_2" />
+
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Response mode" android:textColor="@color/jarvis_text" />
+            <Spinner
+                android:id="@+id/responseModeSpinner"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:entries="@array/response_mode_choices"
+                android:popupBackground="@color/jarvis_surface_2" />
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="22dp"
+            android:text="VOICE &amp; CONVERSATION"
+            android:textColor="@color/jarvis_cyan"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:background="@drawable/bg_card"
+            android:orientation="vertical">
+
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Voice speed" android:textColor="@color/jarvis_text" />
+            <SeekBar
+                android:id="@+id/speedSeekBar"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:max="20"
+                android:progress="10" />
+            <TextView android:id="@+id/speedValue" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="@color/jarvis_muted" android:textSize="12sp" />
+
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="14dp" android:text="Voice pitch" android:textColor="@color/jarvis_text" />
+            <SeekBar
+                android:id="@+id/pitchSeekBar"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:max="20"
+                android:progress="10" />
+            <TextView android:id="@+id/pitchValue" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="@color/jarvis_muted" android:textSize="12sp" />
+
+            <Switch
+                android:id="@+id/autoListenSwitch"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:text="Continue listening after a response"
+                android:textColor="@color/jarvis_text" />
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:text="Only while JARVIS stays open. Background wake-word listening is intentionally off to protect battery and privacy." android:textColor="@color/jarvis_muted" android:textSize="12sp" />
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="22dp"
+            android:text="ACCESS &amp; LOCAL DATA"
+            android:textColor="@color/jarvis_cyan"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:background="@drawable/bg_card"
+            android:orientation="vertical">
+            <TextView android:id="@+id/accessSummaryText" android:layout_width="match_parent" android:layout_height="wrap_content" android:textColor="@color/jarvis_muted" android:textSize="13sp" />
+            <Button android:id="@+id/privacyButton" android:layout_width="match_parent" android:layout_height="48dp" android:layout_marginTop="12dp" android:background="@drawable/bg_button" android:text="Review permissions &amp; privacy" android:textAllCaps="false" android:textColor="@color/jarvis_text" />
+            <Button android:id="@+id/clearHistoryButton" android:layout_width="match_parent" android:layout_height="48dp" android:layout_marginTop="10dp" android:background="@drawable/bg_button" android:text="Clear local command history" android:textAllCaps="false" android:textColor="@color/jarvis_text" />
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/saveButton"
+            android:layout_width="match_parent"
+            android:layout_height="54dp"
+            android:layout_marginTop="24dp"
+            android:background="@drawable/bg_mic"
+            android:text="Save settings"
+            android:textAllCaps="false"
+            android:textColor="@color/jarvis_background"
+            android:textStyle="bold" />
+    </LinearLayout>
+</ScrollView>

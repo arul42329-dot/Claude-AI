@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="language_choices">
+        <item>Auto (English / Tamil)</item>
+        <item>English</item>
+        <item>தமிழ் (Tamil)</item>
+    </string-array>
+    <string-array name="response_mode_choices">
+        <item>Reply in detected language</item>
+        <item>English responses</item>
+        <item>Tamil responses</item>
+    </string-array>
+</resources>
