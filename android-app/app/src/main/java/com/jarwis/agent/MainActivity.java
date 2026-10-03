@@ -17,7 +17,17 @@ import java.util.*;
 
 public class MainActivity extends Activity {
     JarwisView view; SpeechRecognizer recognizer; boolean listening;
-    @Override public void onCreate(Bundle state) { super.onCreate(state); getWindow().setStatusBarColor(Color.rgb(11,15,20)); view = new JarwisView(); setContentView(view); }
+    @Override public void onCreate(Bundle state) {
+        super.onCreate(state);
+        getWindow().setStatusBarColor(Color.rgb(11,15,20));
+        view = new JarwisView();
+        setContentView(view);
+        // JARWIS only requests the one permission its current features actually need.
+        // Android still requires the user to approve this system dialog.
+        if (android.os.Build.VERSION.SDK_INT >= 23 && checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            new android.os.Handler().postDelayed(() -> requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, 42), 650);
+        }
+    }
     void listen() {
         if (!SpeechRecognizer.isRecognitionAvailable(this)) { toast("Voice input is unavailable on this device"); return; }
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) { requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, 42); return; }
@@ -45,6 +55,12 @@ public class MainActivity extends Activity {
         else toast("I heard: " + text);
     }
     void toast(String text) { Toast.makeText(this,text,Toast.LENGTH_SHORT).show(); }
+    @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] results) {
+        super.onRequestPermissionsResult(requestCode, permissions, results);
+        if (requestCode == 42 && (results.length == 0 || results[0] != PackageManager.PERMISSION_GRANTED)) {
+            toast("Microphone permission is needed for voice commands");
+        }
+    }
     @Override protected void onDestroy(){ if(recognizer!=null) recognizer.destroy(); super.onDestroy(); }
 
     class JarwisView extends View {

@@ -21,6 +21,8 @@ adb install app/build/outputs/apk/debug/app-debug.apk
 - Confirmation dialog before opening the phone dialer
 - Recent activity display
 - No backend or paid API required for the included voice recognition
+- Requests microphone access on first launch and explains when it is needed
+- Does not request unnecessary call, SMS, contacts, location, or accessibility access; current actions use safe Android intents instead
 
 ## Device-control boundary
 
