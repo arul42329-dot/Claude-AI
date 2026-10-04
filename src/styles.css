@@ -1257,16 +1257,6 @@ tbody tr { transition: background 0.14s var(--ease); }
 }
 .topbar-name .mode-badge { font-size: 10.5px; padding: 2px 7px; margin-left: 8px; }
 
-/* India mode retints the ambient aurora so the whole app reads as "India". */
-[data-mode="india"] .aurora span:nth-child(1) {
-  background: radial-gradient(circle, rgba(255, 143, 46, 0.22), transparent 66%);
-}
-[data-mode="india"] .aurora span:nth-child(2) {
-  background: radial-gradient(circle, rgba(19, 136, 8, 0.16), transparent 66%);
-}
-[data-mode="india"] .aurora span:nth-child(3) {
-  background: radial-gradient(circle, rgba(255, 179, 99, 0.12), transparent 66%);
-}
 /* A subtle tricolour hairline along the top edge in India mode. */
 [data-mode="india"] .app::before {
   content: ""; position: fixed; top: 0; left: 0; right: 0; height: 3px; z-index: 60;

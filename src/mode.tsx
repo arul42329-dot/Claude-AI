@@ -21,11 +21,11 @@ interface Ctx {
 
 const ModeContext = createContext<Ctx>({ mode: 'forex', isIndia: false, setMode: () => {}, toggle: () => {} })
 
-export function AppModeProvider({ accentKey, children }: { accentKey?: string; children: ReactNode }) {
+export function AppModeProvider({ children }: { children: ReactNode }) {
   const [mode, setModeState] = useState<AppMode>(getStoredMode)
 
-  // Re-apply the theme whenever the mode changes or the user's forex accent loads.
-  useEffect(() => { applyMode(mode, accentKey) }, [mode, accentKey])
+  // Re-apply the (time-based) day/night theme whenever the mode changes.
+  useEffect(() => { applyMode(mode) }, [mode])
 
   const setMode = (m: AppMode) => {
     try { localStorage.setItem(KEY, m) } catch { /* ignore */ }

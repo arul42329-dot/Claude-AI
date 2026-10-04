@@ -1,9 +1,7 @@
-// Accent themes — recolour the app's highlight colour. Each preset overrides the
-// CSS custom properties the UI already uses for its accent, so the change is
-// instant and app-wide.
-export interface AccentPreset {
-  key: string
-  label: string
+// Day / Night theme — the app has exactly two themes, picked automatically
+// from the DEVICE TIME (no setting): warm sun gold by day (06:00–17:59),
+// cool moonlight silver by night. Both apply identically to India and forex.
+export interface ThemePalette {
   accent: string
   accent2: string
   faint: string
@@ -12,52 +10,78 @@ export interface AccentPreset {
   glow: string
 }
 
-export const ACCENTS: AccentPreset[] = [
-  { key: 'gold', label: 'Gold', accent: '#e8b458', accent2: '#f2cd7f', faint: 'rgba(232,180,88,0.05)', soft: 'rgba(232,180,88,0.14)', line: 'rgba(232,180,88,0.35)', glow: 'rgba(232,180,88,0.6)' },
-  { key: 'azure', label: 'Azure', accent: '#5b8cff', accent2: '#86a9ff', faint: 'rgba(91,140,255,0.05)', soft: 'rgba(91,140,255,0.15)', line: 'rgba(91,140,255,0.38)', glow: 'rgba(91,140,255,0.6)' },
-  { key: 'emerald', label: 'Emerald', accent: '#2fd3a5', accent2: '#63e6c0', faint: 'rgba(47,211,165,0.05)', soft: 'rgba(47,211,165,0.15)', line: 'rgba(47,211,165,0.38)', glow: 'rgba(47,211,165,0.6)' },
-  { key: 'violet', label: 'Violet', accent: '#c084fc', accent2: '#d3a6ff', faint: 'rgba(192,132,252,0.05)', soft: 'rgba(192,132,252,0.16)', line: 'rgba(192,132,252,0.4)', glow: 'rgba(192,132,252,0.6)' },
-  { key: 'rose', label: 'Rose', accent: '#fb7199', accent2: '#ff9db8', faint: 'rgba(251,113,153,0.05)', soft: 'rgba(251,113,153,0.15)', line: 'rgba(251,113,153,0.38)', glow: 'rgba(251,113,153,0.6)' },
-  { key: 'teal', label: 'Teal', accent: '#43c6d8', accent2: '#74dbe9', faint: 'rgba(67,198,216,0.05)', soft: 'rgba(67,198,216,0.15)', line: 'rgba(67,198,216,0.38)', glow: 'rgba(67,198,216,0.6)' },
-]
+export const DAY_THEME: ThemePalette = {
+  accent: '#e8b458', accent2: '#f2cd7f',
+  faint: 'rgba(232,180,88,0.05)', soft: 'rgba(232,180,88,0.14)',
+  line: 'rgba(232,180,88,0.35)', glow: 'rgba(232,180,88,0.6)',
+}
 
-function setAccentVars(accent: string, accent2: string, faint: string, soft: string, line: string, glow: string): void {
+export const NIGHT_THEME: ThemePalette = {
+  accent: '#8fb8e8', accent2: '#d3e4f8',
+  faint: 'rgba(143,184,232,0.05)', soft: 'rgba(143,184,232,0.14)',
+  line: 'rgba(143,184,232,0.38)', glow: 'rgba(143,184,232,0.6)',
+}
+
+// Day = 06:00–17:59 on the device clock; night otherwise.
+export function isDaytime(d: Date = new Date()): boolean {
+  const h = d.getHours()
+  return h >= 6 && h < 18
+}
+
+function setAccentVars(p: ThemePalette): void {
   const s = document.documentElement.style
-  s.setProperty('--accent', accent)
-  s.setProperty('--accent-2', accent2)
-  s.setProperty('--accent-faint', faint)
-  s.setProperty('--accent-soft', soft)
-  s.setProperty('--accent-line', line)
-  s.setProperty('--accent-glow', glow)
+  s.setProperty('--accent', p.accent)
+  s.setProperty('--accent-2', p.accent2)
+  s.setProperty('--accent-faint', p.faint)
+  s.setProperty('--accent-soft', p.soft)
+  s.setProperty('--accent-line', p.line)
+  s.setProperty('--accent-glow', p.glow)
 }
 
-export function applyAccent(key?: string): void {
-  const p = ACCENTS.find((a) => a.key === key) ?? ACCENTS[0]
-  setAccentVars(p.accent, p.accent2, p.faint, p.soft, p.line, p.glow)
+// Apply the day or night palette based on the device time. Call on boot,
+// on mode changes and every minute or so — it flips automatically at 06:00
+// and 18:00 without restarting the app.
+export function applyTimeTheme(d: Date = new Date()): void {
+  const day = isDaytime(d)
+  document.documentElement.setAttribute('data-daytime', day ? 'day' : 'night')
+  setAccentVars(day ? DAY_THEME : NIGHT_THEME)
 }
 
-// India mode uses a fixed saffron accent so the whole app is instantly
-// recognisable as being in Indian-markets mode, regardless of the user's
-// chosen forex accent.
-export const INDIA_ACCENT = {
-  accent: '#ff8f2e', accent2: '#ffb463',
-  faint: 'rgba(255,143,46,0.05)', soft: 'rgba(255,143,46,0.15)',
-  line: 'rgba(255,143,46,0.4)', glow: 'rgba(255,143,46,0.6)',
-}
-
-// Apply the whole-app theme for the given mode. In India mode we force the
-// saffron accent and tag <html data-mode="india"> so CSS can retint the app;
-// in forex mode we restore the user's chosen accent.
-export function applyMode(mode: 'forex' | 'india', accentKey?: string): void {
+// Mode shell (India ⟷ forex). Both modes share the SAME day/night theme;
+// only the mode marker attribute differs.
+export function applyMode(mode: 'forex' | 'india'): void {
   const root = document.documentElement
-  const s = root.style
-  if (mode === 'india') {
-    root.setAttribute('data-mode', 'india')
-    setAccentVars(INDIA_ACCENT.accent, INDIA_ACCENT.accent2, INDIA_ACCENT.faint, INDIA_ACCENT.soft, INDIA_ACCENT.line, INDIA_ACCENT.glow)
-  } else {
-    root.removeAttribute('data-mode')
-    applyAccent(accentKey)
-  }
+  if (mode === 'india') root.setAttribute('data-mode', 'india')
+  else root.removeAttribute('data-mode')
+  applyTimeTheme()
+}
+
+// ---------------- Moon phase (by date) ----------------
+// Synodic-month age from a known new moon (6 Jan 2000, 18:14 UTC), used by
+// the night backdrop to draw the moon exactly as it looks tonight.
+export interface MoonPhase {
+  age: number // days into the ~29.53-day cycle
+  fraction: number // illuminated fraction 0..1
+  waxing: boolean
+  name: string
+}
+
+export function moonPhase(d: Date = new Date()): MoonPhase {
+  const SYNODIC = 29.53058867
+  const KNOWN_NEW_MOON = Date.UTC(2000, 0, 6, 18, 14)
+  let age = ((d.getTime() - KNOWN_NEW_MOON) / 86400000) % SYNODIC
+  if (age < 0) age += SYNODIC
+  const fraction = (1 - Math.cos((2 * Math.PI * age) / SYNODIC)) / 2
+  const waxing = age < SYNODIC / 2
+  const name =
+    age < 1.0 || age > SYNODIC - 1.0 ? 'New moon' :
+    age < 6.38 ? 'Waxing crescent' :
+    age < 8.38 ? 'First quarter' :
+    age < 13.76 ? 'Waxing gibbous' :
+    age < 15.76 ? 'Full moon' :
+    age < 21.15 ? 'Waning gibbous' :
+    age < 23.15 ? 'Last quarter' : 'Waning crescent'
+  return { age, fraction, waxing, name }
 }
 
 // AMOLED pure-black display mode — swaps the graphite palette for true black

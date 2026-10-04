@@ -10,8 +10,8 @@ import { applyMode } from './theme'
 import { getStoredMode } from './mode'
 
 async function bootstrap() {
-  const settings = await getSettings()
-  applyMode(getStoredMode(), settings.accent)
+  await getSettings()
+  applyMode(getStoredMode())
   await seedIfEmpty()
   await migrateDefaults()
   await ensureAccounts()

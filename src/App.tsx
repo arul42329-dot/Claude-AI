@@ -5,7 +5,7 @@ import { getSettings, ensureModeAccount } from './db'
 import { getEcon } from './econ'
 import { syncNewsAlerts, syncSessionAlerts, ensureNotificationPermission } from './newsAlerts'
 import { checkForUpdate, appVersion } from './updates'
-import { isAmoledEnabled, applyAmoled, getTouchFx, applyTouchFx } from './theme'
+import { isAmoledEnabled, applyAmoled, getTouchFx, applyTouchFx, applyTimeTheme } from './theme'
 import { isNativePlatform } from './candles'
 import { useLiveQuery } from './util'
 import { AppModeProvider, useAppMode } from './mode'
@@ -121,6 +121,13 @@ function AppShell() {
   useEffect(() => { applyAmoled(isAmoledEnabled()) }, [])
   // Touch feedback effect (ripple / pulse / off — persisted, set in Settings).
   useEffect(() => { applyTouchFx(getTouchFx()) }, [])
+  // Day/night theme follows the device clock — re-check every minute so it
+  // flips automatically at 06:00 / 18:00 even while the app stays open.
+  useEffect(() => {
+    applyTimeTheme()
+    const id = window.setInterval(() => applyTimeTheme(), 60 * 1000)
+    return () => window.clearInterval(id)
+  }, [])
   // Ripple ink: one delegated listener spawns a themed ripple at the touch
   // point on any interactive element while the ripple effect is selected.
   useEffect(() => {
@@ -230,7 +237,7 @@ export default function App() {
   if (locked) return <LockScreen onUnlock={() => setLocked(false)} />
 
   return (
-    <AppModeProvider accentKey={settings?.accent}>
+    <AppModeProvider>
       <ToastProvider>
         {showIntro && <SplashIntro onDone={() => setShowIntro(false)} />}
         <AppShell />

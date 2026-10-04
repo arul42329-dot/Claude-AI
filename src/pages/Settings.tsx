@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { db, getSettings, saveSettings, exportAll, importAll, saveAccount, deleteAccount, wipeUserData, tradesToCsv } from '../db'
 import { useLiveQuery, downloadJson, fmtMoney } from '../util'
-import { ACCENTS, applyAccent, isAmoledEnabled, setAmoled, setTouchFx, setBackdropFx, isBackdropFxOn, type TouchFx } from '../theme'
+import { isAmoledEnabled, setAmoled, setTouchFx, setBackdropFx, isBackdropFxOn, type TouchFx } from '../theme'
 import { isNativePlatform } from '../candles'
 import { getIndiaDefaults, saveIndiaDefaults } from '../indiaCosts'
 import { recomputeNetAndOutcomes } from '../outcome'
@@ -109,11 +109,6 @@ export default function SettingsPage() {
     }
   }
 
-  function pickAccent(key: string) {
-    setForm({ ...form!, accent: key })
-    applyAccent(key) // live preview
-  }
-
   async function doExport() {
     const data = await exportAll()
     downloadJson(`edgefolio-backup-${format(new Date(), 'yyyy-MM-dd')}.json`, data)
@@ -215,21 +210,6 @@ export default function SettingsPage() {
             <select className="select" value={form.accountCurrency} onChange={(e) => setForm({ ...form, accountCurrency: e.target.value })}>
               {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
             </select>
-          </div>
-          <div className="field" style={{ marginBottom: 16 }}>
-            <label>Accent colour</label>
-            <div className="accent-row">
-              {ACCENTS.map((a) => (
-                <button
-                  key={a.key}
-                  type="button"
-                  className={'accent-swatch' + ((form.accent ?? 'gold') === a.key ? ' on' : '')}
-                  style={{ background: a.accent }}
-                  title={a.label}
-                  onClick={() => pickAccent(a.key)}
-                >{(form.accent ?? 'gold') === a.key ? '✓' : ''}</button>
-              ))}
-            </div>
           </div>
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, cursor: 'pointer', fontSize: 13.5 }}>
             <input type="checkbox" checked={amoled} onChange={(e) => { setAmoled(e.target.checked); setAmoledState(e.target.checked) }} />
