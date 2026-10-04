@@ -106,3 +106,18 @@ export function setTouchFx(fx: TouchFx): void {
   try { localStorage.setItem(TOUCHFX_KEY, fx) } catch { /* ignore */ }
   applyTouchFx(fx)
 }
+
+
+// ---------------- Background motion ----------------
+// The ambient backdrop (drifting embers + streaks + lightning flashes) painted
+// on a canvas behind every tab. Toggleable in Settings → Appearance.
+const BACKFX_KEY = 'edgefolio-backfx'
+
+export function isBackdropFxOn(): boolean {
+  try { return localStorage.getItem(BACKFX_KEY) !== 'off' } catch { return true }
+}
+
+export function setBackdropFx(on: boolean): void {
+  try { localStorage.setItem(BACKFX_KEY, on ? 'on' : 'off') } catch { /* ignore */ }
+  window.dispatchEvent(new CustomEvent('edgefolio:backfx'))
+}

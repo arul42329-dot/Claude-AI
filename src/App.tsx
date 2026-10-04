@@ -11,6 +11,7 @@ import { useLiveQuery } from './util'
 import { AppModeProvider, useAppMode } from './mode'
 import { ToastProvider, useToast } from './components/Toast'
 import { SplashIntro } from './components/SplashIntro'
+import { Backdrop } from './components/Backdrop'
 import { LockScreen } from './components/LockScreen'
 import { isLockEnabled } from './lock'
 import { AccountSwitcher } from './components/AccountSwitcher'
@@ -150,6 +151,7 @@ function AppShell() {
       <div className="aurora" aria-hidden="true">
         <span /><span /><span />
       </div>
+      <Backdrop />
       <aside className="sidebar">
         <div className="brand">
           <span className="logo-shell">

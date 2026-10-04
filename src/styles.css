@@ -1656,3 +1656,7 @@ html[data-amoled='on'] .aurora { display: none; }
 [data-touchfx="pulse"] .cmp-tile,
 [data-touchfx="pulse"] .news-item,
 [data-touchfx="pulse"] tbody tr { transition: transform 0.09s ease, box-shadow 0.09s ease; }
+
+
+/* Ambient canvas backdrop (embers + streaks + lightning) behind every tab */
+.backdrop-fx { position: fixed; inset: 0; z-index: 0; pointer-events: none; }

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { db, getSettings, saveSettings, exportAll, importAll, saveAccount, deleteAccount, wipeUserData, tradesToCsv } from '../db'
 import { useLiveQuery, downloadJson, fmtMoney } from '../util'
-import { ACCENTS, applyAccent, isAmoledEnabled, setAmoled, setTouchFx, type TouchFx } from '../theme'
+import { ACCENTS, applyAccent, isAmoledEnabled, setAmoled, setTouchFx, setBackdropFx, isBackdropFxOn, type TouchFx } from '../theme'
 import { isNativePlatform } from '../candles'
 import { getIndiaDefaults, saveIndiaDefaults } from '../indiaCosts'
 import { recomputeNetAndOutcomes } from '../outcome'
@@ -45,6 +45,7 @@ export default function SettingsPage() {
   const [editing, setEditing] = useState<Account | null | undefined>(undefined) // undefined = closed
   const [amoled, setAmoledState] = useState(() => isAmoledEnabled())
   const [touchFx, setTouchFxState] = useState<TouchFx>(() => (localStorage.getItem('edgefolio-touchfx') as TouchFx) || 'ripple')
+  const [backfx, setBackfxState] = useState(() => isBackdropFxOn())
 
   // Load the form ONCE — don't overwrite what the user is typing on later emissions.
   useEffect(() => {
@@ -233,6 +234,10 @@ export default function SettingsPage() {
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, cursor: 'pointer', fontSize: 13.5 }}>
             <input type="checkbox" checked={amoled} onChange={(e) => { setAmoled(e.target.checked); setAmoledState(e.target.checked) }} />
             <span>🖤 Pure black (AMOLED)</span>
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, cursor: 'pointer', fontSize: 13.5 }}>
+            <input type="checkbox" checked={backfx} onChange={(e) => { setBackdropFx(e.target.checked); setBackfxState(e.target.checked) }} />
+            <span>✨ Background motion</span>
           </label>
           <div className="field" style={{ marginBottom: 16 }}>
             <label>Touch feedback</label>
