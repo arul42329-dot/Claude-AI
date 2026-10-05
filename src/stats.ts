@@ -6,7 +6,7 @@ import {
   parseISO,
   isWithinInterval,
 } from 'date-fns'
-import type { Trade } from './types'
+import type { Trade, Cashflow } from './types'
 
 export type Period = 'daily' | 'weekly' | 'monthly'
 
@@ -246,15 +246,23 @@ export function filterByDateRange(trades: Trade[], from?: Date, to?: Date): Trad
 }
 
 // Equity curve points from chronological trades
-export function equityCurve(trades: Trade[], startingBalance: number) {
-  const chrono = [...trades]
-    .filter((t) => t.outcome !== 'open')
-    .sort((a, b) => tradeDate(a).getTime() - tradeDate(b).getTime())
+export function equityCurve(trades: Trade[], startingBalance: number, cashflows: Cashflow[] = []) {
+  type Ev = { at: number; label: string; delta: number }
+  const events: Ev[] = [
+    ...trades
+      .filter((t) => t.outcome !== 'open')
+      .map((t) => ({ at: tradeDate(t).getTime(), label: format(tradeDate(t), 'dd MMM'), delta: netPnlOf(t) })),
+    ...cashflows.map((c) => ({
+      at: parseISO(c.date + 'T00:00').getTime(),
+      label: format(parseISO(c.date + 'T00:00'), 'dd MMM'),
+      delta: c.type === 'deposit' ? c.amount : -c.amount,
+    })),
+  ].sort((a, b) => a.at - b.at)
   let bal = startingBalance
   const points = [{ index: 0, label: 'Start', balance: bal }]
-  chrono.forEach((t, i) => {
-    bal += netPnlOf(t)
-    points.push({ index: i + 1, label: format(tradeDate(t), 'dd MMM'), balance: Math.round(bal * 100) / 100 })
+  events.forEach((e, i) => {
+    bal += e.delta
+    points.push({ index: i + 1, label: e.label, balance: Math.round(bal * 100) / 100 })
   })
   return points
 }

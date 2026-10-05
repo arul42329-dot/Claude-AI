@@ -8,6 +8,7 @@ import type { Trade } from '../types'
 import { StatCard } from '../components/StatCard'
 import { TradeForm } from '../components/TradeForm'
 import { TradeDetail } from '../components/TradeDetail'
+import { CashflowCard } from '../components/CashflowCard'
 import { JournalCard } from '../components/JournalCard'
 import { useToast } from '../components/Toast'
 import { format, startOfMonth, isToday, isSameWeek } from 'date-fns'
@@ -17,6 +18,7 @@ import {
 
 export default function Dashboard() {
   const allTrades = useLiveQuery(() => db.trades.toArray(), [], [])
+  const allFlows = useLiveQuery(() => db.cashflows.toArray(), [], [])
   const { activeId, account, currency, startingBalance, settings } = useAccountScope()
   const { mode, isIndia } = useAppMode()
   const [showForm, setShowForm] = useState(false)
@@ -27,6 +29,11 @@ export default function Dashboard() {
   // Forex and India journals are fully separate — only show this mode's trades.
   const modeTrades = (allTrades ?? []).filter((t) => marketOf(t) === mode)
   const trades = scopeTrades(modeTrades, activeId)
+  // Deposits/withdrawals for this mode + account scope — they move the
+  // balance/equity curve but never count as trading P/L.
+  const flows = (allFlows ?? [])
+    .filter((c) => (c.market ?? 'forex') === mode)
+    .filter((c) => !activeId || activeId === 'all' || c.accountId === activeId)
 
   const monthStart = startOfMonth(new Date())
   const closed = trades.filter((t) => t.outcome !== 'open')
@@ -56,7 +63,7 @@ export default function Dashboard() {
   const lossLimit = (isIndia ? settings?.maxLossLimitIndia : settings?.maxLossLimit) ?? 0
   const startBal = startingBalance
   const stats = computeStats(trades)
-  const curve = equityCurve(trades, startBal)
+  const curve = equityCurve(trades, startBal, flows)
   const currentBalance = curve.length ? curve[curve.length - 1].balance : startBal
   const recent = [...trades].sort((a, b) => tradeDate(b).getTime() - tradeDate(a).getTime()).slice(0, 6)
 
@@ -183,6 +190,10 @@ export default function Dashboard() {
             </table>
           </div>
         )}
+      </div>
+
+      <div style={{ marginTop: 20 }}>
+        <CashflowCard />
       </div>
 
       <div style={{ marginTop: 20 }}>

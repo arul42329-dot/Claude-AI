@@ -58,6 +58,20 @@ export interface ChecklistResponse {
   }[]
 }
 
+// Money moving in/out of a trading account that is NOT trading P/L:
+// deposits and withdrawals.
+export interface Cashflow {
+  id: string
+  market?: 'forex' | 'india' // which app mode this belongs to (absent = forex)
+  accountId?: string
+  type: 'deposit' | 'withdraw'
+  amount: number // always positive
+  date: string // yyyy-mm-dd
+  note?: string
+  createdAt: number
+  updatedAt: number
+}
+
 // A pre-trade checklist entry: filled and SAVED before a trade is taken.
 // It gets a serial number so a later trade log can be linked to it.
 export interface ChecklistEntry {

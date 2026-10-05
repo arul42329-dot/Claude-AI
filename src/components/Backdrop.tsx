@@ -124,77 +124,159 @@ export function Backdrop() {
       }
     }
 
+    // ---- Realistic SUN: limb-darkened core, layered corona, diffraction spikes ----
     const drawSun = (x: number, y: number, r: number, t: number) => {
-      const breathe = 1 + 0.05 * Math.sin(t * 0.0011)
-      const g = ctx.createRadialGradient(x, y, r * 0.4, x, y, r * 3.4 * breathe)
-      g.addColorStop(0, `rgba(${accent2},0.30)`)
-      g.addColorStop(0.5, `rgba(${accent},0.10)`)
-      g.addColorStop(1, 'rgba(0,0,0,0)')
-      ctx.fillStyle = g
-      ctx.beginPath()
-      ctx.arc(x, y, r * 3.4 * breathe, 0, Math.PI * 2)
-      ctx.fill()
-      // disc
-      const d = ctx.createLinearGradient(x, y - r, x, y + r)
-      d.addColorStop(0, `rgba(${accent2},1)`)
-      d.addColorStop(1, `rgba(${accent},1)`)
-      ctx.fillStyle = d
+      const breathe = 1 + 0.04 * Math.sin(t * 0.0011)
+
+      // wide corona (outer atmosphere) — two soft layers
+      const corona = (radius: number, a: number) => {
+        const g = ctx.createRadialGradient(x, y, r * 0.6, x, y, radius)
+        g.addColorStop(0, `rgba(${accent},${a})`)
+        g.addColorStop(0.55, `rgba(${accent},${(a * 0.45).toFixed(3)})`)
+        g.addColorStop(1, 'rgba(0,0,0,0)')
+        ctx.fillStyle = g
+        ctx.beginPath()
+        ctx.arc(x, y, radius, 0, Math.PI * 2)
+        ctx.fill()
+      }
+      corona(r * 4.4 * breathe, 0.16)
+      corona(r * 2.5 * breathe, 0.22)
+
+      // photosphere: near-white hot core -> gold limb (limb darkening)
+      const disc = ctx.createRadialGradient(x, y, r * 0.05, x, y, r)
+      disc.addColorStop(0, 'rgba(255,251,240,1)')
+      disc.addColorStop(0.45, `rgba(${accent2},1)`)
+      disc.addColorStop(0.85, `rgba(${accent},1)`)
+      disc.addColorStop(1, `rgba(${accent},0.92)`)
+      ctx.fillStyle = disc
       ctx.beginPath()
       ctx.arc(x, y, r, 0, Math.PI * 2)
       ctx.fill()
-      // slowly rotating rays
-      const rot = t * 0.00012
-      ctx.strokeStyle = `rgba(${accent2},0.13)`
-      ctx.lineWidth = 2
-      ctx.lineCap = 'round'
-      for (let i = 0; i < 8; i++) {
-        const a = rot + (i * Math.PI) / 4
+
+      // thin bright rim just inside the limb
+      ctx.strokeStyle = `rgba(${accent2},0.35)`
+      ctx.lineWidth = r * 0.05
+      ctx.beginPath()
+      ctx.arc(x, y, r * 0.985, 0, Math.PI * 2)
+      ctx.stroke()
+
+      // diffraction spikes: 4 tapered light streaks (lens effect), very slow drift
+      const rot = t * 0.00003
+      const spike = (angle: number, len: number, w: number, a: number) => {
+        const x2 = x + Math.cos(angle) * len
+        const y2 = y + Math.sin(angle) * len
+        const nx = -Math.sin(angle) * w
+        const ny = Math.cos(angle) * w
+        const g = ctx.createLinearGradient(x, y, x2, y2)
+        g.addColorStop(0, `rgba(255,250,235,${a})`)
+        g.addColorStop(1, 'rgba(255,250,235,0)')
+        ctx.fillStyle = g
         ctx.beginPath()
-        ctx.moveTo(x + Math.cos(a) * r * 1.35, y + Math.sin(a) * r * 1.35)
-        ctx.lineTo(x + Math.cos(a) * r * 1.85, y + Math.sin(a) * r * 1.85)
-        ctx.stroke()
+        ctx.moveTo(x + nx * 0.5, y + ny * 0.5)
+        ctx.lineTo(x2 + nx, y2 + ny)
+        ctx.lineTo(x2 - nx, y2 - ny)
+        ctx.lineTo(x - nx * 0.5, y - ny * 0.5)
+        ctx.closePath()
+        ctx.fill()
+      }
+      for (let i = 0; i < 4; i++) {
+        const a = rot + (i * Math.PI) / 2
+        spike(a, r * (i % 2 === 0 ? 5.2 : 3.4) * breathe, r * 0.09, i % 2 === 0 ? 0.14 : 0.08)
       }
     }
 
+    // ---- Realistic MOON: true phase shape, soft terminator, earthshine,
+    // ---- maria patches and rim-lit craters ----
     const drawMoon = (x: number, y: number, r: number) => {
       const f = phase.fraction
-      const k = 2 * f - 1 // -1..1: terminator curvature
-      // soft halo
-      const g = ctx.createRadialGradient(x, y, r * 0.5, x, y, r * 3)
-      g.addColorStop(0, `rgba(${accent2},0.16)`)
+      const k = 2 * f - 1 // -1..1: terminator ellipse curvature
+
+      // halo
+      const g = ctx.createRadialGradient(x, y, r * 0.6, x, y, r * 3)
+      g.addColorStop(0, `rgba(${accent2},0.15)`)
+      g.addColorStop(0.5, `rgba(${accent},0.05)`)
       g.addColorStop(1, 'rgba(0,0,0,0)')
       ctx.fillStyle = g
       ctx.beginPath()
       ctx.arc(x, y, r * 3, 0, Math.PI * 2)
       ctx.fill()
-      // disc: dark base + phase-accurate lit region, clipped to the circle
+
       ctx.save()
       ctx.beginPath()
       ctx.arc(x, y, r, 0, Math.PI * 2)
       ctx.clip()
-      ctx.fillStyle = 'rgba(19,23,32,0.92)'
+
+      // dark side: earthshine — faintly visible, not pure black
+      ctx.fillStyle = 'rgba(16,20,29,0.96)'
       ctx.fillRect(x - r - 1, y - r - 1, 2 * r + 2, 2 * r + 2)
+      ctx.fillStyle = `rgba(${accent},0.07)`
+      ctx.fillRect(x - r - 1, y - r - 1, 2 * r + 2, 2 * r + 2)
+
+      // lit region (true phase: semicircle + elliptical terminator)
       const lit = ctx.createLinearGradient(x - r, y - r, x + r, y + r)
-      lit.addColorStop(0, `rgba(${accent2},0.98)`)
-      lit.addColorStop(1, `rgba(${accent},0.95)`)
+      lit.addColorStop(0, `rgba(${accent2},0.97)`)
+      lit.addColorStop(0.6, `rgba(${accent2},0.92)`)
+      lit.addColorStop(1, `rgba(${accent},0.9)`)
       ctx.fillStyle = lit
       ctx.beginPath()
       const rx = r * Math.abs(k)
       if (phase.waxing) {
-        ctx.arc(x, y, r, -Math.PI / 2, Math.PI / 2, false) // lit right half
+        ctx.arc(x, y, r, -Math.PI / 2, Math.PI / 2, false)
         ctx.ellipse(x, y, rx, r, 0, Math.PI / 2, -Math.PI / 2, k > 0 ? false : true)
       } else {
-        ctx.arc(x, y, r, Math.PI / 2, -Math.PI / 2, false) // lit left half
+        ctx.arc(x, y, r, Math.PI / 2, -Math.PI / 2, false)
         ctx.ellipse(x, y, rx, r, 0, -Math.PI / 2, Math.PI / 2, k > 0 ? false : true)
       }
       ctx.fill()
-      // a few subtle craters on the surface
-      ctx.fillStyle = 'rgba(10,14,22,0.10)'
-      for (const [cx, cy, cr] of [[-0.3, -0.25, 0.16], [0.22, 0.1, 0.11], [-0.05, 0.38, 0.09], [0.38, -0.35, 0.07]] as const) {
+
+      // surface features: maria (dark basalt plains) as soft blobs
+      const maria: [number, number, number][] = [
+        [-0.34, -0.30, 0.30], [0.10, -0.42, 0.20], [0.30, 0.02, 0.24],
+        [-0.12, 0.12, 0.26], [-0.42, 0.30, 0.16], [0.16, 0.38, 0.14],
+      ]
+      for (const [mx, my, mr] of maria) {
+        const mg = ctx.createRadialGradient(x + mx * r, y + my * r, 0, x + mx * r, y + my * r, mr * r)
+        mg.addColorStop(0, 'rgba(24,29,42,0.30)')
+        mg.addColorStop(1, 'rgba(24,29,42,0)')
+        ctx.fillStyle = mg
         ctx.beginPath()
-        ctx.arc(x + cx * r, y + cy * r, cr * r, 0, Math.PI * 2)
+        ctx.arc(x + mx * r, y + my * r, mr * r, 0, Math.PI * 2)
         ctx.fill()
       }
+
+      // craters: dark bowl + bright rim on the lit side
+      const craters: [number, number, number][] = [
+        [0.42, -0.18, 0.10], [-0.20, -0.05, 0.075], [0.05, 0.30, 0.065],
+        [-0.48, -0.12, 0.05], [0.24, 0.12, 0.045], [0.50, 0.34, 0.04],
+      ]
+      for (const [cx, cy, cr] of craters) {
+        const px = x + cx * r, py = y + cy * r, pr = cr * r
+        ctx.fillStyle = 'rgba(20,25,37,0.28)'
+        ctx.beginPath()
+        ctx.arc(px, py, pr, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.strokeStyle = `rgba(${accent2},0.22)`
+        ctx.lineWidth = Math.max(0.7, pr * 0.28)
+        const rimSide = phase.waxing ? -1 : 1 // rim faces the sun
+        ctx.beginPath()
+        ctx.arc(px + rimSide * pr * 0.12, py, pr * 0.9, phase.waxing ? Math.PI * 0.7 : -Math.PI * 0.3, phase.waxing ? Math.PI * 1.4 : Math.PI * 0.4)
+        ctx.stroke()
+      }
+
+      // soft terminator: layered strokes fade the edge (fake penumbra)
+      const term = () => {
+        ctx.beginPath()
+        if (phase.waxing) ctx.ellipse(x, y, rx, r, 0, -Math.PI / 2, Math.PI / 2, k > 0)
+        else ctx.ellipse(x, y, rx, r, 0, Math.PI / 2, -Math.PI / 2, k > 0)
+        ctx.stroke()
+      }
+      const passes: [number, number][] = [[r * 0.22, 0.08], [r * 0.13, 0.12], [r * 0.06, 0.16]]
+      for (const [w, a] of passes) {
+        ctx.strokeStyle = `rgba(14,18,27,${a})`
+        ctx.lineWidth = w
+        term()
+      }
+
       ctx.restore()
     }
 

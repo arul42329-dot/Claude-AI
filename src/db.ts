@@ -1,5 +1,5 @@
 import Dexie, { type Table } from 'dexie'
-import type { Trade, Checklist, Settings, ChecklistEntry, Account, JournalEntry } from './types'
+import type { Trade, Checklist, Settings, ChecklistEntry, Account, JournalEntry, Cashflow } from './types'
 
 export class JournalDB extends Dexie {
   trades!: Table<Trade, string>
@@ -8,6 +8,7 @@ export class JournalDB extends Dexie {
   accounts!: Table<Account, string>
   journal!: Table<JournalEntry, string>
   settings!: Table<Settings, string>
+  cashflows!: Table<Cashflow, string>
 
   constructor() {
     super('fx-journal')
@@ -39,6 +40,10 @@ export class JournalDB extends Dexie {
       accounts: 'id, name, type, createdAt, archived',
       journal: 'id, date, createdAt',
       settings: 'id',
+    })
+    // v5 adds the deposit/withdraw log.
+    this.version(5).stores({
+      cashflows: 'id, date, accountId, createdAt',
     })
   }
 }
@@ -298,20 +303,21 @@ export async function tradesToCsv(): Promise<string> {
 
 // ---------- Backup / restore ----------
 export async function exportAll() {
-  const [trades, checklists, checklistEntries, accounts, journal, settings] = await Promise.all([
+  const [trades, checklists, checklistEntries, accounts, journal, settings, cashflows] = await Promise.all([
     db.trades.toArray(),
     db.checklists.toArray(),
     db.checklistEntries.toArray(),
     db.accounts.toArray(),
     db.journal.toArray(),
     db.settings.toArray(),
+    db.cashflows.toArray(),
   ])
-  return { version: 4, exportedAt: new Date().toISOString(), trades, checklists, checklistEntries, accounts, journal, settings }
+  return { version: 5, exportedAt: new Date().toISOString(), trades, checklists, checklistEntries, accounts, journal, settings, cashflows }
 }
 
 export async function importAll(data: any, mode: 'merge' | 'replace' = 'merge') {
   if (!data || !Array.isArray(data.trades)) throw new Error('Invalid backup file')
-  await db.transaction('rw', [db.trades, db.checklists, db.checklistEntries, db.accounts, db.journal, db.settings], async () => {
+  await db.transaction('rw', [db.trades, db.checklists, db.checklistEntries, db.accounts, db.journal, db.settings, db.cashflows], async () => {
     if (mode === 'replace') {
       await Promise.all([db.trades.clear(), db.checklists.clear(), db.checklistEntries.clear(), db.accounts.clear(), db.journal.clear()])
     }
@@ -320,6 +326,7 @@ export async function importAll(data: any, mode: 'merge' | 'replace' = 'merge') 
     if (Array.isArray(data.checklistEntries)) await db.checklistEntries.bulkPut(data.checklistEntries)
     if (Array.isArray(data.accounts)) await db.accounts.bulkPut(data.accounts)
     if (Array.isArray(data.journal)) await db.journal.bulkPut(data.journal)
+    if (Array.isArray(data.cashflows)) await db.cashflows.bulkPut(data.cashflows)
     if (Array.isArray(data.settings)) await db.settings.bulkPut(data.settings)
   })
   await ensureAccounts()
