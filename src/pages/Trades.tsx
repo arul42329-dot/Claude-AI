@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { db } from '../db'
-import { useLiveQuery, fmtMoney, fmtNum, fmtPct, instrumentLabel } from '../util'
+import { useLiveQuery, fmtMoney, fmtNum, fmtPct, instrumentLabel, displayDirection } from '../util'
 import { useAccountScope, scopeTrades } from '../accounts'
 import { useAppMode, marketOf } from '../mode'
 import type { Trade } from '../types'
@@ -152,22 +152,22 @@ export default function Trades() {
         </div>
       ) : (
         <div className="table-wrap">
-          <table>
+          <table className="trades-table">
             <thead>
               <tr>
-                <th>#</th>
-                {showAccountCol && <th>Account</th>}
-                <th>Date</th>
+                <th className="col-serial">#</th>
+                {showAccountCol && <th className="col-account">Account</th>}
+                <th className="col-date">Date</th>
                 <th>Pair</th>
-                <th>Dir</th>
-                <th>Session</th>
-                <th>Strategy</th>
-                <th>R:R</th>
+                <th className="col-dir">Dir</th>
+                <th className="col-session">Session</th>
+                <th className="col-strategy">Strategy</th>
+                <th className="col-rr">R:R</th>
                 <th style={{ textAlign: 'right' }}>R</th>
                 <th>Outcome</th>
                 <th style={{ textAlign: 'right' }}>P/L</th>
-                <th>Checklist</th>
-                <th></th>
+                <th className="col-checklist">Checklist</th>
+                <th className="col-del"></th>
               </tr>
             </thead>
             <tbody>
@@ -177,21 +177,24 @@ export default function Trades() {
                 const pct = items.length ? Math.round((done / items.length) * 100) : null
                 return (
                   <tr key={t.id} onClick={() => setDetail(t)}>
-                    <td><strong>{t.serial ? '#' + t.serial : '—'}</strong></td>
+                    <td className="col-serial"><strong>{t.serial ? '#' + t.serial : '—'}</strong></td>
                     {showAccountCol && (
-                      <td>
+                      <td className="col-account">
                         <span className="acct-tag">
                           <span className="acct-dot sm" style={{ background: acctMap.get(t.accountId ?? '')?.color || 'var(--text-faint)' }} />
                           {acctMap.get(t.accountId ?? '')?.name ?? '—'}
                         </span>
                       </td>
                     )}
-                    <td>{format(tradeDate(t), 'dd MMM yy')}</td>
-                    <td><strong>{instrumentLabel(t)}</strong>{shotCount(t) > 0 && <span className="shot-mark" title={`${shotCount(t)} screenshot${shotCount(t) === 1 ? '' : 's'}`}>📷 {shotCount(t)}</span>}</td>
-                    <td><span className={t.direction === 'long' ? 'dir-buy' : 'dir-sell'}>{t.direction === 'long' ? '▲' : '▼'}</span></td>
-                    <td className="muted" style={{ textTransform: 'capitalize' }}>{t.session}</td>
-                    <td className="muted">{t.strategy || '—'}</td>
-                    <td>{t.riskReward ? fmtNum(t.riskReward, 2) : '—'}</td>
+                    <td className="col-date">{format(tradeDate(t), 'dd MMM yy')}</td>
+                    <td className="pair-cell">
+                      <strong>{instrumentLabel(t)}</strong>{shotCount(t) > 0 && <span className="shot-mark" title={`${shotCount(t)} screenshot${shotCount(t) === 1 ? '' : 's'}`}>📷 {shotCount(t)}</span>}
+                      <span className="cell-sub">{format(tradeDate(t), 'dd MMM yy')}</span>
+                    </td>
+                    <td className="col-dir"><span className={displayDirection(t) === 'long' ? 'dir-buy' : 'dir-sell'}>{displayDirection(t) === 'long' ? '▲' : '▼'}</span></td>
+                    <td className="muted col-session" style={{ textTransform: 'capitalize' }}>{t.session}</td>
+                    <td className="muted col-strategy">{t.strategy || '—'}</td>
+                    <td className="col-rr">{t.riskReward ? fmtNum(t.riskReward, 2) : '—'}</td>
                     <td style={{ textAlign: 'right' }} className={tradeR(t) != null ? (tradeR(t)! >= 0 ? 'pos' : 'neg') : ''}>
                       {tradeR(t) != null ? fmtNum(tradeR(t)!, 2) : '—'}
                     </td>
@@ -199,12 +202,12 @@ export default function Trades() {
                     <td style={{ textAlign: 'right' }} className={netPnlOf(t) > 0 ? 'pos' : netPnlOf(t) < 0 ? 'neg' : ''}>
                       {t.pnl != null || t.grossPnl != null ? fmtMoney(netPnlOf(t), currency) : '—'}
                     </td>
-                    <td className="muted">
+                    <td className="muted col-checklist">
                       {t.checklistSerial != null
                         ? <>Chk #{t.checklistSerial}{pct != null ? ` · ${pct}%` : ''}</>
                         : (pct != null ? `${pct}%` : '—')}
                     </td>
-                    <td><button className="icon-btn" onClick={(e) => remove(t.id, e)} title="Delete">🗑️</button></td>
+                    <td className="col-del"><button className="icon-btn" onClick={(e) => remove(t.id, e)} title="Delete">🗑️</button></td>
                   </tr>
                 )
               })}

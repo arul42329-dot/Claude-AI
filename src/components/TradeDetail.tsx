@@ -1,4 +1,4 @@
-import { fmtMoney, fmtNum, instrumentLabel } from '../util'
+import { fmtMoney, fmtNum, instrumentLabel, displayDirection } from '../util'
 import { tradeR, netPnlOf, tradeDate } from '../stats'
 import type { Trade } from '../types'
 import { Modal } from './Modal'
@@ -40,7 +40,7 @@ export function TradeDetail({
   const facts: { k: string; v: string }[] = [
     { k: 'Date', v: format(tradeDate(t), 'dd MMM yyyy') },
     ...(t.time ? [{ k: 'Time', v: t.time }] : []),
-    { k: 'Direction', v: t.direction === 'long' ? '▲ Long' : '▼ Short' },
+    { k: 'Direction', v: displayDirection(t) === 'long' ? '▲ Long' : '▼ Short' },
     ...(t.entryPrice != null ? [{ k: 'Entry', v: fmtNum(t.entryPrice, 2) }] : []),
     ...(t.exitPrice != null ? [{ k: 'Exit', v: fmtNum(t.exitPrice, 2) }] : []),
     ...(t.stopLoss != null ? [{ k: 'Stop loss', v: fmtNum(t.stopLoss, 2) }] : []),

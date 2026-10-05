@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { db } from '../db'
-import { useLiveQuery, fmtMoney, fmtNum, fmtPct, instrumentLabel } from '../util'
+import { useLiveQuery, fmtMoney, fmtNum, fmtPct, instrumentLabel, displayDirection } from '../util'
 import { useAppMode, marketOf } from '../mode'
 import { useAccountScope, scopeTrades } from '../accounts'
 import { computeStats, equityCurve, tradeDate, netPnlOf } from '../stats'
@@ -181,7 +181,7 @@ export default function Dashboard() {
                   <tr key={t.id} style={{ cursor: 'pointer' }} onClick={() => setDetail(t)}>
                     <td>{format(tradeDate(t), 'dd MMM yy')}</td>
                     <td><strong>{instrumentLabel(t)}</strong></td>
-                    <td><span className={t.direction === 'long' ? 'dir-buy' : 'dir-sell'}>{t.direction === 'long' ? '▲ Buy' : '▼ Sell'}</span></td>
+                    <td><span className={displayDirection(t) === 'long' ? 'dir-buy' : 'dir-sell'}>{displayDirection(t) === 'long' ? '▲ Buy' : '▼ Sell'}</span></td>
                     <td><span className={'badge ' + t.outcome}>{t.outcome}</span></td>
                     <td style={{ textAlign: 'right' }} className={netPnlOf(t) > 0 ? 'pos' : netPnlOf(t) < 0 ? 'neg' : ''}>{t.pnl != null || t.grossPnl != null ? fmtMoney(netPnlOf(t), currency) : '—'}</td>
                   </tr>

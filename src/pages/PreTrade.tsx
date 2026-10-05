@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { db, nextChecklistSerial } from '../db'
-import { useLiveQuery, instrumentsFor, indiaInstruments, defaultInstrument, SEGMENTS, type Segment } from '../util'
+import { useLiveQuery, instrumentsFor, indiaInstruments, defaultInstrument, SEGMENTS, type Segment, displayDirection } from '../util'
 import type { ChecklistEntry, Direction } from '../types'
 import { Modal } from '../components/Modal'
 import { Combobox } from '../components/Combobox'
@@ -109,7 +109,7 @@ export default function PreTrade() {
                     <td><strong>#{e.serial}</strong></td>
                     <td>{format(new Date(e.date + 'T00:00'), 'dd MMM yy')}</td>
                     <td><strong>{e.pair}</strong></td>
-                    <td><span className={e.direction === 'short' ? 'dir-sell' : 'dir-buy'}>{e.direction === 'short' ? '▼' : '▲'}</span></td>
+                    <td><span className={displayDirection(e) === 'short' ? 'dir-sell' : 'dir-buy'}>{displayDirection(e) === 'short' ? '▼' : '▲'}</span></td>
                     <td className="muted">{e.checklistName}</td>
                     <td>
                       <div className="row" style={{ gap: 8, minWidth: 120 }}>

@@ -96,6 +96,15 @@ export function instrumentLabel(t: { pair: string; segment?: string; optionType?
   return t.pair
 }
 
+// Direction FOR DISPLAY. India options are modelled as bought premium with no
+// Buy/Sell choice — the CE/PE carries the view: a CE is bullish (long), a PE
+// is bearish (short). Tables and detail sheets show the effective view so a
+// PE trade never appears as ▲ Buy.
+export function displayDirection(t: { direction?: string; segment?: string; optionType?: string }): 'long' | 'short' {
+  if (t.segment === 'options' && t.optionType === 'PE') return 'short'
+  return t.direction === 'short' ? 'short' : 'long'
+}
+
 export const SESSIONS: { value: string; label: string }[] = [
   { value: 'sydney', label: 'Sydney' },
   { value: 'tokyo', label: 'Tokyo' },

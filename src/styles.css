@@ -1650,3 +1650,26 @@ html[data-amoled='on'] .aurora { display: none; }
 
 /* Ambient canvas backdrop (embers + streaks + lightning) behind every tab */
 .backdrop-fx { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+
+
+/* Phone-friendly trades table: on phones each row shows Pair (with the date
+   folded underneath), R, Outcome and P/L. Dir/Session/Strategy/R:R/Checklist/
+   Account/serial/delete columns hide (delete & full details live in the
+   tap-to-open sheet; the account is in the top-bar switcher). */
+.cell-sub { display: none; }
+@media (max-width: 820px) {
+  .trades-table th, .trades-table td { padding: 10px 7px; font-size: 12px; }
+  .trades-table .col-dir,
+  .trades-table .col-session,
+  .trades-table .col-strategy,
+  .trades-table .col-rr,
+  .trades-table .col-checklist,
+  .trades-table .col-account,
+  .trades-table .col-date,
+  .trades-table .col-del { display: none; }
+  .trades-table .col-serial { display: none; }
+  .trades-table .pair-cell { max-width: 122px; }
+  .trades-table .pair-cell strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .trades-table .cell-sub { display: block; font-size: 10.5px; color: var(--text-faint); margin-top: 2px; }
+  .trades-table .badge { font-size: 10px; padding: 2px 7px; }
+}

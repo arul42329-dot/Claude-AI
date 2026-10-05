@@ -444,7 +444,15 @@ function NewsAlertsCard() {
           {perm === 'granted' && <span className="chip" style={{ color: 'var(--green)', borderColor: 'var(--green)' }}>✓ Allowed</span>}
           {perm === 'denied' && <span className="chip" style={{ color: 'var(--red)', borderColor: 'var(--red)' }}>✗ Blocked</span>}
           {(perm === 'prompt' || perm === 'unknown') && <span className="chip">Not allowed yet</span>}
-          {perm !== 'granted' && (
+          {(perm === 'prompt' || perm === 'unknown') && (
+            <button
+              className="btn sm primary"
+              onClick={() => { ensureNotificationPermission().then(() => refreshPerm()) }}
+            >
+              Enable notifications
+            </button>
+          )}
+          {perm === 'denied' && (
             <button className="btn sm" onClick={() => openNotificationSettings()}>Open phone settings</button>
           )}
           {perm === 'granted' && !exact && (
