@@ -168,6 +168,7 @@ export default function Trades() {
                 <th style={{ textAlign: 'right' }}>P/L</th>
                 <th className="col-checklist">Checklist</th>
                 <th className="col-del"></th>
+                <th className="col-more"></th>
               </tr>
             </thead>
             <tbody>
@@ -189,7 +190,7 @@ export default function Trades() {
                     <td className="col-date">{format(tradeDate(t), 'dd MMM yy')}</td>
                     <td className="pair-cell">
                       <strong>{instrumentLabel(t)}</strong>{shotCount(t) > 0 && <span className="shot-mark" title={`${shotCount(t)} screenshot${shotCount(t) === 1 ? '' : 's'}`}>📷 {shotCount(t)}</span>}
-                      <span className="cell-sub">{format(tradeDate(t), 'dd MMM yy')}</span>
+                      <span className="cell-sub">{format(tradeDate(t), 'dd MMM yy')} · {displayDirection(t) === 'long' ? '▲' : '▼'}{t.strategy ? ` ${t.strategy}` : ''}</span>
                     </td>
                     <td className="col-dir"><span className={displayDirection(t) === 'long' ? 'dir-buy' : 'dir-sell'}>{displayDirection(t) === 'long' ? '▲' : '▼'}</span></td>
                     <td className="muted col-session" style={{ textTransform: 'capitalize' }}>{t.session}</td>
@@ -208,6 +209,7 @@ export default function Trades() {
                         : (pct != null ? `${pct}%` : '—')}
                     </td>
                     <td className="col-del"><button className="icon-btn" onClick={(e) => remove(t.id, e)} title="Delete">🗑️</button></td>
+                    <td className="col-more"><button className="icon-btn" onClick={(e) => { e.stopPropagation(); setDetail(t) }} title="More options">⋯</button></td>
                   </tr>
                 )
               })}
