@@ -20,12 +20,13 @@ import { isLockEnabled, setPin, removeLock } from '../lock'
 import { getEcon } from '../econ'
 import {
   newsAlertsSupported, isNewsAlertsEnabled, setNewsAlertsEnabled,
-  syncNewsAlerts, cancelAllNewsAlerts, sendTestNewsAlert, LEAD_MINUTES,
+  syncNewsAlerts, cancelAllNewsAlerts, sendTestNewsAlert, LEAD_MINUTES, requestNotificationPermission,
   getSessionAlertPrefs, setSessionAlertPrefs, syncSessionAlerts, cancelSessionAlerts,
   ensureNotificationPermission, notificationPermission, pendingAlertCount,
   type SessionAlertPrefs,
 } from '../newsAlerts'
 import { openNotificationSettings, openExactAlarmSettings, exactAlarmsAllowed } from '../biometric'
+import { isIndexAlertsEnabled, setIndexAlertsEnabled, startIndexAlertPolling, stopIndexAlertPolling } from '../indexAlerts'
 import { appVersion, checkForUpdate, openUpdateDownload, type UpdateInfo } from '../updates'
 
 const CURRENCIES = ['USD', 'EUR', 'GBP', 'JPY', 'INR', 'AUD', 'CAD', 'CHF', 'NZD', 'SGD', 'AED', 'ZAR']
@@ -367,6 +368,7 @@ function NewsAlertsCard() {
   const [supported] = useState(() => newsAlertsSupported())
   const [enabled, setEnabled] = useState(() => isNewsAlertsEnabled())
   const [sessions, setSessions] = useState<SessionAlertPrefs>(() => getSessionAlertPrefs())
+  const [indexOn, setIndexOn] = useState(() => isIndexAlertsEnabled())
   const [perm, setPerm] = useState<'granted' | 'denied' | 'prompt' | 'unknown'>('unknown')
   const [exact, setExact] = useState(true)
   const [pending, setPending] = useState(-1)
@@ -432,6 +434,27 @@ function NewsAlertsCard() {
     if (n > 0) toast('Session alert booked ✓')
   }
 
+  async function toggleIndex(on: boolean) {
+    setIndexOn(on)
+    setIndexAlertsEnabled(on)
+    if (on) {
+      startIndexAlertPolling()
+      try {
+        const r = await requestNotificationPermission()
+        if (r === 'granted') toast('Index trend alerts on ✓')
+        else if (r === 'denied') toast('Alerts on, but Android blocked them — tap "Open phone settings" above')
+        else toast('Index trend alerts on ✓')
+      } catch {
+        toast('Index trend alerts on ✓')
+      } finally {
+        refreshPerm()
+      }
+    } else {
+      stopIndexAlertPolling()
+      toast('Index trend alerts off')
+    }
+  }
+
   if (!supported) return null
 
   return (
@@ -447,7 +470,22 @@ function NewsAlertsCard() {
           {(perm === 'prompt' || perm === 'unknown') && (
             <button
               className="btn sm primary"
-              onClick={() => { ensureNotificationPermission().then(() => refreshPerm()) }}
+              disabled={busy}
+              onClick={async () => {
+                setBusy(true)
+                try {
+                  const r = await requestNotificationPermission()
+                  if (r === 'granted') toast('Notifications allowed ✓')
+                  else if (r === 'denied') toast('Android blocked them — tap "Open phone settings" below')
+                  else if (r === 'prompt') toast('Dialog dismissed — tap Enable notifications again')
+                  else toast('Notifications not available in this build')
+                } catch {
+                  toast('Notifications not available in this build')
+                } finally {
+                  setBusy(false)
+                  refreshPerm()
+                }
+              }}
             >
               Enable notifications
             </button>
@@ -486,6 +524,12 @@ function NewsAlertsCard() {
       <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13.5 }}>
         <input type="checkbox" checked={sessions.newyork} onChange={(e) => toggleSession('newyork', e.target.checked)} />
         <span>🇺🇸 New York session open <span className="muted" style={{ fontSize: 12 }}>(08:00 New York time)</span></span>
+      </label>
+
+      <div style={{ borderTop: '1px solid var(--hairline)', margin: '16px 0 12px' }} />
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13.5 }}>
+        <input type="checkbox" checked={indexOn} onChange={(e) => toggleIndex(e.target.checked)} />
+        <span>📈 Index 15m trend flip <span className="muted" style={{ fontSize: 12 }}>(NIFTY · BANKNIFTY · SENSEX)</span></span>
       </label>
     </div>
   )
@@ -550,6 +594,8 @@ function IndiaDefaultsCard() {
   const [d, setD] = useState(() => getIndiaDefaults())
   // Lot editor modal: null = closed; { original } = editing, undefined original = adding.
   const [editor, setEditor] = useState<{ original?: string; name: string; qty: number } | null>(null)
+  // Lot sizes + brokerage live behind one button → popup.
+  const [open, setOpen] = useState(false)
   if (!isIndia) return null // India-only card (switch to India mode to edit)
 
   function persist(next: ReturnType<typeof getIndiaDefaults>) {
@@ -587,6 +633,19 @@ function IndiaDefaultsCard() {
     <div className="card">
       <h3>🇮🇳 India trading defaults</h3>
 
+      <div className="row" style={{ alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 4 }}>
+        <button className="btn primary" onClick={() => setOpen(true)}>Lot sizes & brokerage</button>
+        <span className="muted" style={{ fontSize: 12 }}>
+          {names.length} instrument{names.length === 1 ? '' : 's'} · options ₹{d.brokerageOptionsBuy}+₹{d.brokerageOptionsSell} / order
+        </span>
+      </div>
+
+      {open && (
+      <Modal
+        title="Lot sizes & brokerage"
+        onClose={() => setOpen(false)}
+        footer={<button className="btn primary" onClick={() => setOpen(false)}>Done</button>}
+      >
       <div className="form-grid" style={{ marginTop: 4 }}>
         <div className="field">
           <label>Options brokerage · BUY leg (₹ per order)</label>
@@ -644,6 +703,8 @@ function IndiaDefaultsCard() {
           </div>
 
         </Modal>
+      )}
+      </Modal>
       )}
     </div>
   )

@@ -4,6 +4,7 @@ import { maybeDailyBackup } from './drive'
 import { getSettings, ensureModeAccount } from './db'
 import { getEcon } from './econ'
 import { syncNewsAlerts, syncSessionAlerts, ensureNotificationPermission } from './newsAlerts'
+import { startIndexAlertPolling, stopIndexAlertPolling } from './indexAlerts'
 import { checkForUpdate, appVersion } from './updates'
 import { isAmoledEnabled, applyAmoled, getTouchFx, applyTouchFx, applyTimeTheme } from './theme'
 import { isNativePlatform } from './candles'
@@ -76,11 +77,15 @@ function AppShell() {
     const id = window.setInterval(sync, 45 * 60 * 1000)
     const onOnline = () => sync()
     window.addEventListener('online', onOnline)
+    // 15-min index trend-flip alerts (NIFTY/BANKNIFTY/SENSEX) — polls only
+    // during market hours while the app is open.
+    startIndexAlertPolling()
     return () => {
       window.clearTimeout(t0)
       window.clearTimeout(t)
       window.clearInterval(id)
       window.removeEventListener('online', onOnline)
+      stopIndexAlertPolling()
     }
   }, [])
   // Android hardware back button: go back a page, or double-press to exit

@@ -53,9 +53,17 @@ function notifId(eventId: string): number {
   return (Math.abs(h) % 2147483000) + 1
 }
 
-async function loadPlugin(): Promise<LocalNotificationsPlugin | null> {
+// The plugin proxy is returned inside a container object. Resolving a promise
+// WITH the proxy itself would make JS run its thenable check — calling
+// `.then` on it — which Capacitor's stub rejects ("LocalNotifications.then()
+// is not implemented"), an unhandled rejection that escapes ordinary
+// try/catch and leaves UI handlers dead. The container makes awaiting safe.
+async function loadPlugin(): Promise<{ LN: LocalNotificationsPlugin } | null> {
   if (!newsAlertsSupported()) return null
-  try { return (await import('@capacitor/local-notifications')).LocalNotifications } catch { return null }
+  try {
+    const mod = await import('@capacitor/local-notifications')
+    return { LN: mod.LocalNotifications }
+  } catch { return null }
 }
 
 async function tradedCurrencies(): Promise<Set<string>> {
@@ -84,14 +92,29 @@ async function ensurePermission(LN: LocalNotificationsPlugin): Promise<boolean> 
 // call repeatedly: if already granted/denied it's a no-op. Called at app boot
 // so the system dialog always appears, even if the calendar feed is slow/down.
 export async function ensureNotificationPermission(): Promise<boolean> {
-  const LN = await loadPlugin()
+  const LN = (await loadPlugin())?.LN ?? null
   if (!LN) return false
   return ensurePermission(LN)
 }
 
+// Request the notification permission and report exactly what happened —
+// used by the Alerts card button so a dead/missing plugin or a dismissed
+// dialog is VISIBLE to the user instead of failing silently.
+export type PermRequestResult = 'granted' | 'denied' | 'prompt' | 'no-plugin' | 'error'
+
+export async function requestNotificationPermission(): Promise<PermRequestResult> {
+  const LN = (await loadPlugin())?.LN ?? null
+  if (!LN) return 'no-plugin'
+  try {
+    const p = await LN.requestPermissions()
+    if (p.display === 'granted' || p.display === 'denied' || p.display === 'prompt') return p.display
+    return 'error'
+  } catch { return 'error' }
+}
+
 // Current notification permission for the Alerts card status line.
 export async function notificationPermission(): Promise<'granted' | 'denied' | 'prompt' | 'unknown'> {
-  const LN = await loadPlugin()
+  const LN = (await loadPlugin())?.LN ?? null
   if (!LN) return 'unknown'
   try {
     const p = await LN.checkPermissions()
@@ -114,7 +137,7 @@ export interface NewsAlertSync {
 // already-scheduled events are skipped, so this is an idempotent "make sure
 // the next 24h of big news has an alarm booked" pass.
 export async function syncNewsAlerts(snap: EconSnapshot | null): Promise<NewsAlertSync> {
-  const LN = await loadPlugin()
+  const LN = (await loadPlugin())?.LN ?? null
   if (!LN || !isNewsAlertsEnabled() || !snap?.events.length) return { scheduled: 0, permissionDenied: false }
   if (!(await ensurePermission(LN))) return { scheduled: 0, permissionDenied: true }
 
@@ -167,7 +190,7 @@ export async function syncNewsAlerts(snap: EconSnapshot | null): Promise<NewsAle
 // Cancel every pending news alert (used when the user turns alerts off).
 // Session-open alerts use their own id range and are left alone.
 export async function cancelAllNewsAlerts(): Promise<void> {
-  const LN = await loadPlugin()
+  const LN = (await loadPlugin())?.LN ?? null
   if (!LN) return
   try {
     const pend = await LN.getPending()
@@ -238,7 +261,7 @@ function isSessionAlertId(id: number): boolean {
 // Book session-open notifications for the next `days` days (re-synced on every
 // app open, mirroring the news alerts). Idempotent via the pending list.
 export async function syncSessionAlerts(days = 2): Promise<number> {
-  const LN = await loadPlugin()
+  const LN = (await loadPlugin())?.LN ?? null
   if (!LN) return 0
   const prefs = getSessionAlertPrefs()
   if (!prefs.london && !prefs.newyork) return 0
@@ -295,7 +318,7 @@ export async function syncSessionAlerts(days = 2): Promise<number> {
 
 // Cancel only the session-open alerts (used when both toggles are turned off).
 export async function cancelSessionAlerts(): Promise<void> {
-  const LN = await loadPlugin()
+  const LN = (await loadPlugin())?.LN ?? null
   if (!LN) return
   try {
     const pend = await LN.getPending()
@@ -306,7 +329,7 @@ export async function cancelSessionAlerts(): Promise<void> {
 
 // How many alerts are currently booked on the device (diagnostics in Settings).
 export async function pendingAlertCount(): Promise<number> {
-  const LN = await loadPlugin()
+  const LN = (await loadPlugin())?.LN ?? null
   if (!LN) return -1
   try {
     const pend = await LN.getPending()
@@ -317,7 +340,7 @@ export async function pendingAlertCount(): Promise<number> {
 // Fire a one-off sample notification a few seconds out, so the user can
 // verify alerts work on their phone.
 export async function sendTestNewsAlert(): Promise<boolean> {
-  const LN = await loadPlugin()
+  const LN = (await loadPlugin())?.LN ?? null
   if (!LN) return false
   if (!(await ensurePermission(LN))) return false
   try {
