@@ -1652,36 +1652,65 @@ html[data-amoled='on'] .aurora { display: none; }
 .backdrop-fx { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
 
 
-/* Phone-friendly trades table: on phones each row shows Pair (with the date,
-   direction arrow and strategy folded underneath), R, Outcome, P/L and a ⋯
-   more-options button that opens the full sheet (edit/delete/every fact).
-   Session/R:R/Checklist/Account/serial columns hide (they live in the sheet;
-   the account is in the top-bar switcher). Desktop keeps every column and
-   hides the redundant ⋯. */
+/* Phone-friendly trades list: on phones the table becomes a list of card
+   rows — [▲/▼ badge] [Pair + date·strategy·R·account] [outcome] [P/L] [⋯] —
+   so every value sits in a fixed position and stays perfectly aligned at any
+   screen width and font size. Everything else (session, R:R, checklist,
+   serial, delete) lives in the tap-to-open sheet. Desktop keeps the full
+   13-column table and hides the redundant ⋯. */
 .trades-table .col-more { display: none; }
 .cell-sub { display: none; }
 @media (max-width: 820px) {
-  .trades-table th, .trades-table td { padding: 10px 6px; font-size: 12px; }
-  @media (max-width: 480px) {
-    .trades-table th, .trades-table td { padding: 10px 4px; }
+  .trades-table, .trades-table tbody { display: block; width: 100%; }
+  .trades-table thead { display: none; }
+  .trades-table tr {
+    display: grid;
+    grid-template-columns: 28px minmax(0, 1fr) auto auto 28px;
+    align-items: center;
+    column-gap: 9px;
+    padding: 11px 12px;
+    border-bottom: 1px solid var(--hairline);
   }
-  .trades-table .col-dir,
+  .trades-table tr:last-child { border-bottom: none; }
+  .trades-table td { display: block; padding: 0; font-size: 13px; white-space: nowrap; }
+
+  /* direction badge — always visible, colour-coded */
+  .trades-table .col-dir { grid-column: 1; }
+  .trades-table .col-dir .dir-buy, .trades-table .col-dir .dir-sell {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px; border-radius: 9px; font-size: 15px;
+  }
+  .trades-table .col-dir .dir-buy { background: rgba(61, 220, 151, 0.13); }
+  .trades-table .col-dir .dir-sell { background: rgba(255, 107, 129, 0.13); }
+
+  /* pair name + meta line */
+  .trades-table .pair-cell { grid-column: 2; min-width: 0; }
+  .trades-table .pair-cell strong {
+    display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font-size: 13.5px;
+  }
+  .trades-table .cell-sub {
+    display: block; font-size: 11px; color: var(--text-faint); margin-top: 3px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+
+  /* outcome, P/L, ⋯ — fixed columns, edges aligned across rows. The vw caps
+     keep the auto tracks bounded even if the browser inflates text, so the
+     row can never overflow sideways (values ellipsize instead). */
+  .trades-table .col-outcome { grid-column: 3; }
+  .trades-table .col-pnl { grid-column: 4; text-align: right; font-weight: 700; font-size: 13.5px; max-width: 34vw; overflow: hidden; text-overflow: ellipsis; }
+  .trades-table .col-more { display: block; grid-column: 5; text-align: center; }
+  .trades-table .col-more .icon-btn { font-size: 16px; padding: 5px 6px; }
+  .trades-table .badge { font-size: 10px; padding: 3px 8px; max-width: 24vw; overflow: hidden; text-overflow: ellipsis; }
+
+  /* columns that live in the sheet */
+  .trades-table .col-serial,
+  .trades-table .col-account,
+  .trades-table .col-date,
   .trades-table .col-session,
   .trades-table .col-strategy,
   .trades-table .col-rr,
+  .trades-table .col-r,
   .trades-table .col-checklist,
-  .trades-table .col-account,
-  .trades-table .col-date,
   .trades-table .col-del { display: none; }
-  .trades-table .col-serial { display: none; }
-  .trades-table .pair-cell { max-width: 104px; }
-  .trades-table .pair-cell strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .trades-table .cell-sub { display: block; font-size: 10.5px; color: var(--text-faint); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .trades-table .col-more { display: table-cell; padding: 4px 2px; text-align: center; }
-  .trades-table .col-more .icon-btn { font-size: 15px; padding: 4px 7px; }
-  /* narrow phones (≤480px): denser cells so the whole table — ⋯ included —
-     still fits a 320px screen without any sideways scroll */
-  .trades-table .pair-cell { max-width: 92px; }
-  .trades-table .col-more .icon-btn { padding: 4px 5px; }
-  .trades-table .badge { font-size: 10px; padding: 2px 7px; }
 }

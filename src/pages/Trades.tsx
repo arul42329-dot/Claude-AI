@@ -190,17 +190,19 @@ export default function Trades() {
                     <td className="col-date">{format(tradeDate(t), 'dd MMM yy')}</td>
                     <td className="pair-cell">
                       <strong>{instrumentLabel(t)}</strong>{shotCount(t) > 0 && <span className="shot-mark" title={`${shotCount(t)} screenshot${shotCount(t) === 1 ? '' : 's'}`}>📷 {shotCount(t)}</span>}
-                      <span className="cell-sub">{format(tradeDate(t), 'dd MMM yy')} · {displayDirection(t) === 'long' ? '▲' : '▼'}{t.strategy ? ` ${t.strategy}` : ''}</span>
+                      <span className="cell-sub">
+                        {format(tradeDate(t), 'dd MMM yy')}{t.strategy ? ` · ${t.strategy}` : ''}{tradeR(t) != null ? ` · ${fmtNum(tradeR(t)!, 2)}R` : ''}{showAccountCol && acctMap.get(t.accountId ?? '')?.name ? ` · ${acctMap.get(t.accountId ?? '')!.name}` : ''}
+                      </span>
                     </td>
                     <td className="col-dir"><span className={displayDirection(t) === 'long' ? 'dir-buy' : 'dir-sell'}>{displayDirection(t) === 'long' ? '▲' : '▼'}</span></td>
                     <td className="muted col-session" style={{ textTransform: 'capitalize' }}>{t.session}</td>
                     <td className="muted col-strategy">{t.strategy || '—'}</td>
                     <td className="col-rr">{t.riskReward ? fmtNum(t.riskReward, 2) : '—'}</td>
-                    <td style={{ textAlign: 'right' }} className={tradeR(t) != null ? (tradeR(t)! >= 0 ? 'pos' : 'neg') : ''}>
+                    <td style={{ textAlign: 'right' }} className={`col-r ${tradeR(t) != null ? (tradeR(t)! >= 0 ? 'pos' : 'neg') : ''}`}>
                       {tradeR(t) != null ? fmtNum(tradeR(t)!, 2) : '—'}
                     </td>
-                    <td><span className={'badge ' + t.outcome}>{t.outcome}</span></td>
-                    <td style={{ textAlign: 'right' }} className={netPnlOf(t) > 0 ? 'pos' : netPnlOf(t) < 0 ? 'neg' : ''}>
+                    <td className="col-outcome"><span className={'badge ' + t.outcome}>{t.outcome}</span></td>
+                    <td style={{ textAlign: 'right' }} className={`col-pnl ${netPnlOf(t) > 0 ? 'pos' : netPnlOf(t) < 0 ? 'neg' : ''}`}>
                       {t.pnl != null || t.grossPnl != null ? fmtMoney(netPnlOf(t), currency) : '—'}
                     </td>
                     <td className="muted col-checklist">
