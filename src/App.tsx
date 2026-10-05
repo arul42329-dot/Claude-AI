@@ -5,6 +5,7 @@ import { getSettings, ensureModeAccount } from './db'
 import { getEcon } from './econ'
 import { syncNewsAlerts, syncSessionAlerts, ensureNotificationPermission } from './newsAlerts'
 import { startIndexAlertPolling, stopIndexAlertPolling } from './indexAlerts'
+import { getStoredMode } from './mode'
 import { checkForUpdate, appVersion } from './updates'
 import { isAmoledEnabled, applyAmoled, getTouchFx, applyTouchFx, applyTimeTheme } from './theme'
 import { isNativePlatform } from './candles'
@@ -71,7 +72,8 @@ function AppShell() {
     const t0 = window.setTimeout(() => { ensureNotificationPermission().catch(() => {}) }, 1200)
     const sync = () => {
       getEcon().then((s) => { syncNewsAlerts(s) }).catch(() => {})
-      syncSessionAlerts().catch(() => {})
+      // London/NY session-open alerts are a forex-mode feature.
+      if (getStoredMode() === 'forex') syncSessionAlerts().catch(() => {})
     }
     const t = window.setTimeout(sync, 4000)
     const id = window.setInterval(sync, 45 * 60 * 1000)

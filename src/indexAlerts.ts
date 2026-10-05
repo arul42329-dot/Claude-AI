@@ -8,6 +8,7 @@
 // Markets page uses, notifications through Capacitor's LocalNotifications.
 
 import { isNativePlatform, corsFetch, yfDirectUrl } from './candles'
+import { getStoredMode } from './mode'
 import type { Candle } from './bias'
 
 const ENABLE_KEY = 'edgefolio-index-alerts'
@@ -175,7 +176,8 @@ async function tick(): Promise<void> {
   if (ticking) return
   ticking = true
   try {
-    if (isIndexAlertsEnabled() && inMarketHours()) await checkIndexTrends(true)
+    // India-only feature: skip entirely while the app is in forex mode.
+    if (isIndexAlertsEnabled() && getStoredMode() === 'india' && inMarketHours()) await checkIndexTrends(true)
   } catch { /* ignore */ } finally { ticking = false }
 }
 

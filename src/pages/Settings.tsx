@@ -365,6 +365,7 @@ function SecurityCard() {
 
 function NewsAlertsCard() {
   const toast = useToast()
+  const { isIndia } = useAppMode()
   const [supported] = useState(() => newsAlertsSupported())
   const [enabled, setEnabled] = useState(() => isNewsAlertsEnabled())
   const [sessions, setSessions] = useState<SessionAlertPrefs>(() => getSessionAlertPrefs())
@@ -516,21 +517,29 @@ function NewsAlertsCard() {
         </>
       )}
 
-      <div style={{ borderTop: '1px solid var(--hairline)', margin: '16px 0 12px' }} />
-      <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13.5, marginBottom: 6 }}>
-        <input type="checkbox" checked={sessions.london} onChange={(e) => toggleSession('london', e.target.checked)} />
-        <span>🇬🇧 London session open <span className="muted" style={{ fontSize: 12 }}>(08:00 London time)</span></span>
-      </label>
-      <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13.5 }}>
-        <input type="checkbox" checked={sessions.newyork} onChange={(e) => toggleSession('newyork', e.target.checked)} />
-        <span>🇺🇸 New York session open <span className="muted" style={{ fontSize: 12 }}>(08:00 New York time)</span></span>
-      </label>
+      {!isIndia && (
+        <>
+          <div style={{ borderTop: '1px solid var(--hairline)', margin: '16px 0 12px' }} />
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13.5, marginBottom: 6 }}>
+            <input type="checkbox" checked={sessions.london} onChange={(e) => toggleSession('london', e.target.checked)} />
+            <span>🇬🇧 London session open <span className="muted" style={{ fontSize: 12 }}>(08:00 London time)</span></span>
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13.5 }}>
+            <input type="checkbox" checked={sessions.newyork} onChange={(e) => toggleSession('newyork', e.target.checked)} />
+            <span>🇺🇸 New York session open <span className="muted" style={{ fontSize: 12 }}>(08:00 New York time)</span></span>
+          </label>
+        </>
+      )}
 
-      <div style={{ borderTop: '1px solid var(--hairline)', margin: '16px 0 12px' }} />
-      <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13.5 }}>
-        <input type="checkbox" checked={indexOn} onChange={(e) => toggleIndex(e.target.checked)} />
-        <span>📈 Index 15m trend flip <span className="muted" style={{ fontSize: 12 }}>(NIFTY · BANKNIFTY · SENSEX)</span></span>
-      </label>
+      {isIndia && (
+        <>
+          <div style={{ borderTop: '1px solid var(--hairline)', margin: '16px 0 12px' }} />
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13.5 }}>
+            <input type="checkbox" checked={indexOn} onChange={(e) => toggleIndex(e.target.checked)} />
+            <span>📈 Index 15m trend flip <span className="muted" style={{ fontSize: 12 }}>(NIFTY · BANKNIFTY · SENSEX)</span></span>
+          </label>
+        </>
+      )}
     </div>
   )
 }
