@@ -4,9 +4,10 @@ import { isBackdropFxOn, isDaytime, moonPhase } from '../theme'
 // Ambient background motion, painted on ONE fixed canvas behind every tab:
 //   · a SUN by day / a MOON at night — living inside a dedicated sky zone
 //     (always fully visible) where it slowly orbits so the movement is easy
-//     to see: on phones it sits right BESIDE the page name ("Dashboard" …),
-//     in the clear band above the stat cards; on desktop in the top-right
-//     corner; the moon is drawn with its REAL phase for today's date
+//     to see: on phones it sits at ONE FIXED spot in the title band — the
+//     same on every tab, clear of every page name — and on desktop in the
+//     top-right corner; the moon is drawn with its REAL phase for today's
+//     date
 //   · BIRDS — little flapping silhouettes drifting across the sky zone at
 //     random heights and speeds, passing the sun by day / the moon by night
 //   · STARS at night — twinkling pinpricks all over the sky, a few with a
@@ -86,28 +87,12 @@ export function Backdrop() {
       accent2 = parse(cs.getPropertyValue('--accent-2'), 'f2cd7f')
       day = isDaytime()
       phase = moonPhase()
-      measureTitle()
     }
-    // Phone sky-zone anchor, measured from the live page title ("Dashboard" …):
-    // the sun/moon sits right AFTER the name, on its line — the only band on
-    // a phone that is always clear (below the sticky top bar, above the stat
-    // cards). Re-measured every second so navigating pages re-anchors it.
+    // Phone sky-zone anchor: ONE FIXED spot for every tab — in the title row
+    // (which never holds buttons; they wrap to a second row below), just
+    // right of the longest page name ("Pre-Trade Checklist" ends ~227px), so
+    // the sun/moon never overlaps any title and never changes place per tab.
     // Desktop keeps its zone in the top-right corner (left side = sidebar).
-    let titleCy = 94
-    let titleRight = 150
-    const measureTitle = () => {
-      try {
-        const h1 = document.querySelector('.page-head h1')
-        if (!h1) return
-        const range = document.createRange()
-        range.selectNodeContents(h1)
-        const b = range.getBoundingClientRect()
-        if (b.width <= 0) return
-        titleCy = b.top + window.scrollY + b.height / 2
-        titleRight = b.right + 14
-      } catch { /* keep the last anchor */ }
-    }
-    measureTitle()
     readTheme()
     let lastRead = 0
 
@@ -161,7 +146,7 @@ export function Backdrop() {
       return {
         x: dir > 0 ? -40 - rand(0, W * 0.4) : W + 40 + rand(0, W * 0.4),
         y: W <= 820
-          ? rand(Math.max(72, titleCy - 24), titleCy + 34) // the title band beside the sun/moon
+          ? rand(70, 110) // the fixed title band — same strip on every tab
           : rand(20, 164), // desktop sky band
         vx: dir * rand(46, 95),
         size: rand(4.5, 8),
@@ -200,13 +185,14 @@ export function Backdrop() {
     const celestialPos = (t: number) => {
       const a = t * 0.00007 // ~90s per revolution — gently visible drift
       if (W <= 820) {
-        // beside the page name: a smaller body in a gently elliptical orbit
-        // that stays inside the clear title band (topbar above, cards below)
-        const bodyR = Math.max(12, Math.min(17, W * 0.035))
-        const rx = Math.max(16, Math.min(26, W * 0.07))
-        const ry = rx * 0.5
-        const zx = Math.min(Math.max(titleRight + bodyR + rx + 4, bodyR + rx + 30), W - 14 - bodyR - rx)
-        const zy = Math.min(Math.max(titleCy, 86), 112)
+        // fixed spot in the title band — same on EVERY tab: a small body in
+        // a gently elliptical micro-orbit, clear of the topbar (above), the
+        // second-row buttons and the stat cards (below), and every page name
+        const bodyR = Math.max(11, Math.min(13, W * 0.034))
+        const rx = 8
+        const ry = 4
+        const zx = Math.min(252, W - 68)
+        const zy = 92
         return { x: zx + Math.cos(a) * rx, y: zy + Math.sin(a) * ry, r: bodyR }
       }
       const zoneR = Math.max(56, Math.min(92, Math.min(W, H) * 0.16))
