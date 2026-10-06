@@ -9,6 +9,8 @@ import { isBackdropFxOn, isDaytime, moonPhase } from '../theme'
 //     corner; the moon is drawn with its REAL phase for today's date
 //   · BIRDS — little flapping silhouettes drifting across the sky zone at
 //     random heights and speeds, passing the sun by day / the moon by night
+//   · STARS at night — twinkling pinpricks all over the sky, a few with a
+//     soft glow and a four-point sparkle
 //   · a drifting ember field (accent-coloured particles floating up, twinkling)
 //   · meteor streaks sweeping diagonally every few seconds
 //   · an occasional lightning bolt flashing down from the top
@@ -36,6 +38,24 @@ export function Backdrop() {
     let raf = 0
     let alive = true
     let W = 0, H = 0, dpr = 1
+    const rand = (a: number, b: number) => a + Math.random() * (b - a)
+
+    // ---- stars (night only) ----
+    // Twinkling pinpricks scattered over the whole sky. Regenerated on resize
+    // so they always spread across the current screen. A handful are larger
+    // and get a soft glow + a little four-point sparkle.
+    interface Star { x: number; y: number; r: number; base: number; amp: number; ph: number; sp: number; bright: boolean }
+    let stars: Star[] = []
+    const makeStars = () => {
+      const n = Math.round(Math.min(150, Math.max(45, (W * H) / 13000)))
+      stars = Array.from({ length: n }, () => ({
+        x: rand(0, W), y: rand(0, H),
+        r: rand(0.5, 1.7),
+        base: rand(0.18, 0.5), amp: rand(0.18, 0.4),
+        ph: rand(0, Math.PI * 2), sp: rand(0.4, 1.6),
+        bright: Math.random() < 0.12,
+      }))
+    }
 
     const resize = () => {
       dpr = Math.min(2, window.devicePixelRatio || 1)
@@ -45,6 +65,7 @@ export function Backdrop() {
       canvas.height = Math.round(H * dpr)
       canvas.style.width = W + 'px'
       canvas.style.height = H + 'px'
+      makeStars()
     }
     resize()
     window.addEventListener('resize', resize)
@@ -89,9 +110,6 @@ export function Backdrop() {
     measureTitle()
     readTheme()
     let lastRead = 0
-
-    const rand = (a: number, b: number) => a + Math.random() * (b - a)
-
 
     // ---- ember field ----
     interface P { x: number; y: number; r: number; vy: number; drift: number; phase: number; tw: number; a: number }
@@ -371,6 +389,35 @@ export function Backdrop() {
 
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
       ctx.clearRect(0, 0, W, H)
+
+      // stars come out at night — twinkling across the whole sky
+      if (!day) {
+        for (const st of stars) {
+          const a = Math.max(0.04, st.base + st.amp * Math.sin(t * 0.001 * st.sp + st.ph))
+          if (st.bright) {
+            // soft glow halo
+            const g = ctx.createRadialGradient(st.x, st.y, 0, st.x, st.y, st.r * 5)
+            g.addColorStop(0, `rgba(226,232,246,${(a * 0.35).toFixed(3)})`)
+            g.addColorStop(1, 'rgba(226,232,246,0)')
+            ctx.fillStyle = g
+            ctx.beginPath()
+            ctx.arc(st.x, st.y, st.r * 5, 0, Math.PI * 2)
+            ctx.fill()
+            // four-point sparkle
+            ctx.strokeStyle = `rgba(240,244,252,${(a * 0.5).toFixed(3)})`
+            ctx.lineWidth = 0.7
+            const l = st.r * 4
+            ctx.beginPath()
+            ctx.moveTo(st.x - l, st.y); ctx.lineTo(st.x + l, st.y)
+            ctx.moveTo(st.x, st.y - l); ctx.lineTo(st.x, st.y + l)
+            ctx.stroke()
+          }
+          ctx.fillStyle = `rgba(230,236,248,${a.toFixed(3)})`
+          ctx.beginPath()
+          ctx.arc(st.x, st.y, st.r, 0, Math.PI * 2)
+          ctx.fill()
+        }
+      }
 
       // sun by day / moon (with tonight's real phase) by night — confined to
       // the sky zone, orbiting slowly so the motion is visible
