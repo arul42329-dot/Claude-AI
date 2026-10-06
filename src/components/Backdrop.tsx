@@ -4,9 +4,9 @@ import { isBackdropFxOn, isDaytime, moonPhase } from '../theme'
 // Ambient background motion, painted on ONE fixed canvas behind every tab:
 //   · a SUN by day / a MOON at night — living inside a dedicated sky zone
 //     (always fully visible) where it slowly orbits so the movement is easy
-//     to see: on phones it sits on the LEFT, just below the page name, and on
-//     desktop in the top-right corner; the moon is drawn with its REAL phase
-//     for today's date
+//     to see: on phones it sits right BESIDE the page name ("Dashboard" …),
+//     in the clear band above the stat cards; on desktop in the top-right
+//     corner; the moon is drawn with its REAL phase for today's date
 //   · BIRDS — little flapping silhouettes drifting across the sky zone at
 //     random heights and speeds, passing the sun by day / the moon by night
 //   · a drifting ember field (accent-coloured particles floating up, twinkling)
@@ -65,16 +65,33 @@ export function Backdrop() {
       accent2 = parse(cs.getPropertyValue('--accent-2'), 'f2cd7f')
       day = isDaytime()
       phase = moonPhase()
+      measureTitle()
     }
+    // Phone sky-zone anchor, measured from the live page title ("Dashboard" …):
+    // the sun/moon sits right AFTER the name, on its line — the only band on
+    // a phone that is always clear (below the sticky top bar, above the stat
+    // cards). Re-measured every second so navigating pages re-anchors it.
+    // Desktop keeps its zone in the top-right corner (left side = sidebar).
+    let titleCy = 94
+    let titleRight = 150
+    const measureTitle = () => {
+      try {
+        const h1 = document.querySelector('.page-head h1')
+        if (!h1) return
+        const range = document.createRange()
+        range.selectNodeContents(h1)
+        const b = range.getBoundingClientRect()
+        if (b.width <= 0) return
+        titleCy = b.top + window.scrollY + b.height / 2
+        titleRight = b.right + 14
+      } catch { /* keep the last anchor */ }
+    }
+    measureTitle()
     readTheme()
     let lastRead = 0
 
     const rand = (a: number, b: number) => a + Math.random() * (b - a)
 
-    // Top edge of the dedicated sky zone: on phones it starts just below the
-    // page name row ("Dashboard" …) under the sticky top bar; desktop has no
-    // top bar and keeps its zone in the top-right corner.
-    const skyZoneTop = () => (W <= 820 ? 132 : 14)
 
     // ---- ember field ----
     interface P { x: number; y: number; r: number; vy: number; drift: number; phase: number; tw: number; a: number }
@@ -125,7 +142,9 @@ export function Backdrop() {
       const dir = Math.random() > 0.5 ? 1 : -1
       return {
         x: dir > 0 ? -40 - rand(0, W * 0.4) : W + 40 + rand(0, W * 0.4),
-        y: rand(skyZoneTop() + 6, skyZoneTop() + 150), // the sky band around the zone
+        y: W <= 820
+          ? rand(Math.max(72, titleCy - 24), titleCy + 34) // the title band beside the sun/moon
+          : rand(20, 164), // desktop sky band
         vx: dir * rand(46, 95),
         size: rand(4.5, 8),
         flap: rand(0, Math.PI * 2),
@@ -161,13 +180,23 @@ export function Backdrop() {
     // rotation); which body is up still follows the clock — sun by day, the
     // phase-true moon by night.
     const celestialPos = (t: number) => {
+      const a = t * 0.00007 // ~90s per revolution — gently visible drift
+      if (W <= 820) {
+        // beside the page name: a smaller body in a gently elliptical orbit
+        // that stays inside the clear title band (topbar above, cards below)
+        const bodyR = Math.max(12, Math.min(17, W * 0.035))
+        const rx = Math.max(16, Math.min(26, W * 0.07))
+        const ry = rx * 0.5
+        const zx = Math.min(Math.max(titleRight + bodyR + rx + 4, bodyR + rx + 30), W - 14 - bodyR - rx)
+        const zy = Math.min(Math.max(titleCy, 86), 112)
+        return { x: zx + Math.cos(a) * rx, y: zy + Math.sin(a) * ry, r: bodyR }
+      }
       const zoneR = Math.max(56, Math.min(92, Math.min(W, H) * 0.16))
       const margin = Math.max(14, W * 0.05)
-      const zx = W <= 820 ? zoneR + margin : W - zoneR - margin
-      const zy = skyZoneTop() + zoneR
+      const zx = W - zoneR - margin
+      const zy = 14 + zoneR
       const bodyR = Math.max(15, Math.min(24, zoneR * 0.26))
       const orbit = zoneR - bodyR - 5
-      const a = t * 0.00007 // ~90s per revolution — gently visible drift
       return {
         x: zx + Math.cos(a) * orbit,
         y: zy + Math.sin(a) * orbit * 0.72, // gently elliptical
