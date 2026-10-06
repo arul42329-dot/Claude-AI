@@ -2,10 +2,11 @@ import { useEffect, useRef, useState } from 'react'
 import { isBackdropFxOn, isDaytime, moonPhase } from '../theme'
 
 // Ambient background motion, painted on ONE fixed canvas behind every tab:
-//   · a SUN by day / a MOON at night — living inside a dedicated sky zone in
-//     the top-right corner (always fully visible), where it slowly orbits so
-//     the movement is easy to see; the moon is drawn with its REAL phase for
-//     today's date
+//   · a SUN by day / a MOON at night — living inside a dedicated sky zone
+//     (always fully visible) where it slowly orbits so the movement is easy
+//     to see: on phones it sits on the LEFT, just below the page name, and on
+//     desktop in the top-right corner; the moon is drawn with its REAL phase
+//     for today's date
 //   · BIRDS — little flapping silhouettes drifting across the sky zone at
 //     random heights and speeds, passing the sun by day / the moon by night
 //   · a drifting ember field (accent-coloured particles floating up, twinkling)
@@ -70,9 +71,10 @@ export function Backdrop() {
 
     const rand = (a: number, b: number) => a + Math.random() * (b - a)
 
-    // Top edge of the dedicated sky zone: below the phone's sticky top bar
-    // (there is no top bar on desktop widths).
-    const skyZoneTop = () => (W <= 820 ? 78 : 14)
+    // Top edge of the dedicated sky zone: on phones it starts just below the
+    // page name row ("Dashboard" …) under the sticky top bar; desktop has no
+    // top bar and keeps its zone in the top-right corner.
+    const skyZoneTop = () => (W <= 820 ? 132 : 14)
 
     // ---- ember field ----
     interface P { x: number; y: number; r: number; vy: number; drift: number; phase: number; tw: number; a: number }
@@ -123,7 +125,7 @@ export function Backdrop() {
       const dir = Math.random() > 0.5 ? 1 : -1
       return {
         x: dir > 0 ? -40 - rand(0, W * 0.4) : W + 40 + rand(0, W * 0.4),
-        y: rand(skyZoneTop() + 6, skyZoneTop() + 204), // the sky band around the zone
+        y: rand(skyZoneTop() + 6, skyZoneTop() + 150), // the sky band around the zone
         vx: dir * rand(46, 95),
         size: rand(4.5, 8),
         flap: rand(0, Math.PI * 2),
@@ -152,14 +154,16 @@ export function Backdrop() {
     }
 
     // The sun/moon lives ONLY inside a dedicated sky zone — a circular area
-    // in the top-right corner (below the phone's sticky top bar), so it is
-    // always fully visible and never drifts behind content or off-screen.
+    // that is always fully visible and never drifts off-screen. On phones it
+    // sits on the LEFT, just below the page name ("Dashboard" …); on desktop
+    // it stays in the top-right corner (the left side there is the sidebar).
     // Inside the zone the body slowly orbits (~90s per lap, a clearly visible
     // rotation); which body is up still follows the clock — sun by day, the
     // phase-true moon by night.
     const celestialPos = (t: number) => {
       const zoneR = Math.max(56, Math.min(92, Math.min(W, H) * 0.16))
-      const zx = W - zoneR - Math.max(14, W * 0.05)
+      const margin = Math.max(14, W * 0.05)
+      const zx = W <= 820 ? zoneR + margin : W - zoneR - margin
       const zy = skyZoneTop() + zoneR
       const bodyR = Math.max(15, Math.min(24, zoneR * 0.26))
       const orbit = zoneR - bodyR - 5
