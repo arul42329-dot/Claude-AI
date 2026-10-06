@@ -58,6 +58,13 @@ jobs:
           fi
           grep -n "biometric" android/app/build.gradle || true
           echo "Biometric plugin injected."
+      - name: Add notification small icon resources
+        run: |
+          set -e
+          # ic_stat_logo (white logo silhouette per density) — used by
+          # LocalNotifications as the status-bar icon.
+          cp -r native/android/res/. android/app/src/main/res/
+          find android/app/src/main/res -name 'ic_stat_logo.png' | sort
 
       - name: Sync Capacitor
         run: npx cap sync android

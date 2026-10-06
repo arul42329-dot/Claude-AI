@@ -14,6 +14,13 @@ const config: CapacitorConfig = {
     CapacitorHttp: {
       enabled: true,
     },
+    // Android notification icon: the app logo as a white silhouette (alpha
+    // drawable ic_stat_logo, copied in by CI) + a gold tint, so Edgefolio's
+    // alerts are recognisable in the status bar instead of a generic "i".
+    LocalNotifications: {
+      smallIcon: 'ic_stat_logo',
+      iconColor: '#e8b458',
+    },
   },
 }
 

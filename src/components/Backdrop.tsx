@@ -2,9 +2,12 @@ import { useEffect, useRef, useState } from 'react'
 import { isBackdropFxOn, isDaytime, moonPhase } from '../theme'
 
 // Ambient background motion, painted on ONE fixed canvas behind every tab:
-//   · a SUN by day / a MOON at night — placed by the time of day (it arcs
-//     across the sky from 06:00 to 18:00, and through the night), and the
-//     moon is drawn with its REAL phase for today's date
+//   · a SUN by day / a MOON at night — living inside a dedicated sky zone in
+//     the top-right corner (always fully visible), where it slowly orbits so
+//     the movement is easy to see; the moon is drawn with its REAL phase for
+//     today's date
+//   · BIRDS — little flapping silhouettes drifting across the sky zone at
+//     random heights and speeds, passing the sun by day / the moon by night
 //   · a drifting ember field (accent-coloured particles floating up, twinkling)
 //   · meteor streaks sweeping diagonally every few seconds
 //   · an occasional lightning bolt flashing down from the top
@@ -67,6 +70,10 @@ export function Backdrop() {
 
     const rand = (a: number, b: number) => a + Math.random() * (b - a)
 
+    // Top edge of the dedicated sky zone: below the phone's sticky top bar
+    // (there is no top bar on desktop widths).
+    const skyZoneTop = () => (W <= 820 ? 78 : 14)
+
     // ---- ember field ----
     interface P { x: number; y: number; r: number; vy: number; drift: number; phase: number; tw: number; a: number }
     const count = Math.min(64, Math.max(26, Math.round((W * H) / 26000)))
@@ -110,17 +117,57 @@ export function Backdrop() {
     let nextStreak = performance.now() + rand(1500, 4000)
     let nextBolt = performance.now() + rand(3000, 7000)
 
-    // Where the sun/moon sits right now: it rises at the start of the period,
-    // arcs high across the sky and sets at the end (06:00–18:00 for the sun,
-    // 18:00–06:00 for the moon).
-    const celestialPos = () => {
-      const now = new Date()
-      const h = now.getHours() + now.getMinutes() / 60
-      const p = day ? (h - 6) / 12 : (h >= 18 ? (h - 18) / 12 : (h + 6) / 12)
-      const t = Math.max(0, Math.min(1, p))
+    // ---- birds: little silhouettes flapping across the sky zone ----
+    interface Bird { x: number; y: number; vx: number; size: number; flap: number; flapSpeed: number; bob: number; bobPhase: number }
+    const newBird = (): Bird => {
+      const dir = Math.random() > 0.5 ? 1 : -1
       return {
-        x: W * (0.14 + 0.72 * t),
-        y: H * 0.30 - Math.sin(t * Math.PI) * H * 0.17,
+        x: dir > 0 ? -40 - rand(0, W * 0.4) : W + 40 + rand(0, W * 0.4),
+        y: rand(skyZoneTop() + 6, skyZoneTop() + 204), // the sky band around the zone
+        vx: dir * rand(46, 95),
+        size: rand(4.5, 8),
+        flap: rand(0, Math.PI * 2),
+        flapSpeed: rand(6.5, 10),
+        bob: rand(2.5, 7),
+        bobPhase: rand(0, Math.PI * 2),
+      }
+    }
+    const birds: Bird[] = [0, 1, 2].map(() => {
+      const b = newBird()
+      b.x = rand(0, W) // start mid-flight so the sky is never empty
+      return b
+    })
+    const drawBird = (b: Bird, t: number) => {
+      const wing = Math.sin(b.flap) * 0.5 + 0.22 // wing tips: down-stroke..up-stroke
+      const y = b.y + Math.sin(t * 0.0012 + b.bobPhase) * b.bob
+      const s = b.size
+      ctx.strokeStyle = day ? 'rgba(26,30,40,0.5)' : 'rgba(208,216,230,0.42)'
+      ctx.lineWidth = Math.max(1.1, s * 0.17)
+      ctx.lineCap = 'round'
+      ctx.beginPath()
+      ctx.moveTo(b.x - s, y - wing * s * 0.95)
+      ctx.quadraticCurveTo(b.x - s * 0.45, y + s * 0.2, b.x, y)
+      ctx.quadraticCurveTo(b.x + s * 0.45, y + s * 0.2, b.x + s, y - wing * s * 0.95)
+      ctx.stroke()
+    }
+
+    // The sun/moon lives ONLY inside a dedicated sky zone — a circular area
+    // in the top-right corner (below the phone's sticky top bar), so it is
+    // always fully visible and never drifts behind content or off-screen.
+    // Inside the zone the body slowly orbits (~90s per lap, a clearly visible
+    // rotation); which body is up still follows the clock — sun by day, the
+    // phase-true moon by night.
+    const celestialPos = (t: number) => {
+      const zoneR = Math.max(56, Math.min(92, Math.min(W, H) * 0.16))
+      const zx = W - zoneR - Math.max(14, W * 0.05)
+      const zy = skyZoneTop() + zoneR
+      const bodyR = Math.max(15, Math.min(24, zoneR * 0.26))
+      const orbit = zoneR - bodyR - 5
+      const a = t * 0.00007 // ~90s per revolution — gently visible drift
+      return {
+        x: zx + Math.cos(a) * orbit,
+        y: zy + Math.sin(a) * orbit * 0.72, // gently elliptical
+        r: bodyR,
       }
     }
 
@@ -292,11 +339,20 @@ export function Backdrop() {
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
       ctx.clearRect(0, 0, W, H)
 
-      // sun by day / moon (with tonight's real phase) by night
-      const r = Math.max(26, Math.min(46, Math.min(W, H) * 0.085))
-      const pos = celestialPos()
-      if (day) drawSun(pos.x, pos.y, r, t)
-      else drawMoon(pos.x, pos.y, r)
+      // sun by day / moon (with tonight's real phase) by night — confined to
+      // the sky zone, orbiting slowly so the motion is visible
+      const pos = celestialPos(t)
+      if (day) drawSun(pos.x, pos.y, pos.r, t)
+      else drawMoon(pos.x, pos.y, pos.r)
+
+      // birds drift past, flapping (drawn after the body so they can pass
+      // in front of the sun/moon as little silhouettes)
+      for (const b of birds) {
+        b.x += b.vx * dt
+        b.flap += b.flapSpeed * dt
+        if ((b.vx > 0 && b.x > W + 60) || (b.vx < 0 && b.x < -60)) Object.assign(b, newBird())
+        drawBird(b, t)
+      }
 
       // embers
       for (const p of ps) {
