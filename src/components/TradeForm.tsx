@@ -1,3 +1,4 @@
+import { redistributeDayTax } from '../dayTax'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { db, nextTradeSerial } from '../db'
 import { useLiveQuery, fmtMoney } from '../util'
@@ -184,7 +185,8 @@ export function TradeForm({
   const pnlUnconverted = !isIndia && quoteCcy !== acctCcy && (!rates || convertAmount(1, quoteCcy, acctCcy, rates) == null)
 
   // India costs: brokerage comes from the Settings defaults (per buy/sell leg
-  // for options, flat otherwise); taxes/charges are typed in per trade.
+  // for options, flat otherwise); taxes come from the whole-DAY total,
+  // auto-split across that day's trades (see dayTax.ts).
   const brokerage = useMemo(
     () => (isIndia ? brokerageFor(t.pair, seg, t.lots) : 0),
     [isIndia, t.pair, seg, t.lots],
@@ -333,6 +335,12 @@ export function TradeForm({
       updatedAt: Date.now(),
     }
     await db.trades.put(payload)
+    // Keep the whole-day tax split equal after any add/edit (also handles a
+    // trade moving to a different date: the old day re-splits too).
+    if (isIndia) {
+      await redistributeDayTax(payload.date, 'india')
+      if (initial && initial.date !== payload.date) await redistributeDayTax(initial.date, 'india')
+    }
 
     // Maintain the two-way link between trade and pre-trade checklist entry.
     for (const e of entries ?? []) {
@@ -548,17 +556,11 @@ export function TradeForm({
             <div className="cost-breakdown">
               <span>Gross <strong>{fmtMoney(autoPnl, 'INR')}</strong></span>
               <span className="muted">− brokerage <strong>{fmtMoney(brokerage, 'INR')}</strong></span>
-              <span className="muted">− taxes <strong>{fmtMoney(taxes, 'INR')}</strong></span>
+              <span className="muted">− day tax share <strong>{fmtMoney(taxes, 'INR')}</strong></span>
               <span>= net <strong className={autoNet != null && autoNet >= 0 ? 'pos' : 'neg'}>{autoNet != null ? fmtMoney(autoNet, 'INR') : '—'}</strong></span>
             </div>
           )}
         </div>
-        {isIndia && (
-          <div className="field">
-            <label>Taxes & charges (₹ · this trade)</label>
-            <input className="input" type="number" step="any" value={t.taxes ?? ''} onChange={(e) => setNum('taxes', e.target.value)} placeholder="e.g. 32 (STT, exchange…)" />
-          </div>
-        )}
         {!isIndia && <div className="field"><label>Pips</label><input className="input" type="number" step="any" value={t.pips ?? ''} onChange={(e) => setNum('pips', e.target.value)} /></div>}
         <div className="field">
           <label>Execution rating</label>

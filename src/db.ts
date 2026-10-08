@@ -1,5 +1,5 @@
 import Dexie, { type Table } from 'dexie'
-import type { Trade, Checklist, Settings, ChecklistEntry, Account, JournalEntry, Cashflow } from './types'
+import type { Trade, Checklist, Settings, ChecklistEntry, Account, JournalEntry, Cashflow, DayTax } from './types'
 
 export class JournalDB extends Dexie {
   trades!: Table<Trade, string>
@@ -9,6 +9,7 @@ export class JournalDB extends Dexie {
   journal!: Table<JournalEntry, string>
   settings!: Table<Settings, string>
   cashflows!: Table<Cashflow, string>
+  dayTaxes!: Table<DayTax, string>
 
   constructor() {
     super('fx-journal')
@@ -44,6 +45,26 @@ export class JournalDB extends Dexie {
     // v5 adds the deposit/withdraw log.
     this.version(5).stores({
       cashflows: 'id, date, accountId, createdAt',
+    })
+    // v6 moves taxes to a whole-DAY total: existing per-trade taxes are summed
+    // into one dayTaxes entry per date+market (trade values stay untouched, so
+    // every stat is identical before/after the upgrade).
+    this.version(6).stores({
+      dayTaxes: 'id, date, market',
+    }).upgrade(async (tx) => {
+      const trades = await tx.table('trades').toArray()
+      const perDay = new Map<string, number>()
+      for (const t of trades) {
+        const amount = t.taxes ?? 0
+        if (!amount) continue
+        const market = t.market === 'india' ? 'india' : 'forex'
+        const key = market + ':' + t.date
+        perDay.set(key, (perDay.get(key) || 0) + amount)
+      }
+      for (const [id, amount] of perDay) {
+        const [market, ...rest] = id.split(':')
+        await tx.table('dayTaxes').put({ id, market, date: rest.join(':'), amount: Math.round(amount * 100) / 100, updatedAt: Date.now() })
+      }
     })
   }
 }
@@ -303,7 +324,7 @@ export async function tradesToCsv(): Promise<string> {
 
 // ---------- Backup / restore ----------
 export async function exportAll() {
-  const [trades, checklists, checklistEntries, accounts, journal, settings, cashflows] = await Promise.all([
+  const [trades, checklists, checklistEntries, accounts, journal, settings, cashflows, dayTaxes] = await Promise.all([
     db.trades.toArray(),
     db.checklists.toArray(),
     db.checklistEntries.toArray(),
@@ -311,13 +332,14 @@ export async function exportAll() {
     db.journal.toArray(),
     db.settings.toArray(),
     db.cashflows.toArray(),
+    db.dayTaxes.toArray(),
   ])
-  return { version: 5, exportedAt: new Date().toISOString(), trades, checklists, checklistEntries, accounts, journal, settings, cashflows }
+  return { version: 6, exportedAt: new Date().toISOString(), trades, checklists, checklistEntries, accounts, journal, settings, cashflows, dayTaxes }
 }
 
 export async function importAll(data: any, mode: 'merge' | 'replace' = 'merge') {
   if (!data || !Array.isArray(data.trades)) throw new Error('Invalid backup file')
-  await db.transaction('rw', [db.trades, db.checklists, db.checklistEntries, db.accounts, db.journal, db.settings, db.cashflows], async () => {
+  await db.transaction('rw', [db.trades, db.checklists, db.checklistEntries, db.accounts, db.journal, db.settings, db.cashflows, db.dayTaxes], async () => {
     if (mode === 'replace') {
       await Promise.all([db.trades.clear(), db.checklists.clear(), db.checklistEntries.clear(), db.accounts.clear(), db.journal.clear()])
     }
@@ -327,6 +349,7 @@ export async function importAll(data: any, mode: 'merge' | 'replace' = 'merge') 
     if (Array.isArray(data.accounts)) await db.accounts.bulkPut(data.accounts)
     if (Array.isArray(data.journal)) await db.journal.bulkPut(data.journal)
     if (Array.isArray(data.cashflows)) await db.cashflows.bulkPut(data.cashflows)
+    if (Array.isArray(data.dayTaxes)) await db.dayTaxes.bulkPut(data.dayTaxes)
     if (Array.isArray(data.settings)) await db.settings.bulkPut(data.settings)
   })
   await ensureAccounts()

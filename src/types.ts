@@ -60,6 +60,17 @@ export interface ChecklistResponse {
 
 // Money moving in/out of a trading account that is NOT trading P/L:
 // deposits and withdrawals.
+// A whole-day tax/charges total for one market (STT, exchange fees…).
+// Entered ONCE per day (Trades → Day tax) and split equally across that
+// day's trades automatically — no per-trade tax entry.
+export interface DayTax {
+  id: string // `${market}:${date}`
+  market?: 'forex' | 'india'
+  date: string // yyyy-mm-dd
+  amount: number
+  updatedAt: number
+}
+
 export interface Cashflow {
   id: string
   market?: 'forex' | 'india' // which app mode this belongs to (absent = forex)

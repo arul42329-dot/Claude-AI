@@ -44,6 +44,10 @@ export default function Dashboard() {
   const weekPnl = closed
     .filter((t) => isSameWeek(tradeDate(t), new Date(), { weekStartsOn: 1 }))
     .reduce((a, t) => a + netPnlOf(t), 0)
+  // Taxes entered as whole-day totals (split across each day's trades).
+  // Gross (before tax) = net + taxes, so the Dashboard can show both.
+  const taxTotal = closed.reduce((a, t) => a + (t.taxes ?? 0), 0)
+  const grossPnlTotal = closed.reduce((a, t) => a + netPnlOf(t) + (t.taxes ?? 0), 0)
   // Current win/loss streak over closed trades, oldest → newest.
   const streak = (() => {
     const sorted = [...closed].sort((a, b) => tradeDate(a).getTime() - tradeDate(b).getTime())
@@ -96,10 +100,11 @@ export default function Dashboard() {
       </div>
 
       <div className="grid stat-grid" style={{ marginBottom: 20 }}>
-        <StatCard label="Net P/L" numeric={stats.netPnl} format={(n) => fmtMoney(n, currency)} tone={stats.netPnl > 0 ? 'pos' : stats.netPnl < 0 ? 'neg' : 'neutral'} sub={`${stats.closedTrades} closed trades`} />
+        <StatCard label="Net P/L (after tax)" numeric={stats.netPnl} format={(n) => fmtMoney(n, currency)} tone={stats.netPnl > 0 ? 'pos' : stats.netPnl < 0 ? 'neg' : 'neutral'} sub={`Gross ${fmtMoney(grossPnlTotal, currency)} · ${stats.closedTrades} closed`} />
         <StatCard label="Win rate" numeric={stats.winRate} format={(n) => fmtPct(n)} sub={`${stats.wins}W / ${stats.losses}L / ${stats.breakeven}BE`} />
         <StatCard label="Profit factor" numeric={stats.profitFactor === Infinity ? 999 : stats.profitFactor} format={(n) => (stats.profitFactor === Infinity ? '∞' : fmtNum(n, 2))} tone={stats.profitFactor >= 1 ? 'pos' : 'neg'} sub="Gross profit ÷ gross loss" />
-        <StatCard label="Account balance" numeric={currentBalance} format={(n) => fmtMoney(n, currency)} tone={currentBalance >= startBal ? 'pos' : 'neg'} sub={`Start ${fmtMoney(startBal, currency)}`} />
+        <StatCard label="Gross balance (before tax)" numeric={currentBalance + taxTotal} format={(n) => fmtMoney(n, currency)} tone={currentBalance + taxTotal >= startBal ? 'pos' : 'neg'} sub={`Start ${fmtMoney(startBal, currency)}`} />
+        <StatCard label="Net balance (after tax)" numeric={currentBalance} format={(n) => fmtMoney(n, currency)} tone={currentBalance >= startBal ? 'pos' : 'neg'} sub={`Tax ${fmtMoney(taxTotal, currency)}`} />
         <StatCard label="Expectancy" numeric={stats.expectancy} format={(n) => fmtMoney(n, currency)} tone={stats.expectancy >= 0 ? 'pos' : 'neg'} sub="Avg P/L per trade" />
         <StatCard label="Avg R:R" numeric={stats.avgRr} format={(n) => fmtNum(n, 2)} sub="Planned risk:reward" />
         <StatCard label="Best / Worst" numeric={stats.bestTrade} format={(n) => fmtMoney(n, currency)} tone="pos" sub={`Worst ${fmtMoney(stats.worstTrade, currency)}`} />

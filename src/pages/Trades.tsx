@@ -6,6 +6,9 @@ import { useAppMode, marketOf } from '../mode'
 import type { Trade } from '../types'
 import { TradeForm } from '../components/TradeForm'
 import { TradeDetail } from '../components/TradeDetail'
+import { Modal } from '../components/Modal'
+import { getDayTax, setDayTax, allDayTaxes, redistributeDayTax } from '../dayTax'
+import type { DayTax } from '../types'
 import { useToast } from '../components/Toast'
 import { IndiaFlag } from '../components/Icons'
 import { format } from 'date-fns'
@@ -26,6 +29,10 @@ export default function Trades() {
   const [detail, setDetail] = useState<Trade | undefined>(undefined)
   const [search, setSearch] = useState('')
   const [outcome, setOutcome] = useState('all')
+  const [dayTaxOpen, setDayTaxOpen] = useState(false)
+  const [dayTaxDate, setDayTaxDate] = useState(format(new Date(), 'yyyy-MM-dd'))
+  const [dayTaxAmount, setDayTaxAmount] = useState('')
+  const dayTaxList = useLiveQuery(() => allDayTaxes(mode === 'india' ? 'india' : 'forex'), [mode], [] as DayTax[])
   const toast = useToast()
 
   const trades = scopeTrades(allTrades ?? [], activeId)
@@ -65,15 +72,38 @@ export default function Trades() {
   async function remove(id: string, e: React.MouseEvent) {
     e.stopPropagation()
     if (!confirm('Delete this trade?')) return
+    const t = filtered.find((x) => x.id === id)
     await db.trades.delete(id)
+    if (t) await redistributeDayTax(t.date, 'india')
     toast('Trade deleted')
   }
 
   async function removeTrade(t: Trade) {
     if (!confirm('Delete this trade?')) return
     await db.trades.delete(t.id)
+    await redistributeDayTax(t.date, 'india')
     setDetail(undefined)
     toast('Trade deleted')
+  }
+
+  // Load the stored amount for a date into the editor.
+  async function loadDayTax(date: string) {
+    setDayTaxDate(date)
+    const amt = await getDayTax(date, mode === 'india' ? 'india' : 'forex')
+    setDayTaxAmount(amt ? String(amt) : '')
+  }
+
+  async function saveDayTax() {
+    const amount = Number(dayTaxAmount) || 0
+    if (amount < 0) { toast('Tax cannot be negative'); return }
+    await setDayTax(dayTaxDate, mode === 'india' ? 'india' : 'forex', amount)
+    toast(amount ? `Day tax ${fmtMoney(amount, 'INR')} saved — split across that day's trades ✓` : 'Day tax cleared')
+  }
+
+  async function clearDayTax(date: string) {
+    await setDayTax(date, mode === 'india' ? 'india' : 'forex', 0)
+    if (date === dayTaxDate) setDayTaxAmount('')
+    toast('Day tax cleared')
   }
 
   // CSV of the trades currently in view (respects search + outcome filter).
@@ -134,6 +164,9 @@ export default function Trades() {
           ))}
         </div>
         <button className="btn" onClick={exportCsv} title="Export the trades in view as CSV">⬇ CSV</button>
+        {mode === 'india' && (
+          <button className="btn" onClick={() => { setDayTaxOpen(true); loadDayTax(format(new Date(), 'yyyy-MM-dd')) }} title="Taxes & charges for a whole day">🧾 Day tax</button>
+        )}
       </div>
 
       {filtered.length > 0 && (
@@ -238,6 +271,42 @@ export default function Trades() {
           onEdit={(t) => { setDetail(undefined); openEdit(t) }}
           onDelete={removeTrade}
         />
+      )}
+
+      {dayTaxOpen && (
+        <Modal
+          title="Day tax (whole day)"
+          onClose={() => setDayTaxOpen(false)}
+          footer={
+            <>
+              <button className="btn ghost" onClick={() => setDayTaxOpen(false)}>Close</button>
+              <button className="btn primary" onClick={saveDayTax}>Save</button>
+            </>
+          }
+        >
+          <div className="form-grid">
+            <div className="field">
+              <label>Date</label>
+              <input className="input" type="date" value={dayTaxDate} onChange={(e) => loadDayTax(e.target.value)} />
+            </div>
+            <div className="field">
+              <label>Taxes & charges for the day (₹)</label>
+              <input className="input" type="number" step="any" min="0" value={dayTaxAmount} onChange={(e) => setDayTaxAmount(e.target.value)} placeholder="e.g. 240 (STT, exchange…)" />
+            </div>
+          </div>
+          <div className="lot-list" style={{ marginTop: 14 }}>
+            {(dayTaxList ?? []).slice(0, 10).map((e) => (
+              <div key={e.id} className="acct-row lot-line">
+                <span className="lot-name">{e.date}</span>
+                <span className="chip">{fmtMoney(e.amount, 'INR')}</span>
+                <span className="row" style={{ gap: 4, marginLeft: 'auto' }}>
+                  <button className="icon-btn" title="Edit" onClick={() => loadDayTax(e.date)}>✏️</button>
+                  <button className="icon-btn" title="Remove" onClick={() => clearDayTax(e.date)}>🗑️</button>
+                </span>
+              </div>
+            ))}
+          </div>
+        </Modal>
       )}
     </>
   )
