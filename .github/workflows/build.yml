@@ -67,6 +67,18 @@ jobs:
           fi
           grep -n "EXACT_ALARM" "$MANIFEST" || true
           echo "Biometric plugin injected."
+      - name: Edge-to-edge system bars (true black behind status / nav bar)
+        run: |
+          set -e
+          # Transparent status + navigation bars: the app paints right up to
+          # the screen edges, so AMOLED mode is true black behind the system
+          # bars too (the CSS already pads by env(safe-area-inset-*)).
+          STYLES=android/app/src/main/res/values/styles.xml
+          sed -i 's|<style name="AppTheme.NoActionBar" parent="Theme.AppCompat.DayNight.NoActionBar">|<style name="AppTheme.NoActionBar" parent="Theme.AppCompat.DayNight.NoActionBar">\n        <item name="android:windowDrawsSystemBarBackgrounds">true</item>\n        <item name="android:statusBarColor">@android:color/transparent</item>\n        <item name="android:navigationBarColor">@android:color/transparent</item>|' "$STYLES" || true
+          grep -n "statusBarColor\|navigationBarColor" "$STYLES" || {
+            echo "styles.xml patch failed — dumping file"; cat "$STYLES"; exit 1
+          }
+
       - name: Add notification small icon resources
         run: |
           set -e

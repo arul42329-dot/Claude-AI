@@ -7,6 +7,7 @@ import { saveFileToUser } from '../share'
 import type { Trade } from '../types'
 import { TradeForm } from '../components/TradeForm'
 import { TradeDetail } from '../components/TradeDetail'
+import { LotSizesModal, BrokerageModal } from '../components/IndiaCostModals'
 import { Modal } from '../components/Modal'
 import { getDayTax, setDayTax, allDayTaxes, redistributeDayTax } from '../dayTax'
 import type { DayTax } from '../types'
@@ -31,6 +32,8 @@ export default function Trades() {
   const [search, setSearch] = useState('')
   const [outcome, setOutcome] = useState('all')
   const [dayTaxOpen, setDayTaxOpen] = useState(false)
+  const [lotsOpen, setLotsOpen] = useState(false)
+  const [brokerageOpen, setBrokerageOpen] = useState(false)
   const [dayTaxDate, setDayTaxDate] = useState(format(new Date(), 'yyyy-MM-dd'))
   const [dayTaxAmount, setDayTaxAmount] = useState('')
   const dayTaxList = useLiveQuery(() => allDayTaxes(mode === 'india' ? 'india' : 'forex'), [mode], [] as DayTax[])
@@ -175,7 +178,11 @@ export default function Trades() {
         </div>
         <button className="btn" onClick={exportCsv} title="Export the trades in view as CSV">⬇ CSV</button>
         {mode === 'india' && (
-          <button className="btn" onClick={() => { setDayTaxOpen(true); loadDayTax(format(new Date(), 'yyyy-MM-dd')) }} title="Taxes & charges for a whole day">🧾 Day tax</button>
+          <>
+            <button className="btn" onClick={() => { setDayTaxOpen(true); loadDayTax(format(new Date(), 'yyyy-MM-dd')) }} title="Taxes & charges for a whole day">🧾 Day tax</button>
+            <button className="btn" onClick={() => setLotsOpen(true)} title="Quantity per lot for each instrument">📦 Lot sizes</button>
+            <button className="btn" onClick={() => setBrokerageOpen(true)} title="Brokerage per order / trade">💰 Brokerage</button>
+          </>
         )}
       </div>
 
@@ -286,6 +293,8 @@ export default function Trades() {
         />
       )}
 
+      {lotsOpen && <LotSizesModal onClose={() => setLotsOpen(false)} />}
+      {brokerageOpen && <BrokerageModal onClose={() => setBrokerageOpen(false)} />}
       {dayTaxOpen && (
         <Modal
           title="Day tax (whole day)"

@@ -3,7 +3,6 @@ import { db, getSettings, saveSettings, exportAll, importAll, saveAccount, delet
 import { useLiveQuery, downloadJson, fmtMoney } from '../util'
 import { isAmoledEnabled, setAmoled, setTouchFx, setBackdropFx, isBackdropFxOn, type TouchFx } from '../theme'
 import { saveFileToUser } from '../share'
-import { getIndiaDefaults, saveIndiaDefaults } from '../indiaCosts'
 import { recomputeNetAndOutcomes } from '../outcome'
 import { useToast } from '../components/Toast'
 import { Modal } from '../components/Modal'
@@ -254,7 +253,6 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        <IndiaDefaultsCard />
         <AngelCard />
 
         <DriveBackup />
@@ -654,128 +652,6 @@ function UpdateCard() {
   )
 }
 
-
-function IndiaDefaultsCard() {
-  const { isIndia } = useAppMode()
-  const toast = useToast()
-  const [d, setD] = useState(() => getIndiaDefaults())
-  // Lot editor modal: null = closed; { original } = editing, undefined original = adding.
-  const [editor, setEditor] = useState<{ original?: string; name: string; qty: number } | null>(null)
-  // Lot sizes + brokerage live behind one button → popup.
-  const [open, setOpen] = useState(false)
-  if (!isIndia) return null // India-only card (switch to India mode to edit)
-
-  function persist(next: ReturnType<typeof getIndiaDefaults>) {
-    setD(next)
-    saveIndiaDefaults(next)
-  }
-
-  function setBrokerage(patch: Partial<ReturnType<typeof getIndiaDefaults>>) {
-    persist({ ...d, ...patch })
-  }
-
-  function saveLot() {
-    if (!editor) return
-    const key = editor.name.trim().toUpperCase()
-    if (!key) { toast('Enter an instrument name'); return }
-    if (!Number.isFinite(editor.qty) || editor.qty < 1) { toast('Qty per lot must be at least 1'); return }
-    const lotSizes = { ...d.lotSizes }
-    if (editor.original && editor.original !== key) delete lotSizes[editor.original]
-    lotSizes[key] = Math.round(editor.qty)
-    persist({ ...d, lotSizes })
-    setEditor(null)
-    toast(editor.original ? `${key} lot size updated ✓` : `${key} added ✓`)
-  }
-
-  function removeLot(name: string) {
-    const lotSizes = { ...d.lotSizes }
-    delete lotSizes[name]
-    persist({ ...d, lotSizes })
-    toast(`${name} removed`)
-  }
-
-  const names = Object.keys(d.lotSizes).sort()
-
-  return (
-    <div className="card">
-      <h3>🇮🇳 India trading defaults</h3>
-
-      <div className="row" style={{ alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 4 }}>
-        <button className="btn primary" onClick={() => setOpen(true)}>Lot sizes & brokerage</button>
-        <span className="muted" style={{ fontSize: 12 }}>
-          {names.length} instrument{names.length === 1 ? '' : 's'} · options ₹{d.brokerageOptionsBuy}+₹{d.brokerageOptionsSell} / order
-        </span>
-      </div>
-
-      {open && (
-      <Modal
-        title="Lot sizes & brokerage"
-        onClose={() => setOpen(false)}
-        footer={<button className="btn primary" onClick={() => setOpen(false)}>Done</button>}
-      >
-      <div className="form-grid" style={{ marginTop: 4 }}>
-        <div className="field">
-          <label>Options brokerage · BUY leg (₹ per order)</label>
-          <input className="input" type="number" step="any" value={d.brokerageOptionsBuy} onChange={(e) => setBrokerage({ brokerageOptionsBuy: Number(e.target.value) || 0 })} />
-        </div>
-        <div className="field">
-          <label>Options brokerage · SELL leg (₹ per order)</label>
-          <input className="input" type="number" step="any" value={d.brokerageOptionsSell} onChange={(e) => setBrokerage({ brokerageOptionsSell: Number(e.target.value) || 0 })} />
-        </div>
-        <div className="field">
-          <label>Futures / equity / commodity brokerage (₹ per trade)</label>
-          <input className="input" type="number" step="any" value={d.brokerageFlat} onChange={(e) => setBrokerage({ brokerageFlat: Number(e.target.value) || 0 })} />
-        </div>
-      </div>
-
-      <div className="field" style={{ marginTop: 16 }}>
-        <label>Lot sizes (qty per lot · auto-filled per instrument)</label>
-        {names.length === 0 && <p className="muted" style={{ fontSize: 12.5 }}>No instruments yet — add one below.</p>}
-        <div className="lot-list">
-          {names.map((n) => (
-            <div key={n} className="acct-row lot-line">
-              <span className="lot-name">{n}</span>
-              <span className="chip">{d.lotSizes[n]} <span className="muted" style={{ fontSize: 10.5 }}>/ lot</span></span>
-              <span className="row" style={{ gap: 4, marginLeft: 'auto' }}>
-                <button className="icon-btn" title="Edit lot size" onClick={() => setEditor({ original: n, name: n, qty: d.lotSizes[n] })}>✏️</button>
-                <button className="icon-btn" title="Remove" onClick={() => removeLot(n)}>🗑️</button>
-              </span>
-            </div>
-          ))}
-        </div>
-        <button className="btn" style={{ marginTop: 12 }} onClick={() => setEditor({ name: '', qty: 75 })}>＋ Add instrument</button>
-      </div>
-
-
-      {editor && (
-        <Modal
-          title={editor.original ? `Edit · ${editor.original}` : 'Add instrument'}
-          onClose={() => setEditor(null)}
-          footer={
-            <>
-              <button className="btn ghost" onClick={() => setEditor(null)}>Cancel</button>
-              <button className="btn primary" onClick={saveLot}>{editor.original ? 'Save changes' : 'Add instrument'}</button>
-            </>
-          }
-        >
-          <div className="form-grid">
-            <div className="field">
-              <label>Instrument name</label>
-              <input className="input" value={editor.name} onChange={(e) => setEditor({ ...editor, name: e.target.value })} placeholder="e.g. NIFTY NEXT 50" autoFocus />
-            </div>
-            <div className="field">
-              <label>Qty per lot</label>
-              <input className="input" type="number" min={1} step={1} value={editor.qty} onChange={(e) => setEditor({ ...editor, qty: Number(e.target.value) })} />
-            </div>
-          </div>
-
-        </Modal>
-      )}
-      </Modal>
-      )}
-    </div>
-  )
-}
 
 function DriveBackup() {
   const toast = useToast()
