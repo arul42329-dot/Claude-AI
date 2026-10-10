@@ -144,12 +144,17 @@ export async function syncNewsAlerts(snap: EconSnapshot | null): Promise<NewsAle
   const now = Date.now()
   const mine = await tradedCurrencies()
 
-  // Events still worth alerting about, earliest first.
+  // Events still worth alerting about, earliest first. The lead time must
+  // ALSO still be ahead (e.time − LEAD > now): an event whose ideal alert
+  // moment already passed is DROPPED, never rescheduled for "right now" —
+  // a late alert that fires just because the app was opened is worse than
+  // no alert at all.
   const upcoming = snap.events
     .filter((e) =>
       e.impact === 'High' &&
       e.time > now + TOO_CLOSE_MS &&
       e.time <= now + WINDOW_MS &&
+      e.time - LEAD_MINUTES * 60000 > now &&
       (mine.size === 0 || mine.has(e.country)),
     )
     .sort((a, b) => a.time - b.time)
@@ -175,9 +180,9 @@ export async function syncNewsAlerts(snap: EconSnapshot | null): Promise<NewsAle
         title: '🔴 Big news coming up',
         body: `${e.country} · ${e.title} — starts ${hhmm(e.time)}`,
         schedule: {
-          // If the ideal lead time already passed (e.g. phone rebooted), fire
-          // shortly after the next sync instead of silently dropping it.
-          at: new Date(Math.max(e.time - LEAD_MINUTES * 60000, Date.now() + 3000)),
+          // Guaranteed future by the filter above (no clamping — past-due
+          // alerts are dropped, not fired late).
+          at: new Date(e.time - LEAD_MINUTES * 60000),
           allowWhileIdle: true,
         },
       })),
@@ -293,7 +298,9 @@ export async function syncSessionAlerts(days = 2): Promise<number> {
     booked = new Set(pend.notifications.map((n) => n.id))
   } catch { /* treat as nothing booked */ }
 
-  const toSchedule = wanted.filter((w) => !booked.has(w.id))
+  // Drop anything not strictly in the future (clock changes, dozed sync) —
+  // never fire a session alert late / just because the app was opened.
+  const toSchedule = wanted.filter((w) => !booked.has(w.id) && w.at > Date.now())
   if (!toSchedule.length) return 0
 
   // Drop any stale session alerts outside what we want now (e.g. day slots
@@ -309,7 +316,7 @@ export async function syncSessionAlerts(days = 2): Promise<number> {
         id: w.id,
         title: w.title,
         body: w.body,
-        schedule: { at: new Date(Math.max(w.at, Date.now() + 5000)), allowWhileIdle: true },
+        schedule: { at: new Date(w.at), allowWhileIdle: true },
       })),
     })
   } catch { /* try again on next sync */ }
