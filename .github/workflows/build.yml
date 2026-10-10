@@ -74,7 +74,7 @@ jobs:
           # the screen edges, so AMOLED mode is true black behind the system
           # bars too (the CSS already pads by env(safe-area-inset-*)).
           STYLES=android/app/src/main/res/values/styles.xml
-          sed -i 's|<style name="AppTheme.NoActionBar" parent="Theme.AppCompat.DayNight.NoActionBar">|<style name="AppTheme.NoActionBar" parent="Theme.AppCompat.DayNight.NoActionBar">\n        <item name="android:windowDrawsSystemBarBackgrounds">true</item>\n        <item name="android:statusBarColor">@android:color/transparent</item>\n        <item name="android:navigationBarColor">@android:color/transparent</item>|' "$STYLES" || true
+          sed -i 's|<style name="AppTheme.NoActionBar" parent="Theme.AppCompat.DayNight.NoActionBar">|<style name="AppTheme.NoActionBar" parent="Theme.AppCompat.DayNight.NoActionBar">\n        <item name="android:windowBackground">@android:color/black</item>\n        <item name="android:windowDrawsSystemBarBackgrounds">true</item>\n        <item name="android:statusBarColor">@android:color/transparent</item>\n        <item name="android:navigationBarColor">@android:color/transparent</item>|' "$STYLES" || true
           grep -n "statusBarColor\|navigationBarColor" "$STYLES" || {
             echo "styles.xml patch failed — dumping file"; cat "$STYLES"; exit 1
           }

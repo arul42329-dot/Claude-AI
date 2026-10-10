@@ -10,6 +10,7 @@ import { ACCOUNT_TYPES, ACCOUNT_COLORS, accountTypeLabel, accountMarket } from '
 import { useAppMode } from '../mode'
 import { IndiaFlag } from '../components/Icons'
 import type { Settings, Trade, Account, AccountType } from '../types'
+import { version as APP_VERSION } from '../../package.json'
 import { format, subDays } from 'date-fns'
 import {
   getDriveState, requestDeviceCode, pollForToken, runBackup, disconnect,
@@ -273,6 +274,11 @@ export default function SettingsPage() {
         <UpdateCard />
 
       </div>
+
+      {/* Installed version — one glance answers "which build am I on?" */}
+      <p className="muted" style={{ textAlign: 'center', fontSize: 12, marginTop: 4 }}>
+        Edgefolio v{APP_VERSION}
+      </p>
 
       {editing !== undefined && (
         <AccountEditor

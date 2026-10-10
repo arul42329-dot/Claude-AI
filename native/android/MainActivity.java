@@ -26,6 +26,10 @@ public class MainActivity extends BridgeActivity {
         if (webView != null) {
             WebSettings settings = webView.getSettings();
             settings.setTextZoom(100);
+            // True-black WebView surface: this is the colour the system shows
+            // when the page is transparent and during overscroll — without it
+            // AMOLED mode showed a graphite strip when scrolling past the end.
+            webView.setBackgroundColor(android.graphics.Color.BLACK);
         }
     }
 }

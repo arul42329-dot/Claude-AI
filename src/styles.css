@@ -51,6 +51,11 @@ html, body, #root {
   margin: 0;
 }
 
+/* No overscroll stretch: on Android the pull-past-the-end effect reveals the
+   NATIVE WebView background — a grey flash under a dark app. Disabling it
+   keeps the page edge exactly at the content end, always. */
+html, body { overscroll-behavior-y: none; }
+
 body {
   font-family: var(--font-body);
   background:
@@ -1437,6 +1442,7 @@ html[data-amoled='on'] {
   --shadow: 0 20px 50px -22px rgba(0, 0, 0, 0.95);
   --shadow-lift: 0 30px 70px -25px rgba(0, 0, 0, 1);
 }
+html[data-amoled='on'],
 html[data-amoled='on'] body {
   background: #000;
 }
