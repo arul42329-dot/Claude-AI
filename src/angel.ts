@@ -22,6 +22,7 @@ const SCRIP_MASTER = 'https://margincalculator.angelbroking.com/OpenAPI_File/fil
 export interface AngelCreds {
   apiKey: string
   clientCode: string
+  /** the Angel One PIN or web password — SmartAPI's `password` field takes either */
   pin: string
   totpSecret: string
 }
@@ -105,7 +106,9 @@ async function login(creds: AngelCreds): Promise<AngelSession> {
     method: 'POST',
     headers: headers(creds),
     timeoutMs: 15000,
-    body: JSON.stringify({ clientcode: creds.clientCode, pin: creds.pin, totp: code }),
+    // NOTE: SmartAPI's field is `password` — it accepts the PIN or the web
+    // password. Sending `pin` returns "invalid password parameters".
+    body: JSON.stringify({ clientcode: creds.clientCode, password: creds.pin, totp: code }),
   })
   if (!r.ok) throw new Error('Angel login HTTP ' + r.status)
   const j: any = await r.json()
@@ -150,7 +153,9 @@ const WANTED: { display: string; exchange: string; match: (row: any) => boolean 
   { display: 'GOLD', exchange: 'MCX', match: (r) => r.symbol === 'GOLD' && (r.name || '').indexOf('PETAL') < 0 },
   { display: 'SILVER', exchange: 'MCX', match: (r) => r.symbol === 'SILVER' },
   { display: 'NATURALGAS', exchange: 'MCX', match: (r) => r.symbol === 'NATURALGAS' },
-  { display: 'USDINR', exchange: 'NSE', match: (r) => r.symbol === 'USDINR' && r.instrumenttype === 'OPTCUR' ? false : r.symbol === 'USDINR' && r.expiry_seg === 'CDS' },
+  { display: 'USDINR', exchange: 'CDS', match: (r) => r.symbol === 'USDINR' && (r.instrumenttype ?? '') === 'CUR' },
+  // GIFT Nifty (the old Singapore/SGX Nifty) trades on NSE IFSC
+  { display: 'GIFTNIFTY', exchange: 'NSEIFS', match: (r) => r.symbol === 'GIFTNIFTY' || (r.name ?? '').toUpperCase().includes('GIFT NIFTY') },
 ]
 
 // stored: tokens plus a __resolvedAt timestamp
@@ -164,7 +169,7 @@ function readTokens(): TokenCache {
 export async function resolveTokens(): Promise<Record<string, AngelToken>> {
   const map: Record<string, AngelToken> = {}
   for (const t of STATIC_INDEX_TOKENS) map[t.name] = t
-  map['USDINR'] = { exchange: 'CDS', token: 'USDINR', name: 'USDINR' } // CDS LTP via symbol
+  map['INDIA VIX'] = { exchange: 'NSE', token: '26017', name: 'INDIA VIX' }
   const cached = readTokens()
   const resolvedAt = Number(cached.__resolvedAt ?? 0)
   if (resolvedAt && Date.now() - resolvedAt < 12 * 3600 * 1000) {

@@ -12,6 +12,7 @@ import { useLiveQuery } from './util'
 import { AppModeProvider, useAppMode } from './mode'
 import { ToastProvider, useToast } from './components/Toast'
 import { SplashIntro } from './components/SplashIntro'
+import { Guide, hasSeenGuide, markGuideSeen } from './components/Guide'
 import { Backdrop } from './components/Backdrop'
 import { LockScreen } from './components/LockScreen'
 import { isLockEnabled } from './lock'
@@ -238,6 +239,7 @@ function AppShell() {
 
 export default function App() {
   const [showIntro, setShowIntro] = useState(true)
+  const [showGuide, setShowGuide] = useState(false)
   const [locked, setLocked] = useState(() => isLockEnabled())
   const settings = useLiveQuery(() => getSettings(), [], undefined)
 
@@ -246,7 +248,8 @@ export default function App() {
   return (
     <AppModeProvider>
       <ToastProvider>
-        {showIntro && <SplashIntro onDone={() => setShowIntro(false)} />}
+        {showIntro && <SplashIntro onDone={() => { setShowIntro(false); if (!hasSeenGuide()) setShowGuide(true) }} />}
+        {showGuide && <Guide onClose={() => { markGuideSeen(); setShowGuide(false) }} />}
         <AppShell />
       </ToastProvider>
     </AppModeProvider>

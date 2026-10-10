@@ -11,7 +11,7 @@ import { fetchAngelLtps } from './angel'
 
 export interface GlobalQuote {
   symbol: string          // display name
-  ySymbol: string         // Yahoo fallback symbol
+  ySymbol: string         // Yahoo fallback symbol ('' = Angel-live only)
   price: number
   changePct: number
   decimals: number
@@ -19,6 +19,8 @@ export interface GlobalQuote {
 }
 
 export const GLOBAL_SYMBOLS: { symbol: string; ySymbol: string; decimals: number; angel?: string }[] = [
+  { symbol: 'GIFT NIFTY', ySymbol: '', decimals: 2, angel: 'GIFTNIFTY' }, // live via Angel One only
+  { symbol: 'INDIA VIX', ySymbol: '^INDIAVIX', decimals: 2, angel: 'INDIA VIX' },
   { symbol: 'USD/INR', ySymbol: 'INR=X', decimals: 2, angel: 'USDINR' },
   { symbol: 'DOW', ySymbol: '^DJI', decimals: 2 },
   { symbol: 'NASDAQ', ySymbol: '^IXIC', decimals: 2 },
@@ -70,6 +72,7 @@ export async function fetchGlobal(): Promise<GlobalSnapshot> {
     GLOBAL_SYMBOLS.map(async (g) => {
       const l = g.angel ? live[g.angel] : undefined
       if (l) return { symbol: g.symbol, ySymbol: g.ySymbol, price: l.ltp, changePct: l.changePct ?? 0, decimals: g.decimals, live: true }
+      if (!g.ySymbol) return { symbol: g.symbol, ySymbol: g.ySymbol, price: 0, changePct: 0, decimals: g.decimals, live: false }
       const y = await yahooOne(g.ySymbol)
       if (y) return { symbol: g.symbol, ySymbol: g.ySymbol, price: y.price, changePct: y.changePct, decimals: g.decimals, live: false }
       const c = cached?.quotes.find((q) => q.symbol === g.symbol)

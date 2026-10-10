@@ -28,6 +28,7 @@ import {
 import { openNotificationSettings, openExactAlarmSettings, exactAlarmsAllowed } from '../biometric'
 import { isIndexAlertsEnabled, setIndexAlertsEnabled, startIndexAlertPolling, stopIndexAlertPolling } from '../indexAlerts'
 import { getAngelCreds, setAngelCreds, testAngelLogin, angelLinked, type AngelCreds } from '../angel'
+import { Guide } from '../components/Guide'
 import { appVersion, checkForUpdate, openUpdateDownload, type UpdateInfo } from '../updates'
 
 const CURRENCIES = ['USD', 'EUR', 'GBP', 'JPY', 'INR', 'AUD', 'CAD', 'CHF', 'NZD', 'SGD', 'AED', 'ZAR']
@@ -38,6 +39,7 @@ export default function SettingsPage() {
   const { mode, isIndia } = useAppMode()
   const accounts = (allAccounts ?? []).filter((a) => accountMarket(a) === mode)
   const [form, setForm] = useState<Settings | null>(null)
+  const [showGuide, setShowGuide] = useState(false)
   const loadedRef = useRef(false)
   const fileRef = useRef<HTMLInputElement>(null)
   const toast = useToast()
@@ -174,7 +176,10 @@ export default function SettingsPage() {
         <div>
           <h1>Settings</h1>
         </div>
+        <button className="btn" onClick={() => setShowGuide(true)}>❓ How to use</button>
       </div>
+
+      {showGuide && <Guide onClose={() => setShowGuide(false)} />}
 
       {/* Accounts */}
       <div className="card" style={{ marginBottom: 16, maxWidth: 900 }}>
@@ -344,7 +349,6 @@ function SecurityCard() {
 
       {setting && (
         <>
-          <p className="muted" style={{ marginTop: -6, fontSize: 13 }}>{enabled ? 'Set a new PIN.' : 'Choose a 4–8 digit PIN.'}</p>
           <div className="form-grid" style={{ marginTop: 6 }}>
             <div className="field">
               <label>New PIN (4–8 digits)</label>
@@ -584,9 +588,7 @@ function AngelCard() {
   return (
     <div className="card">
       <h3>📈 Angel One · live prices</h3>
-      <p className="muted" style={{ marginTop: -6, fontSize: 12.5 }}>
-        {linked ? '✓ Linked — Markets shows live tick prices (LIVE badge)' : 'Link your Angel One account for live prices (market data only — never orders)'}
-      </p>
+      {linked && <div className="drive-status"><span className="live-dot" /> Live tick prices on the Markets tab</div>}
       {linked ? (
         <button className="btn danger" onClick={unlink}>Unlink</button>
       ) : (
@@ -601,7 +603,7 @@ function AngelCard() {
               <input className="input" value={creds.clientCode} onChange={(e) => setCreds({ ...creds, clientCode: e.target.value })} placeholder="e.g. A12345" />
             </div>
             <div className="field">
-              <label>PIN</label>
+              <label>PIN or password</label>
               <input className="input" type="password" value={creds.pin} onChange={(e) => setCreds({ ...creds, pin: e.target.value })} />
             </div>
             <div className="field">

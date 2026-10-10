@@ -3,6 +3,7 @@ import { db } from '../db'
 import { useLiveQuery, fmtMoney, fmtNum, fmtPct, instrumentLabel, displayDirection } from '../util'
 import { useAccountScope, scopeTrades } from '../accounts'
 import { useAppMode, marketOf } from '../mode'
+import { isNativePlatform } from '../candles'
 import type { Trade } from '../types'
 import { TradeForm } from '../components/TradeForm'
 import { TradeDetail } from '../components/TradeDetail'
@@ -107,7 +108,8 @@ export default function Trades() {
   }
 
   // CSV of the trades currently in view (respects search + outcome filter).
-  function exportCsv() {
+  // Android can't download blob URLs — write to cache + share sheet instead.
+  async function exportCsv() {
     const cols = [
       'serial', 'date', 'time', 'market', 'pair', 'segment', 'optionType', 'strike', 'expiry', 'lots',
       'direction', 'session', 'strategy', 'entryPrice', 'exitPrice', 'stopLoss', 'takeProfit', 'lotSize',
@@ -127,12 +129,21 @@ export default function Trades() {
           .join(','),
       )
     const csv = [cols.join(','), ...rows].join('\n')
-    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `edgefolio-trades-${format(new Date(), 'yyyy-MM-dd')}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
+    const filename = `edgefolio-trades-${format(new Date(), 'yyyy-MM-dd')}.csv`
+    if (isNativePlatform()) {
+      // Android WebView can't download blob URLs — share sheet instead.
+      const { Filesystem, Directory, Encoding } = await import('@capacitor/filesystem')
+      const { Share } = await import('@capacitor/share')
+      const res = await Filesystem.writeFile({ path: filename, data: csv, directory: Directory.Cache, encoding: Encoding.UTF8 })
+      await Share.share({ title: 'Edgefolio trades', text: `My trade journal (${filtered.length} trades)`, url: res.uri, dialogTitle: 'Share trades' })
+    } else {
+      const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      a.click()
+      URL.revokeObjectURL(url)
+    }
     toast(`Exported ${filtered.length} trade${filtered.length === 1 ? '' : 's'}`)
   }
 
@@ -222,9 +233,12 @@ export default function Trades() {
                     )}
                     <td className="col-date">{format(tradeDate(t), 'dd MMM yy')}</td>
                     <td className="pair-cell">
-                      <strong>{instrumentLabel(t)}</strong>{shotCount(t) > 0 && <span className="shot-mark" title={`${shotCount(t)} screenshot${shotCount(t) === 1 ? '' : 's'}`}>📷 {shotCount(t)}</span>}
+                      <strong>
+                        <span className="pc-name">{t.pair || instrumentLabel(t)}</span>
+                        {(t.strike != null || t.optionType) && <span className="pc-strike">{t.strike != null ? t.strike : ''}{t.optionType ? ' ' + t.optionType : ''}</span>}
+                      </strong>{shotCount(t) > 0 && <span className="shot-mark" title={`${shotCount(t)} screenshot${shotCount(t) === 1 ? '' : 's'}`}>📷 {shotCount(t)}</span>}
                       <span className="cell-sub">
-                        {format(tradeDate(t), 'dd MMM yy')}{t.strategy ? ` · ${t.strategy}` : ''}{tradeR(t) != null ? ` · ${fmtNum(tradeR(t)!, 2)}R` : ''}{showAccountCol && acctMap.get(t.accountId ?? '')?.name ? ` · ${acctMap.get(t.accountId ?? '')!.name}` : ''}
+                        {t.strike != null || t.optionType ? `${t.strike != null ? t.strike : ''}${t.optionType ? ' ' + t.optionType : ''} · ` : ''}{format(tradeDate(t), 'dd MMM yy')}{t.strategy ? ` · ${t.strategy}` : ''}{tradeR(t) != null ? ` · ${fmtNum(tradeR(t)!, 2)}R` : ''}
                       </span>
                     </td>
                     <td className="col-dir"><span className={displayDirection(t) === 'long' ? 'dir-buy' : 'dir-sell'}>{displayDirection(t) === 'long' ? '▲' : '▼'}</span></td>
