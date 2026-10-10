@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { fetchIndia, fetchIndiaVix, readCachedIndia, nseStatus, type IndiaQuote, type IndiaSnapshot } from '../india'
+import { fetchIndia, readCachedIndia, nseStatus, type IndiaQuote, type IndiaSnapshot } from '../india'
 import { fetchIndiaNews, readCachedIndiaNews, type NewsSnapshot } from '../indiaNews'
 import { fetchGlobal, readCachedGlobal, type GlobalSnapshot } from '../premarket'
 import { fetchAngelLtps, angelLinked } from '../angel'
 import { computeBias } from '../bias'
 import { corsFetch, yfDirectUrl, isNativePlatform } from '../candles'
 import { BiasPanel } from './BiasPanel'
-import { ComparisonTile } from './ComparisonTile'
 
 function fmtPrice(n: number, d: number) {
   return new Intl.NumberFormat('en-IN', { minimumFractionDigits: d, maximumFractionDigits: d }).format(n)
@@ -28,8 +27,8 @@ export function IndiaMarkets({ refreshSignal = 0 }: { refreshSignal?: number }) 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selected, setSelected] = useState<IndiaQuote | null>(null)
-  const [vix, setVix] = useState<IndiaQuote | null>(null)
   const [global, setGlobal] = useState<GlobalSnapshot | null>(() => readCachedGlobal())
+  const [pmOpen, setPmOpen] = useState(false)
   const [ltps, setLtps] = useState<Record<string, { ltp: number; changePct?: number }>>({})
   const [bias15, setBias15] = useState<Record<string, string>>({})
   const [, force] = useState(0)
@@ -39,8 +38,6 @@ export function IndiaMarkets({ refreshSignal = 0 }: { refreshSignal?: number }) 
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
-    // India VIX fetches independently so it still appears even if indices hiccup.
-    fetchIndiaVix().then((v) => { if (v) setVix(v) }).catch(() => {})
     try {
       setSnap(await fetchIndia())
     } catch (e: any) {
@@ -131,34 +128,37 @@ export function IndiaMarkets({ refreshSignal = 0 }: { refreshSignal?: number }) 
         </div>
       )}
 
-      {/* India VIX comparison hero tile first */}
-      <div style={{ marginBottom: 16 }}>
-        <ComparisonTile
-          label="INDIA VIX" sub="Volatility · fear gauge" accent="vix" locale="en-IN"
-          price={vix?.price} changePct={vix?.changePct} bias={vix?.bias} decimals={vix?.decimals ?? 2}
-          biasTitle={vix?.biasVotes?.join('\n')} onOpen={vix ? () => setSelected(vix) : undefined}
-        />
-      </div>
-
-      {/* Pre-market check — what to read before opening an index trade */}
+      {/* Pre-market check — tucked behind one button so the page stays clean.
+          Tap it to expand the global dashboard (GIFT Nifty, INDIA VIX, USD/INR,
+          US indices, commodities), tap again to hide it. */}
       {global && global.quotes.some((q) => q.price > 0) && (
-        <div className="card" style={{ marginBottom: 16 }}>
-          <div className="row" style={{ justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
-            <h3 style={{ margin: 0 }}>🧭 Pre-market check</h3>
-            {anyLive && <span className="chip" style={{ color: 'var(--green)', borderColor: 'var(--green)' }}><span className="live-dot" /> LIVE · Angel One</span>}
-          </div>
-          <div className="premarket-grid">
-            {global.quotes.map((g) => (
-              <div key={g.symbol} className="premarket-row">
-                <span className="premarket-sym">{g.symbol}</span>
-                <span className="premarket-price">
-                  {g.price > 0 ? fmtPrice(g.price, g.decimals) : '—'}
-                  {g.live && <span className="live-dot" style={{ marginLeft: 6 }} />}
-                </span>
-                <span className={'pill ' + (g.changePct >= 0 ? 'up' : 'down')}>{g.price > 0 ? fmtChg(g.changePct) : ''}</span>
+        <div style={{ marginBottom: 16 }}>
+          <button
+            type="button"
+            className={'pm-toggle' + (pmOpen ? ' open' : '')}
+            onClick={() => setPmOpen((o) => !o)}
+            aria-expanded={pmOpen}
+          >
+            <span className="pm-toggle-title">🧭 Pre-market check</span>
+            {anyLive && <span className="chip pm-live"><span className="live-dot" /> LIVE · Angel One</span>}
+            <span className="pm-caret" aria-hidden="true">{pmOpen ? '▾' : '▸'}</span>
+          </button>
+          {pmOpen && (
+            <div className="card pm-card">
+              <div className="premarket-grid">
+                {global.quotes.map((g) => (
+                  <div key={g.symbol} className="premarket-row">
+                    <span className="premarket-sym">{g.symbol}</span>
+                    <span className="premarket-price">
+                      {g.price > 0 ? fmtPrice(g.price, g.decimals) : '—'}
+                      {g.live && <span className="live-dot" style={{ marginLeft: 6 }} />}
+                    </span>
+                    <span className={'pill ' + (g.changePct >= 0 ? 'up' : 'down')}>{g.price > 0 ? fmtChg(g.changePct) : ''}</span>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </div>
+          )}
         </div>
       )}
 

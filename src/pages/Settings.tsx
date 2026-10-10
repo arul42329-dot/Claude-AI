@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { db, getSettings, saveSettings, exportAll, importAll, saveAccount, deleteAccount, wipeUserData, tradesToCsv } from '../db'
 import { useLiveQuery, downloadJson, fmtMoney } from '../util'
 import { isAmoledEnabled, setAmoled, setTouchFx, setBackdropFx, isBackdropFxOn, type TouchFx } from '../theme'
-import { isNativePlatform } from '../candles'
+import { saveFileToUser } from '../share'
 import { getIndiaDefaults, saveIndiaDefaults } from '../indiaCosts'
 import { recomputeNetAndOutcomes } from '../outcome'
 import { useToast } from '../components/Toast'
@@ -78,35 +78,19 @@ export default function SettingsPage() {
     toast('Trades exported as CSV')
   }
 
-  // Android: write the CSV to the app cache and open the system share sheet
-  // (WhatsApp, Gmail, Drive, …). Web/desktop keeps the download button.
+  // Android: cache file + system share sheet (WhatsApp, Gmail, Drive, …).
+  // Web/desktop keeps the download button.
   async function doShareCsv() {
     try {
       const csv = await tradesToCsv()
-      if (isNativePlatform()) {
-        const { Filesystem, Directory, Encoding } = await import('@capacitor/filesystem')
-        const { Share } = await import('@capacitor/share')
-        const res = await Filesystem.writeFile({
-          path: `edgefolio-trades-${format(new Date(), 'yyyy-MM-dd')}.csv`,
-          data: csv,
-          directory: Directory.Cache,
-          encoding: Encoding.UTF8,
-        })
-        await Share.share({ title: 'Edgefolio trades', text: 'My trade journal (CSV)', url: res.uri, dialogTitle: 'Share trades' })
-      } else {
-        const blob = new Blob([csv], { type: 'text/csv' })
-        const url = URL.createObjectURL(blob)
-        const nav = navigator as any
-        if (nav.canShare?.({ files: [new File([blob], 'edgefolio-trades.csv', { type: 'text/csv' })] })) {
-          await nav.share({ files: [new File([blob], 'edgefolio-trades.csv', { type: 'text/csv' })], title: 'Edgefolio trades' })
-        } else {
-          const a = document.createElement('a')
-          a.href = url
-          a.download = `edgefolio-trades-${format(new Date(), 'yyyy-MM-dd')}.csv`
-          a.click()
-          URL.revokeObjectURL(url)
-        }
-      }
+      const outcome = await saveFileToUser(
+        `edgefolio-trades-${format(new Date(), 'yyyy-MM-dd')}.csv`,
+        'text/csv',
+        csv,
+        { title: 'Edgefolio trades', dialogTitle: 'Share trades' },
+      )
+      if (outcome === 'canceled') return
+      toast(outcome === 'shared' ? 'Trades shared ✓' : 'Trades exported as CSV')
     } catch (e: any) {
       if (String(e?.message || e).toLowerCase().includes('cancel')) return
       toast(e?.message || 'Could not share the CSV')

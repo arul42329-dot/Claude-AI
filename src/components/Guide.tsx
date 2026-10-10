@@ -14,11 +14,11 @@ const STEPS: { icon: string; title: string; text: string }[] = [
   { icon: '🇮🇳', title: 'Two journals', text: 'The top bar switches India ⚡ and Forex — trades, accounts and goals are kept completely separate.' },
   { icon: '📝', title: 'Log a trade', text: 'Trades → ＋ New trade. Enter entry, exit and lots — P/L is calculated automatically (brokerage comes from Settings → Lot sizes & brokerage).' },
   { icon: '🧾', title: 'Day tax', text: 'Trades → 🧾 Day tax. Enter the whole day\'s taxes once — it\'s split across that day\'s trades automatically.' },
-  { icon: '🧭', title: 'Markets', text: 'Pre-market check (VIX, GIFT Nifty, USD/INR, US indices, crude, gold). Tiles show the 15-minute bias — tap one for the full panel with S/R and the daily trade call.' },
+  { icon: '🧭', title: 'Markets', text: 'Tap 🧭 Pre-market check for VIX, GIFT Nifty, USD/INR, US indices and commodities. Tiles show the 15-minute bias — tap one for the full panel with S/R and the daily trade call.' },
   { icon: '📈', title: 'Live prices', text: 'Settings → Angel One · live prices. Link your Angel One account (free SmartAPI key) for live tick prices.' },
   { icon: '🔔', title: 'Alerts', text: 'Settings → Alerts — big news, session opens and index 15m trend flips, right on your phone.' },
   { icon: '📊', title: 'Analytics & reports', text: 'Full stats, calendar and insights — plus the 📊 Excel report button that builds a complete report workbook.' },
-  { icon: '☁️', title: 'Backup', text: 'Settings → Google Drive backup keeps your journal safe.' },
+  { icon: '☁️', title: 'Backup', text: 'Settings → Google Drive backup keeps your journal — and your Angel One link — safe.' },
 ]
 
 export function Guide({ onClose }: { onClose: () => void }) {

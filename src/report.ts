@@ -4,7 +4,7 @@
 // Generated entirely on-device with ExcelJS; nothing leaves the phone.
 
 import ExcelJS from 'exceljs'
-import { isNativePlatform } from './candles'
+import { saveFileToUser } from './share'
 import type { Trade } from './types'
 import { netPnlOf, tradeDate, tradeR, computeStats, computeRStats, equityCurve } from './stats'
 import { displayDirection, instrumentLabel } from './util'
@@ -176,28 +176,9 @@ export async function exportExcelReport(
   const filename = `edgefolio-report-${new Date().toISOString().slice(0, 10)}.xlsx`
   const mime = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 
-  if (isNativePlatform()) {
-    // Android WebView can't download blob URLs — write to the app cache and
-    // open the system share sheet (Sheets, Drive, WhatsApp, email…).
-    const { Filesystem, Directory } = await import('@capacitor/filesystem')
-    const { Share } = await import('@capacitor/share')
-    let b64 = ''
-    const bytes = new Uint8Array(buf as ArrayBuffer)
-    for (let i = 0; i < bytes.length; i += 0x8000) {
-      b64 += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
-    }
-    const res = await Filesystem.writeFile({
-      path: filename,
-      data: btoa(b64),
-      directory: Directory.Cache,
-    })
-    await Share.share({ title: 'Edgefolio report', text: 'My trading report (Excel)', url: res.uri, dialogTitle: 'Share report' })
-  } else {
-    const url = URL.createObjectURL(new Blob([buf], { type: mime }))
-    const a = document.createElement('a')
-    a.href = url
-    a.download = filename
-    a.click()
-    URL.revokeObjectURL(url)
-  }
+  // Android: cache file + system share sheet; desktop: direct download.
+  await saveFileToUser(filename, mime, new Uint8Array(buf as ArrayBuffer), {
+    title: 'Edgefolio report',
+    dialogTitle: 'Share report',
+  })
 }

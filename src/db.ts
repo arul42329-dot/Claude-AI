@@ -1,5 +1,6 @@
 import Dexie, { type Table } from 'dexie'
 import type { Trade, Checklist, Settings, ChecklistEntry, Account, JournalEntry, Cashflow, DayTax } from './types'
+import { getAngelCreds, setAngelCreds, type AngelCreds } from './angel'
 
 export class JournalDB extends Dexie {
   trades!: Table<Trade, string>
@@ -334,7 +335,11 @@ export async function exportAll() {
     db.cashflows.toArray(),
     db.dayTaxes.toArray(),
   ])
-  return { version: 6, exportedAt: new Date().toISOString(), trades, checklists, checklistEntries, accounts, journal, settings, cashflows, dayTaxes }
+  // The Angel One link (API key + client code + PIN + TOTP secret) rides along
+  // so a Drive restore re-links live prices without re-entering anything.
+  // Sessions/tokens are deliberately excluded — they expire; creds re-login.
+  const angel = getAngelCreds()
+  return { version: 7, exportedAt: new Date().toISOString(), trades, checklists, checklistEntries, accounts, journal, settings, cashflows, dayTaxes, angel }
 }
 
 export async function importAll(data: any, mode: 'merge' | 'replace' = 'merge') {
@@ -352,5 +357,11 @@ export async function importAll(data: any, mode: 'merge' | 'replace' = 'merge') 
     if (Array.isArray(data.dayTaxes)) await db.dayTaxes.bulkPut(data.dayTaxes)
     if (Array.isArray(data.settings)) await db.settings.bulkPut(data.settings)
   })
+  // Restore the Angel One link when the backup carries one. A backup without
+  // it never unlinks an existing connection — restoring is additive.
+  const angel = data.angel
+  if (angel && typeof angel === 'object' && angel.apiKey && angel.clientCode && angel.pin && angel.totpSecret) {
+    setAngelCreds(angel as AngelCreds)
+  }
   await ensureAccounts()
 }

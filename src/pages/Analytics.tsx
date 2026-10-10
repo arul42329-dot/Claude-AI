@@ -6,6 +6,7 @@ import { useAppMode, marketOf } from '../mode'
 import { computeStats, groupByPeriod, tradeDate, computeRStats, tradeR, type Period } from '../stats'
 import { exportExcelReport } from '../report'
 import { computeInsights } from '../insights'
+import { useToast } from '../components/Toast'
 import { StatCard } from '../components/StatCard'
 import { PnlCalendar } from '../components/PnlCalendar'
 import {
@@ -35,12 +36,16 @@ export default function Analytics() {
   )
   const scopeName = activeId === 'all' ? 'All accounts' : account?.name ?? 'Account'
   const [reportBusy, setReportBusy] = useState(false)
+  const toast = useToast()
 
   async function downloadReport() {
     setReportBusy(true)
     try {
       await exportExcelReport(all, { mode, currency, startBalance: startingBalance ?? 0, cashflows: [], scopeName })
-    } catch { /* keep it silent — the button re-enables */ }
+    } catch (e: any) {
+      const msg = String(e?.message ?? e)
+      if (!/cancel|abort|dismiss/i.test(msg)) toast('Report failed: ' + msg)
+    }
     setReportBusy(false)
   }
 

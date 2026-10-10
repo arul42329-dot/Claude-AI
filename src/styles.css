@@ -1217,6 +1217,41 @@ tbody tr { transition: background 0.14s var(--ease); }
 .guide-x { font-size: 12.5px; color: var(--text-dim); line-height: 1.45; }
 
 /* ---------------- Markets: pre-market check card ---------------- */
+/* One collapsed button hides the whole global dashboard until tapped. */
+.pm-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 13px 16px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: linear-gradient(180deg, var(--surface), var(--bg-2));
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  text-align: left;
+  box-shadow: var(--shadow), inset 0 1px 0 rgba(255, 255, 255, 0.045);
+  transition: border-color 0.25s var(--ease), box-shadow 0.25s var(--ease);
+}
+.pm-toggle:hover { border-color: var(--border-strong); box-shadow: var(--shadow-lift); }
+.pm-toggle.open { border-bottom-right-radius: 0; border-bottom-left-radius: 0; }
+.pm-toggle-title { flex: 1; }
+.pm-toggle .pm-live {
+  padding: 3px 9px; font-size: 11px; font-weight: 600;
+  color: var(--green); border-color: var(--green);
+}
+.pm-caret { color: var(--text-faint); font-size: 13px; flex-shrink: 0; }
+/* The expanded card hangs directly under the button like one open panel. */
+.pm-card {
+  border-top: none;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  margin-top: -1px;
+  padding: 10px 20px;
+}
 .premarket-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 18px; }
 @media (max-width: 560px) { .premarket-grid { grid-template-columns: 1fr; } }
 .premarket-row {

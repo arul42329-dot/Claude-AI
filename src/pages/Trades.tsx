@@ -3,7 +3,7 @@ import { db } from '../db'
 import { useLiveQuery, fmtMoney, fmtNum, fmtPct, instrumentLabel, displayDirection } from '../util'
 import { useAccountScope, scopeTrades } from '../accounts'
 import { useAppMode, marketOf } from '../mode'
-import { isNativePlatform } from '../candles'
+import { saveFileToUser } from '../share'
 import type { Trade } from '../types'
 import { TradeForm } from '../components/TradeForm'
 import { TradeDetail } from '../components/TradeDetail'
@@ -108,7 +108,7 @@ export default function Trades() {
   }
 
   // CSV of the trades currently in view (respects search + outcome filter).
-  // Android can't download blob URLs — write to cache + share sheet instead.
+  // Android: cache file + system share sheet (WebView can't download blobs).
   async function exportCsv() {
     const cols = [
       'serial', 'date', 'time', 'market', 'pair', 'segment', 'optionType', 'strike', 'expiry', 'lots',
@@ -129,22 +129,21 @@ export default function Trades() {
           .join(','),
       )
     const csv = [cols.join(','), ...rows].join('\n')
-    const filename = `edgefolio-trades-${format(new Date(), 'yyyy-MM-dd')}.csv`
-    if (isNativePlatform()) {
-      // Android WebView can't download blob URLs — share sheet instead.
-      const { Filesystem, Directory, Encoding } = await import('@capacitor/filesystem')
-      const { Share } = await import('@capacitor/share')
-      const res = await Filesystem.writeFile({ path: filename, data: csv, directory: Directory.Cache, encoding: Encoding.UTF8 })
-      await Share.share({ title: 'Edgefolio trades', text: `My trade journal (${filtered.length} trades)`, url: res.uri, dialogTitle: 'Share trades' })
-    } else {
-      const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
-      const a = document.createElement('a')
-      a.href = url
-      a.download = filename
-      a.click()
-      URL.revokeObjectURL(url)
+    const n = filtered.length
+    try {
+      const outcome = await saveFileToUser(
+        `edgefolio-trades-${format(new Date(), 'yyyy-MM-dd')}.csv`,
+        'text/csv',
+        csv,
+        { title: 'Edgefolio trades', dialogTitle: 'Share trades' },
+      )
+      if (outcome === 'canceled') return // user dismissed the sheet
+      toast(outcome === 'shared'
+        ? `Shared ${n} trade${n === 1 ? '' : 's'} ✓`
+        : `Exported ${n} trade${n === 1 ? '' : 's'}`)
+    } catch (e: any) {
+      toast('Export failed: ' + (e?.message || e))
     }
-    toast(`Exported ${filtered.length} trade${filtered.length === 1 ? '' : 's'}`)
   }
 
   function openNew() {
