@@ -11,12 +11,14 @@ export function TradeDetail({
   currency,
   onClose,
   onEdit,
+  onDuplicate,
   onDelete,
 }: {
   trade: Trade
   currency: string
   onClose: () => void
   onEdit: (t: Trade) => void
+  onDuplicate: (t: Trade) => void
   onDelete: (t: Trade) => void
 }) {
   const t = trade
@@ -69,6 +71,7 @@ export function TradeDetail({
       footer={
         <>
           <button className="btn danger" onClick={() => onDelete(t)}>Delete</button>
+          <button className="btn" onClick={() => onDuplicate(t)} title="Open this trade as a new entry — the serial is re-assigned">⧉ Duplicate</button>
           <button className="btn primary" onClick={() => onEdit(t)}>✎ Edit</button>
         </>
       }

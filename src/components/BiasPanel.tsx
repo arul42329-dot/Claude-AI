@@ -6,6 +6,7 @@ import { yahooSymbolFor } from '../market'
 import { fetchGlobal, readCachedGlobal, type GlobalSnapshot } from '../premarket'
 import { angelLinked, angelIndexToken, fetchAngelCandles } from '../angel'
 import { LiveChart } from './LiveChart'
+import { priceAlertsFor, addPriceAlert, removePriceAlert, type PriceAlert } from '../priceAlerts'
 import { OptionChain } from './OptionChain'
 
 // Minimal shape the panel needs — satisfied by both forex Quote and IndiaQuote.
@@ -44,6 +45,10 @@ export function BiasPanel({ q, onClose }: { q: BiasQuote; onClose: () => void })
   const [gSnap, setGSnap] = useState<GlobalSnapshot | null>(() => readCachedGlobal())
   const [showChart, setShowChart] = useState(false)
   const [showChain, setShowChain] = useState(false)
+  const [alertOpen, setAlertOpen] = useState(false)
+  const [alertAbove, setAlertAbove] = useState(true)
+  const [alertPrice, setAlertPrice] = useState('')
+  const [myAlerts, setMyAlerts] = useState<PriceAlert[]>(() => priceAlertsFor(q.symbol))
 
   // Live chart + option chain — NSE indices with a SmartAPI token, only while
   // the Angel One link is active (they are live-data features).
@@ -114,6 +119,51 @@ export function BiasPanel({ q, onClose }: { q: BiasQuote; onClose: () => void })
           <button className="btn primary sm" onClick={() => setShowChart(true)}>📈 Live chart</button>
           <button className="btn sm" onClick={() => setShowChain(true)}>⛓ Option chain</button>
         </div>
+      )}
+
+      {/* Price-level alerts — checked every minute while the app is open */}
+      <div className="bp-actions" style={{ marginTop: liveTools ? 8 : 0 }}>
+        <button className="btn sm" onClick={() => { setAlertPrice(String(Math.round(q.price))); setAlertOpen(true) }}>🔔 Price alert</button>
+        {myAlerts.filter((a) => !a.firedAt).map((a) => (
+          <span key={a.id} className="chip" style={{ color: 'var(--accent-2)' }} title={a.above ? 'Alerts when the price rises to this level' : 'Alerts when the price falls to this level'}>
+            {a.above ? '≥' : '≤'} {fmt(a.price, a.price >= 1000 ? 0 : dec)}
+            <button className="icon-btn" style={{ padding: '0 0 0 4px', fontSize: 13 }} onClick={() => { removePriceAlert(a.id); setMyAlerts(priceAlertsFor(q.symbol)) }}>✕</button>
+          </span>
+        ))}
+      </div>
+      {alertOpen && (
+        <Modal title={`🔔 Price alert · ${q.symbol}`} onClose={() => setAlertOpen(false)}
+          footer={
+            <>
+              <button className="btn ghost" onClick={() => setAlertOpen(false)}>Cancel</button>
+              <button className="btn primary" onClick={() => {
+                const ySym = q.ySymbol ?? yahooSymbolFor(q.symbol)
+                const price = Number(alertPrice)
+                if (!ySym) return
+                if (!Number.isFinite(price) || price <= 0) return
+                addPriceAlert({ id: crypto.randomUUID(), symbol: q.symbol, ySymbol: ySym, above: alertAbove, price })
+                setMyAlerts(priceAlertsFor(q.symbol))
+                setAlertOpen(false)
+              }}>Set alert</button>
+            </>
+          }>
+          <div className="form-grid">
+            <div className="field">
+              <label>Alert me when the price…</label>
+              <div className="seg">
+                <button className={alertAbove ? 'active' : ''} onClick={() => setAlertAbove(true)}>Rises to</button>
+                <button className={!alertAbove ? 'active' : ''} onClick={() => setAlertAbove(false)}>Falls to</button>
+              </div>
+            </div>
+            <div className="field">
+              <label>Level</label>
+              <input className="input" type="number" step="any" inputMode="decimal" value={alertPrice} onChange={(e) => setAlertPrice(e.target.value)} autoFocus />
+            </div>
+          </div>
+          <p className="muted" style={{ fontSize: 12.5, marginTop: 10 }}>
+            Checked every minute while Edgefolio is open — you'll get a notification the moment {q.symbol} crosses your level.
+          </p>
+        </Modal>
       )}
       {!d ? (
         <div className="empty" style={{ border: 'none' }}>

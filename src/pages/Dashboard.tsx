@@ -218,6 +218,12 @@ export default function Dashboard() {
           currency={currency}
           onClose={() => setDetail(undefined)}
           onEdit={(t) => { setDetail(undefined); setEditing(t); setShowForm(true) }}
+          onDuplicate={(t) => {
+            setDetail(undefined)
+            const { serial: _s, ...rest } = structuredClone(t)
+            setEditing({ ...rest, id: crypto.randomUUID(), createdAt: Date.now(), updatedAt: Date.now() })
+            setShowForm(true)
+          }}
           onDelete={async (t) => {
             if (!confirm('Delete this trade?')) return
             await db.trades.delete(t.id)

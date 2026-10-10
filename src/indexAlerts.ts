@@ -8,6 +8,7 @@
 // Markets page uses, notifications through Capacitor's LocalNotifications.
 
 import { isNativePlatform, corsFetch, yfDirectUrl } from './candles'
+import { checkPriceAlerts } from './priceAlerts'
 import type { Candle } from './bias'
 
 const ENABLE_KEY = 'edgefolio-index-alerts'
@@ -193,6 +194,10 @@ async function tick(): Promise<void> {
     // Fires in BOTH modes — the Settings checkbox is India-mode-only, but
     // the alerts themselves keep working whichever mode the app is in.
     if (isIndexAlertsEnabled() && inMarketHours()) await checkIndexTrends(true)
+    // Price-level alerts (🔔 from a bias panel) — checked whenever the app
+    // is open, not just during Indian market hours (forex & commodities
+    // trade around the clock). One fetch per distinct symbol per ~50s.
+    await checkPriceAlerts()
   } catch { /* ignore */ } finally { ticking = false }
 }
 

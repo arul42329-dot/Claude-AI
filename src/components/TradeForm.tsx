@@ -62,10 +62,13 @@ function emptyTrade(mode: AppMode = 'forex'): Trade {
 
 export function TradeForm({
   initial,
+  asDuplicate,
   onClose,
   onSaved,
 }: {
   initial?: Trade
+  /** opened via ⧉ Duplicate — same values, new trade */
+  asDuplicate?: boolean
   onClose: () => void
   onSaved: () => void
 }) {
@@ -359,7 +362,7 @@ export function TradeForm({
 
   return (
     <Modal
-      title={initial ? `Edit trade${t.serial ? ' #' + t.serial : ''}` : 'New trade log'}
+      title={initial ? (asDuplicate ? 'Duplicate trade' : `Edit trade${t.serial ? ' #' + t.serial : ''}`) : 'New trade log'}
       onClose={onClose}
       footer={
         <>

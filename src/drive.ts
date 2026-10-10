@@ -31,11 +31,15 @@ export interface DriveState {
   lastBackupAt: number | null
   lastBackupDay: string | null // YYYY-MM-DD (local)
   lastError: string | null
+  // Health line shown in Settings: what the last backup contained.
+  lastBackupTrades: number | null
+  lastBackupBytes: number | null
 }
 
 const EMPTY: DriveState = {
   clientId: '', clientSecret: '', refreshToken: '', fileId: '',
   connected: false, lastBackupAt: null, lastBackupDay: null, lastError: null,
+  lastBackupTrades: null, lastBackupBytes: null,
 }
 
 export function getDriveState(): DriveState {
@@ -189,22 +193,83 @@ async function ensureFileId(token: string): Promise<string> {
   return cj.id
 }
 
-// Runs a full backup: refresh -> ensure file -> overwrite content.
+// How many dated backup versions to keep in Drive.
+export const BACKUP_VERSIONS = 7
+
+// Runs a full backup: refresh -> write a DATED file (one version per day,
+// re-running on the same day overwrites that day's file) -> prune to the
+// newest BACKUP_VERSIONS versions. Versioning means a bad database can never
+// overwrite the last good backup — you can always restore yesterday's.
 export async function runBackup(): Promise<DriveState> {
   const token = await accessToken()
-  const fileId = await ensureFileId(token)
   const data = await exportAll()
   const body = JSON.stringify(data)
-  const up = await fetch(`${DRIVE_UPLOAD_URL}/${fileId}?uploadType=media`, {
-    method: 'PATCH',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body,
+  const name = `edgefolio-backup-${todayKey()}.json`
+
+  // Find today's file (if a backup already ran today) so we overwrite it
+  // instead of piling up duplicates of the same date.
+  const q = encodeURIComponent(`name='${name}' and trashed=false`)
+  const sr = await fetch(`${DRIVE_FILES_URL}?q=${q}&spaces=drive&fields=files(id,name)`, {
+    headers: { Authorization: `Bearer ${token}` },
   })
-  if (!up.ok) {
-    const j = await up.json().catch(() => ({}))
-    throw new Error(j.error?.message || 'Upload to Google Drive failed')
+  let fileId = ''
+  if (sr.ok) {
+    const j = await sr.json()
+    fileId = j.files?.[0]?.id || ''
   }
-  return save({ lastBackupAt: Date.now(), lastBackupDay: todayKey(), lastError: null })
+
+  if (fileId) {
+    const up = await fetch(`${DRIVE_UPLOAD_URL}/${fileId}?uploadType=media`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body,
+    })
+    if (!up.ok) {
+      const j = await up.json().catch(() => ({}))
+      throw new Error(j.error?.message || 'Upload to Google Drive failed')
+    }
+  } else {
+    // multipart create: metadata + content in one request
+    const meta = JSON.stringify({ name, mimeType: 'application/json' })
+    const boundary = 'edgefolio' + Date.now()
+    const cr = await fetch(`${DRIVE_UPLOAD_URL}?uploadType=multipart`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': `multipart/related; boundary=${boundary}` },
+      body:
+        `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n` +
+        `--${boundary}\r\nContent-Type: application/json\r\n\r\n${body}\r\n--${boundary}--`,
+    })
+    if (!cr.ok) {
+      const j = await cr.json().catch(() => ({}))
+      throw new Error(j.error?.message || 'Could not create the backup file in Drive')
+    }
+  }
+
+  // Prune: keep the newest N dated versions (plus the legacy single file).
+  try { await pruneOldBackups(token) } catch { /* pruning is best-effort */ }
+
+  return save({
+    lastBackupAt: Date.now(), lastBackupDay: todayKey(), lastError: null,
+    lastBackupTrades: Array.isArray((data as any)?.trades) ? (data as any).trades.length : null,
+    lastBackupBytes: body.length,
+  })
+}
+
+// Delete all but the newest BACKUP_VERSIONS dated backups.
+async function pruneOldBackups(token: string): Promise<void> {
+  const q = encodeURIComponent("name contains 'edgefolio-backup-2' and trashed=false")
+  const r = await fetch(`${DRIVE_FILES_URL}?q=${q}&spaces=drive&fields=files(id,name)&pageSize=100`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!r.ok) return
+  const j = await r.json()
+  const files: { id: string; name: string }[] = j.files || []
+  // date-named files sort lexicologically = chronologically
+  const dated = files.filter((f) => /^edgefolio-backup-\d{4}-\d{2}-\d{2}\.json$/.test(f.name))
+    .sort((a, b) => b.name.localeCompare(a.name))
+  for (const f of dated.slice(BACKUP_VERSIONS)) {
+    await fetch(`${DRIVE_FILES_URL}/${f.id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } }).catch(() => {})
+  }
 }
 
 // Called on app open: backs up at most once per day, silently.

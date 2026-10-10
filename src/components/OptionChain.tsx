@@ -144,7 +144,22 @@ export function OptionChain({ ocName, spot, onClose }: { ocName: string; spot: n
     for (const r of rows ?? []) { ceOi += r.ce?.oi ?? 0; peOi += r.pe?.oi ?? 0 }
     const pcr = ceOi > 0 ? peOi / ceOi : null
     const maxOi = Math.max(1, ...(rows ?? []).flatMap((r) => [r.ce?.oi ?? 0, r.pe?.oi ?? 0]))
-    return { ceOi, peOi, pcr, maxOi }
+    // Max pain: the strike where the TOTAL option payout to holders is
+    // smallest — the level option writers have the biggest incentive to pin
+    // the price to near expiry.
+    let maxPain: number | null = null
+    if (rows && rows.length) {
+      let best = Infinity
+      for (const cand of rows) {
+        let pain = 0
+        for (const r of rows) {
+          pain += (r.ce?.oi ?? 0) * Math.max(0, cand.strike - r.strike)
+          pain += (r.pe?.oi ?? 0) * Math.max(0, r.strike - cand.strike)
+        }
+        if (pain < best) { best = pain; maxPain = cand.strike }
+      }
+    }
+    return { ceOi, peOi, pcr, maxOi, maxPain }
   }, [rows])
 
   const atmStrike = useMemo(() => {
@@ -170,6 +185,11 @@ export function OptionChain({ ocName, spot, onClose }: { ocName: string; spot: n
           </span>
         )}
         <span className="chip" title="Total open interest across the shown strikes">OI {fmtOi(stats.ceOi)} CE · {fmtOi(stats.peOi)} PE</span>
+        {stats.maxPain != null && (
+          <span className="chip" style={{ color: 'var(--accent-2)' }} title="Max pain — the strike with the smallest total option payout; the level writers profit most from at expiry">
+            Max pain {fmt(stats.maxPain, stats.maxPain >= 1000 ? 0 : 2)}
+          </span>
+        )}
       </div>
 
       {expiries.length > 0 && (

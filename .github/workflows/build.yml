@@ -67,6 +67,47 @@ jobs:
           fi
           grep -n "EXACT_ALARM" "$MANIFEST" || true
           echo "Biometric plugin injected."
+      - name: Home-screen shortcut (long-press icon → New trade)
+        run: |
+          set -e
+          RES=android/app/src/main/res
+          mkdir -p "$RES/xml"
+          # Static app shortcut: launches the app with edgefolio://new-trade,
+          # which the JS layer turns into "open the Trades page with the form
+          # ready" (see App.tsx). Labels are string resources per AOSP rules.
+          cat > "$RES/xml/shortcuts.xml" <<'XML'
+          <?xml version="1.0" encoding="utf-8"?>
+          <shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+              <shortcut
+                  android:shortcutId="new-trade"
+                  android:enabled="true"
+                  android:icon="@mipmap/ic_launcher"
+                  android:shortcutShortLabel="@string/shortcut_new_trade"
+                  android:shortcutLongLabel="@string/shortcut_new_trade">
+                  <intent
+                      android:action="android.intent.action.VIEW"
+                      android:data="edgefolio://new-trade"
+                      android:targetPackage="com.edgefolio.app"
+                      android:targetClass="com.edgefolio.app.MainActivity" />
+              </shortcut>
+          </shortcuts>
+          XML
+          grep -q shortcut_new_trade "$RES/values/strings.xml" 2>/dev/null || \
+            printf '<resources>\n    <string name="shortcut_new_trade">New trade</string>\n</resources>\n' > "$RES/values/shortcuts.xml"
+          # attach the shortcuts resource to the main activity
+          MANIFEST=android/app/src/main/AndroidManifest.xml
+          python3 - <<'PY'
+          import re
+          p = 'android/app/src/main/AndroidManifest.xml'
+          s = open(p).read()
+          if 'android.app.shortcuts' not in s:
+              # insert meta-data just before the FIRST </activity> (the main one)
+              s = s.replace('</activity>',
+                            '    <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />\n        </activity>', 1)
+              open(p, 'w').write(s)
+          PY
+          grep -n "app.shortcuts" "$MANIFEST" || { echo "shortcuts meta-data missing"; exit 1; }
+
       - name: Edge-to-edge system bars (true black behind status / nav bar)
         run: |
           set -e

@@ -323,6 +323,59 @@ export async function syncSessionAlerts(days = 2): Promise<number> {
   return toSchedule.length
 }
 
+// ---------------- End-of-day review reminder ----------------
+// One daily nudge to log trades + write the reflection — the journaling
+// habit the whole app depends on. 15:45 local time (Indian market close for
+// India users). Idempotent + drop-past-due, like every other alert: it only
+// ever books a strictly-future reminder.
+const EOD_KEY = 'edgefolio-eod-reminder'
+const EOD_ALERT_ID = 905000000
+const EOD_HOUR = 15
+const EOD_MINUTE = 45
+
+export function isEodReminderEnabled(): boolean {
+  try {
+    const raw = localStorage.getItem(EOD_KEY)
+    if (raw) return (JSON.parse(raw)?.enabled ?? true) === true
+  } catch { /* ignore */ }
+  return true // default ON (toggle lives in Settings → Alerts)
+}
+
+export function setEodReminderEnabled(v: boolean): void {
+  try { localStorage.setItem(EOD_KEY, JSON.stringify({ enabled: v })) } catch { /* ignore */ }
+}
+
+export async function syncEodReminder(): Promise<boolean> {
+  const LN = (await loadPlugin())?.LN ?? null
+  if (!LN || !isEodReminderEnabled()) return false
+  if (!(await ensurePermission(LN))) return false
+  try {
+    const pend = await LN.getPending()
+    if (pend.notifications.some((n) => n.id === EOD_ALERT_ID)) return false // already booked
+  } catch { /* treat as not booked */ }
+  // next 15:45 local time, strictly in the future
+  const at = new Date()
+  at.setHours(EOD_HOUR, EOD_MINUTE, 0, 0)
+  if (at.getTime() <= Date.now() + 60000) at.setDate(at.getDate() + 1)
+  try {
+    await LN.schedule({
+      notifications: [{
+        id: EOD_ALERT_ID,
+        title: '📝 End-of-day review',
+        body: 'Log your trades and write today\'s reflection while it\'s fresh — 3 minutes in Edgefolio.',
+        schedule: { at, allowWhileIdle: true },
+      }],
+    })
+    return true
+  } catch { return false }
+}
+
+export async function cancelEodReminder(): Promise<void> {
+  const LN = (await loadPlugin())?.LN ?? null
+  if (!LN) return
+  try { await LN.cancel({ notifications: [{ id: EOD_ALERT_ID }] }) } catch { /* ignore */ }
+}
+
 // Cancel only the session-open alerts (used when both toggles are turned off).
 export async function cancelSessionAlerts(): Promise<void> {
   const LN = (await loadPlugin())?.LN ?? null

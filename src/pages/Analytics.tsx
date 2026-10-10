@@ -3,7 +3,7 @@ import { db } from '../db'
 import { useLiveQuery, fmtMoney, fmtNum, fmtPct } from '../util'
 import { useAccountScope, scopeTrades } from '../accounts'
 import { useAppMode, marketOf } from '../mode'
-import { computeStats, groupByPeriod, tradeDate, computeRStats, tradeR, type Period } from '../stats'
+import { computeStats, groupByPeriod, tradeDate, computeRStats, tradeR, type Period, netPnlOf } from '../stats'
 import { exportExcelReport } from '../report'
 import { computeInsights } from '../insights'
 import { useToast } from '../components/Toast'
@@ -344,6 +344,8 @@ export default function Analytics() {
             </div>
           )}
 
+          <StreaksCard trades={scopedTrades} currency={currency} />
+
           <PnlCalendar trades={all} currency={currency} />
 
           <div className="card" style={{ marginBottom: 20 }}>
@@ -420,6 +422,71 @@ function groupBy(trades: any[], keyFn: (t: any) => string) {
   return Array.from(map.entries())
     .map(([key, ts]) => ({ key, stats: computeStats(ts), count: ts.length }))
     .sort((a, b) => b.stats.netPnl - a.stats.netPnl)
+}
+
+// Streaks & drawdown — habit and risk at a glance, from closed trades only.
+function StreaksCard({ trades, currency }: { trades: any[]; currency: string }) {
+  const m = useMemo(() => {
+    const closed = trades
+      .filter((t) => t.outcome !== 'open')
+      .sort((a, b) => tradeDate(a).getTime() - tradeDate(b).getTime())
+    // streaks
+    let cur = 0, curKind: 'win' | 'loss' | null = null
+    let bestWin = 0, worstLoss = 0, run = 0, runKind: 'win' | 'loss' | null = null
+    for (const t of closed) {
+      const kind = t.outcome === 'win' ? 'win' : t.outcome === 'loss' ? 'loss' : null
+      if (!kind) continue // breakeven doesn't break a streak
+      if (kind === runKind) run++
+      else { run = 1; runKind = kind }
+      if (kind === 'win') bestWin = Math.max(bestWin, run)
+      else worstLoss = Math.max(worstLoss, run)
+    }
+    for (let i = closed.length - 1; i >= 0; i--) {
+      const kind = closed[i].outcome === 'win' ? 'win' : closed[i].outcome === 'loss' ? 'loss' : null
+      if (!kind) continue
+      if (curKind == null) { curKind = kind; cur = 1 }
+      else if (kind === curKind) cur++
+      else break
+    }
+    // max drawdown on the cumulative net P/L curve
+    let cum = 0, peak = 0, dd = 0
+    for (const t of closed) {
+      cum += netPnlOf(t)
+      peak = Math.max(peak, cum)
+      dd = Math.max(dd, peak - cum)
+    }
+    return { cur, curKind, bestWin, worstLoss, dd }
+  }, [trades])
+
+  return (
+    <div className="card" style={{ marginBottom: 20 }}>
+      <h3>🔥 Streaks &amp; drawdown</h3>
+      <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))' }}>
+        <div className="stat">
+          <div className="label">Current streak</div>
+          <div className={'value ' + (m.curKind === 'win' ? 'pos' : m.curKind === 'loss' ? 'neg' : '')}>
+            {m.curKind ? `${m.curKind === 'win' ? 'W' : 'L'}${m.cur}` : '—'}
+          </div>
+          <div className="sub">{m.curKind ? (m.curKind === 'win' ? 'wins in a row' : 'losses in a row') : 'no closed trades'}</div>
+        </div>
+        <div className="stat">
+          <div className="label">Best win streak</div>
+          <div className="value pos">{m.bestWin || '—'}</div>
+          <div className="sub">in a row</div>
+        </div>
+        <div className="stat">
+          <div className="label">Worst loss streak</div>
+          <div className="value neg">{m.worstLoss || '—'}</div>
+          <div className="sub">in a row</div>
+        </div>
+        <div className="stat">
+          <div className="label">Max drawdown</div>
+          <div className="value neg">{fmtMoney(m.dd, currency)}</div>
+          <div className="sub">peak-to-trough, net</div>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function BreakdownCard({ title, rows, currency }: { title: string; rows: any[]; currency: string }) {

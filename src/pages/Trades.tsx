@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { db } from '../db'
 import { useLiveQuery, fmtMoney, fmtNum, fmtPct, instrumentLabel, displayDirection } from '../util'
 import { useAccountScope, scopeTrades } from '../accounts'
@@ -27,6 +27,8 @@ export default function Trades() {
   const allTrades = (allTradesRaw ?? []).filter((t) => marketOf(t) === mode)
   const { accounts, activeId, account, currency } = useAccountScope()
   const [showForm, setShowForm] = useState(false)
+  const [range, setRange] = useState<'all' | '30d' | 'month'>('all')
+  const [duplicate, setDuplicate] = useState(false)
   const [editing, setEditing] = useState<Trade | undefined>(undefined)
   const [detail, setDetail] = useState<Trade | undefined>(undefined)
   const [search, setSearch] = useState('')
@@ -47,6 +49,14 @@ export default function Trades() {
   const filtered = useMemo(() => {
     let list = [...trades]
     if (outcome !== 'all') list = list.filter((t) => t.outcome === outcome)
+    // date range: This month = 1st (local) onwards; 30d = rolling window
+    if (range === 'month') {
+      const first = new Date(); first.setDate(1); first.setHours(0, 0, 0, 0)
+      list = list.filter((t) => tradeDate(t).getTime() >= first.getTime())
+    } else if (range === '30d') {
+      const since = Date.now() - 30 * 24 * 3600 * 1000
+      list = list.filter((t) => tradeDate(t).getTime() >= since)
+    }
     if (search.trim()) {
       const q = search.toLowerCase()
       list = list.filter(
@@ -151,10 +161,28 @@ export default function Trades() {
 
   function openNew() {
     setEditing(undefined)
+    setDuplicate(false)
     setShowForm(true)
   }
+
+  // Launched from the Android home-screen shortcut (long-press the app icon →
+  // New trade): open this page with the form ready.
+  useEffect(() => {
+    if (localStorage.getItem('edgefolio-open-new-trade') === '1') {
+      try { localStorage.removeItem('edgefolio-open-new-trade') } catch { /* ignore */ }
+      openNew()
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
   function openEdit(t: Trade) {
     setEditing(t)
+    setShowForm(true)
+  }
+  // Duplicate: same trade, fresh identity — serial is re-assigned on save.
+  function openDuplicate(t: Trade) {
+    const { serial: _s, ...rest } = structuredClone(t)
+    const copy: Trade = { ...rest, id: crypto.randomUUID(), createdAt: Date.now(), updatedAt: Date.now() }
+    setEditing(copy)
+    setDuplicate(true)
     setShowForm(true)
   }
 
@@ -175,6 +203,11 @@ export default function Trades() {
               {o[0].toUpperCase() + o.slice(1)}
             </button>
           ))}
+        </div>
+        <div className="seg" title="Filter by date">
+          <button className={range === 'all' ? 'active' : ''} onClick={() => setRange('all')}>All</button>
+          <button className={range === '30d' ? 'active' : ''} onClick={() => setRange('30d')}>30d</button>
+          <button className={range === 'month' ? 'active' : ''} onClick={() => setRange('month')}>Month</button>
         </div>
         <button className="btn" onClick={exportCsv} title="Export the trades in view as CSV">⬇ CSV</button>
         {mode === 'india' && (
@@ -276,9 +309,11 @@ export default function Trades() {
       {showForm && (
         <TradeForm
           initial={editing}
-          onClose={() => setShowForm(false)}
+          asDuplicate={duplicate}
+          onClose={() => { setShowForm(false); setDuplicate(false) }}
           onSaved={() => {
             setShowForm(false)
+            setDuplicate(false)
             toast('Trade saved')
           }}
         />
@@ -289,6 +324,7 @@ export default function Trades() {
           currency={currency}
           onClose={() => setDetail(undefined)}
           onEdit={(t) => { setDetail(undefined); openEdit(t) }}
+          onDuplicate={(t) => { setDetail(undefined); openDuplicate(t) }}
           onDelete={removeTrade}
         />
       )}

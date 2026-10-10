@@ -13,7 +13,7 @@ import type { Settings, Trade, Account, AccountType } from '../types'
 import { version as APP_VERSION } from '../../package.json'
 import { format, subDays } from 'date-fns'
 import {
-  getDriveState, requestDeviceCode, pollForToken, runBackup, disconnect,
+  getDriveState, requestDeviceCode, pollForToken, runBackup, disconnect, BACKUP_VERSIONS,
   type DriveState, type DeviceCode,
 } from '../drive'
 import { isLockEnabled, setPin, removeLock } from '../lock'
@@ -22,6 +22,7 @@ import {
   newsAlertsSupported, isNewsAlertsEnabled, setNewsAlertsEnabled,
   syncNewsAlerts, cancelAllNewsAlerts, sendTestNewsAlert, LEAD_MINUTES, requestNotificationPermission,
   getSessionAlertPrefs, setSessionAlertPrefs, syncSessionAlerts, cancelSessionAlerts,
+  isEodReminderEnabled, setEodReminderEnabled, syncEodReminder, cancelEodReminder,
   ensureNotificationPermission, notificationPermission, pendingAlertCount,
   type SessionAlertPrefs,
 } from '../newsAlerts'
@@ -417,6 +418,18 @@ function NewsAlertsCard() {
     else toast('Blocked — tap "Open phone settings" below and allow notifications')
   }
 
+  const [eodOn, setEodOn] = useState(() => isEodReminderEnabled())
+  async function toggleEod(on: boolean) {
+    setEodOn(on)
+    setEodReminderEnabled(on)
+    if (on) {
+      const booked = await syncEodReminder()
+      if (booked) toast('Review reminder booked ✓')
+    } else {
+      await cancelEodReminder()
+      toast('Review reminder off')
+    }
+  }
   async function toggleSession(key: keyof SessionAlertPrefs, on: boolean) {
     const next = { ...sessions, [key]: on }
     setSessions(next)
@@ -524,6 +537,13 @@ function NewsAlertsCard() {
           </label>
         </>
       )}
+
+      {/* End-of-day review reminder — both modes */}
+      <div style={{ borderTop: '1px solid var(--hairline)', margin: '16px 0 12px' }} />
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13.5 }}>
+        <input type="checkbox" checked={eodOn} onChange={(e) => toggleEod(e.target.checked)} />
+        <span>📝 End-of-day review <span className="muted" style={{ fontSize: 12 }}>(daily at 15:45 — log trades &amp; reflection)</span></span>
+      </label>
 
       {isIndia && (
         <>
@@ -713,6 +733,13 @@ function DriveBackup() {
           </div>
           <div className="chips" style={{ margin: '4px 0 14px' }}>
             <span className="chip">Last backup: {st.lastBackupAt ? format(new Date(st.lastBackupAt), 'd MMM yyyy, HH:mm') : 'not yet'}</span>
+            {st.lastBackupAt && (
+              <span className="chip">
+                {st.lastBackupTrades != null ? `${st.lastBackupTrades} trades · ` : ''}
+                {st.lastBackupBytes != null ? `${(st.lastBackupBytes / 1024).toFixed(st.lastBackupBytes > 1024 * 1024 ? 1 : 0)} KB` : ''}
+                {' '}· keeps the last {BACKUP_VERSIONS} versions
+              </span>
+            )}
           </div>
           {st.lastError && <p style={{ color: 'var(--red)', fontSize: 12.5, marginTop: -4 }}>{st.lastError}</p>}
           <div className="row">

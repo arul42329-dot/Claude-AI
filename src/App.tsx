@@ -3,7 +3,7 @@ import { NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-d
 import { maybeDailyBackup } from './drive'
 import { getSettings, ensureModeAccount } from './db'
 import { getEcon } from './econ'
-import { syncNewsAlerts, syncSessionAlerts, ensureNotificationPermission } from './newsAlerts'
+import { syncNewsAlerts, syncSessionAlerts, syncEodReminder, ensureNotificationPermission } from './newsAlerts'
 import { startIndexAlertPolling, stopIndexAlertPolling } from './indexAlerts'
 import { checkForUpdate, appVersion } from './updates'
 import { isAmoledEnabled, applyAmoled, getTouchFx, applyTouchFx, applyTimeTheme } from './theme'
@@ -76,6 +76,7 @@ function AppShell() {
       // Session-open alerts book in BOTH modes — the checkboxes are simply
       // shown in forex mode's Settings only.
       syncSessionAlerts().catch(() => {})
+      syncEodReminder().catch(() => {})
     }
     const t = window.setTimeout(sync, 4000)
     const id = window.setInterval(sync, 45 * 60 * 1000)
@@ -114,6 +115,25 @@ function AppShell() {
         lastBack = now
         toastRef.current('Press back again to exit')
       }).then((h) => { handle = h as any })
+    }).catch(() => { /* not on Android — ignore */ })
+    return () => { disposed = true; handle?.remove() }
+  }, [])
+  // Home-screen shortcut (long-press the app icon → "New trade"): the launch
+  // intent carries edgefolio://new-trade — set the flag and jump to Trades;
+  // the page opens the form on mount.
+  useEffect(() => {
+    if (!isNativePlatform()) return
+    let disposed = false
+    let handle: { remove: () => void } | null = null
+    import('@capacitor/app').then(({ App }) => {
+      if (disposed) return
+      const go = (url: string | undefined) => {
+        if (!url || !/new-trade/.test(url)) return
+        try { localStorage.setItem('edgefolio-open-new-trade', '1') } catch { /* ignore */ }
+        navRef.current('/trades')
+      }
+      App.getLaunchUrl().then((l) => go(l?.url)).catch(() => {})
+      App.addListener('appUrlOpen', (e) => go(e.url)).then((h) => { handle = h as any })
     }).catch(() => { /* not on Android — ignore */ })
     return () => { disposed = true; handle?.remove() }
   }, [])
