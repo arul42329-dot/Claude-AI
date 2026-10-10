@@ -8,6 +8,7 @@ import { startIndexAlertPolling, stopIndexAlertPolling } from './indexAlerts'
 import { checkForUpdate, appVersion } from './updates'
 import { isAmoledEnabled, applyAmoled, getTouchFx, applyTouchFx, applyTimeTheme } from './theme'
 import { isNativePlatform } from './candles'
+import { exactAlarmsAllowed } from './biometric'
 import { useLiveQuery } from './util'
 import { AppModeProvider, useAppMode } from './mode'
 import { ToastProvider, useToast } from './components/Toast'
@@ -123,6 +124,17 @@ function AppShell() {
         if (info?.newer) toastRef.current(`Edgefolio v${info.latest} is available — see Settings → Updates`)
       }).catch(() => {})
     }, 6000)
+    // One-time nudge (Android): without the exact-alarm permission notifications
+    // can slip by minutes in Doze — point the user at Settings → Alerts once.
+    exactAlarmsAllowed().then((ok) => {
+      if (ok) return
+      try {
+        const key = 'edgefolio-exact-alarm-nudged'
+        if (localStorage.getItem(key)) return
+        localStorage.setItem(key, '1')
+        toastRef.current('For on-time alerts: Settings → Alerts → Enable exact alarms')
+      } catch { /* ignore */ }
+    }).catch(() => { /* plugin missing below Android 12 — always allowed */ })
     return () => window.clearTimeout(t)
   }, [])
   // AMOLED pure-black display mode (persisted in localStorage, set in Settings).

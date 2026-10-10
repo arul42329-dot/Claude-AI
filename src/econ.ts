@@ -4,7 +4,7 @@
 // through Capacitor's native HTTP (CapacitorHttp), so browser CORS doesn't
 // block them; results are cached to localStorage for offline viewing.
 
-import { corsFetch } from './candles'
+import { corsFetch, isNativePlatform, proxyCandidates } from './candles'
 
 export type Impact = 'High' | 'Medium' | 'Low' | 'Holiday'
 
@@ -20,10 +20,12 @@ export interface EconEvent {
 
 export interface EconSnapshot { events: EconEvent[]; at: number }
 
-const FEEDS = [
-  'https://nfs.faireconomy.media/ff_calendar_thisweek.json',
-  'https://nfs.faireconomy.media/ff_calendar_nextweek.json',
-]
+// ForexFactory's free weekly JSON feeds, hosted by faireconomy.media — with a
+// CDN mirror. Tried in order, and on Android (where corsFetch is direct-only)
+// the public CORS proxies are tried as a last resort, so one blocked/flaky
+// host can never kill the calendar.
+const FEED_FILES = ['ff_calendar_thisweek.json', 'ff_calendar_nextweek.json']
+const FEED_HOSTS = ['https://nfs.faireconomy.media', 'https://cdn-nfs.faireconomy.media']
 const CACHE_KEY = 'edgefolio-econ'
 
 function normImpact(s: any): Impact {
@@ -32,6 +34,26 @@ function normImpact(s: any): Impact {
   if (v.startsWith('med')) return 'Medium'
   if (v.startsWith('holiday')) return 'Holiday'
   return 'Low'
+}
+
+// One ForexFactory feed file: hosts in order, then (Android only) the public
+// CORS proxies. Resolves with the parsed event array.
+async function fetchFeed(file: string): Promise<any[]> {
+  const errors: string[] = []
+  for (const host of FEED_HOSTS) {
+    const url = `${host}/${file}`
+    const attempts = isNativePlatform() ? [url, ...proxyCandidates(url)] : [url]
+    for (const attempt of attempts) {
+      try {
+        const r = await corsFetch(attempt, { timeoutMs: 15000 })
+        if (!r.ok) { errors.push(`${attempt} → ${r.status}`); continue }
+        const j = await r.json()
+        if (Array.isArray(j) && j.length) return j
+        errors.push(`${attempt} → empty`)
+      } catch { errors.push(`${attempt} → network`) }
+    }
+  }
+  throw new Error('calendar feed unreachable (' + errors.slice(0, 2).join(', ') + ')')
 }
 
 export function readCachedEcon(): EconSnapshot | null {
@@ -44,15 +66,9 @@ export function readCachedEcon(): EconSnapshot | null {
 }
 
 export async function fetchEcon(): Promise<EconSnapshot> {
-  const results = await Promise.allSettled(
-    FEEDS.map(async (u) => {
-      const r = await corsFetch(u)
-      if (!r.ok) throw new Error('feed')
-      return r.json()
-    }),
-  )
+  const results = await Promise.allSettled(FEED_FILES.map(fetchFeed))
   const raw: any[] = []
-  for (const res of results) if (res.status === 'fulfilled' && Array.isArray(res.value)) raw.push(...res.value)
+  for (const res of results) if (res.status === 'fulfilled') raw.push(...res.value)
   if (raw.length === 0) throw new Error('No calendar data available')
 
   const seen = new Set<string>()

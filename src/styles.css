@@ -1216,6 +1216,64 @@ tbody tr { transition: background 0.14s var(--ease); }
 .guide-t { font-weight: 700; font-size: 13.5px; margin-bottom: 2px; }
 .guide-x { font-size: 12.5px; color: var(--text-dim); line-height: 1.45; }
 
+/* ---------------- Bias panel: live-chart + option-chain entry buttons ---------------- */
+.bp-actions { display: flex; gap: 10px; margin-bottom: 14px; }
+.bp-actions .btn.sm { flex: 1; }
+
+/* ---------------- Live chart (Angel One) ---------------- */
+.lc-box { width: 100%; overflow: hidden; }
+.lc-svg { display: block; }
+.lc-price {
+  font-family: var(--font-display); font-weight: 700; font-size: 22px;
+  font-variant-numeric: tabular-nums; letter-spacing: -0.4px;
+}
+.lc-grid { stroke: var(--hairline); stroke-width: 1; }
+.lc-axis { fill: var(--text-faint); font-size: 10px; font-family: var(--font-body); }
+.lc-trend { stroke: var(--accent); stroke-width: 2; stroke-dasharray: 7 5; opacity: 0.95; }
+.lc-trend-dot { fill: var(--accent); }
+.lc-live { stroke: var(--text-dim); stroke-width: 1; stroke-dasharray: 3 4; }
+.lc-live-tag { fill: var(--surface-3); stroke: var(--border-strong); stroke-width: 1; }
+.lc-live-txt { fill: var(--text); font-size: 10.5px; font-weight: 700; font-family: var(--font-display); }
+.lc-live-dot { fill: var(--green); stroke: var(--bg); stroke-width: 1.5; }
+.lc-flash {
+  margin-bottom: 10px; padding: 9px 14px; border-radius: var(--radius-sm);
+  font-weight: 700; font-size: 13px; border: 1px solid;
+}
+.lc-flash.up { color: var(--green); border-color: var(--green-dim); background: rgba(61, 220, 151, 0.08); }
+.lc-flash.down { color: var(--red); border-color: var(--red-dim); background: rgba(255, 107, 129, 0.08); }
+.lc-legend { display: flex; gap: 8px; font-size: 11.5px; margin-top: 8px; }
+
+/* ---------------- Option chain (Angel One) ---------------- */
+.oc-head { margin-bottom: 10px; }
+.oc-spot { font-family: var(--font-display); font-weight: 700; font-size: 20px; font-variant-numeric: tabular-nums; }
+.oc-pcr.bull { color: var(--green); border-color: var(--green-dim); }
+.oc-pcr.bear { color: var(--red); border-color: var(--red-dim); }
+.oc-expiries { margin-bottom: 12px; }
+.oc-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 0 -6px; padding: 0 6px; }
+.oc-table { border-collapse: collapse; width: 100%; min-width: 430px; font-variant-numeric: tabular-nums; }
+.oc-table th {
+  font-size: 10.5px; letter-spacing: 0.6px; color: var(--text-faint); font-weight: 700;
+  padding: 6px 6px; border-bottom: 1px solid var(--border); text-align: right; white-space: nowrap;
+}
+.oc-table thead tr:first-child th { text-align: center; color: var(--text-dim); }
+.oc-table td { padding: 7px 6px; border-bottom: 1px solid var(--hairline); text-align: right; font-size: 12.5px; }
+.oc-table .oc-strike-h, .oc-table .oc-strike { text-align: center; }
+.oc-table .oc-strike {
+  font-weight: 700; font-family: var(--font-display); color: var(--text);
+  background: var(--surface-2); border-left: 1px solid var(--border); border-right: 1px solid var(--border);
+}
+.oc-table tr.atm .oc-strike { color: var(--accent); background: var(--accent-faint); }
+.oc-table .ltp { font-weight: 700; }
+.oc-table .iv { color: var(--text-dim); }
+.oc-table .oi { position: relative; min-width: 72px; }
+.oc-table .oi .oi-bar {
+  position: absolute; top: 3px; bottom: 3px; right: 0;
+  background: rgba(255, 255, 255, 0.06); border-radius: 3px;
+}
+.oc-table td.oi.itm .oi-bar { background: rgba(255, 255, 255, 0.1); }
+.oc-table .oi .oi-val { position: relative; z-index: 1; }
+.oc-table .itm { background: rgba(255, 255, 255, 0.025); }
+
 /* ---------------- Markets: pre-market check card ---------------- */
 /* One collapsed button hides the whole global dashboard until tapped. */
 .pm-toggle {

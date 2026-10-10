@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { fetchIndia, readCachedIndia, nseStatus, type IndiaQuote, type IndiaSnapshot } from '../india'
 import { fetchIndiaNews, readCachedIndiaNews, type NewsSnapshot } from '../indiaNews'
-import { fetchGlobal, readCachedGlobal, type GlobalSnapshot } from '../premarket'
+import { fetchGlobal, readCachedGlobal, GLOBAL_SYMBOLS, type GlobalSnapshot } from '../premarket'
 import { fetchAngelLtps, angelLinked } from '../angel'
-import { computeBias } from '../bias'
+import { computeBias, type BiasResult } from '../bias'
 import { corsFetch, yfDirectUrl, isNativePlatform } from '../candles'
 import { BiasPanel } from './BiasPanel'
+import type { Candle } from '../bias'
 
 function fmtPrice(n: number, d: number) {
   return new Intl.NumberFormat('en-IN', { minimumFractionDigits: d, maximumFractionDigits: d }).format(n)
@@ -31,6 +32,7 @@ export function IndiaMarkets({ refreshSignal = 0 }: { refreshSignal?: number }) 
   const [pmOpen, setPmOpen] = useState(false)
   const [ltps, setLtps] = useState<Record<string, { ltp: number; changePct?: number }>>({})
   const [bias15, setBias15] = useState<Record<string, string>>({})
+  const [commodityDetail, setCommodityDetail] = useState<Record<string, BiasResult | null>>({})
   const [, force] = useState(0)
 
   // Prices refresh fast (~5s); news is slow-moving so it loads on mount and only
@@ -80,6 +82,10 @@ export function IndiaMarkets({ refreshSignal = 0 }: { refreshSignal?: number }) 
     }
     loadBias15()
     const bid = window.setInterval(loadBias15, 60000)
+    // Commodity panels: prefetch 1y daily candles once (per app session) so
+    // tapping CRUDE/GOLD/SILVER/NAT GAS opens the bias panel instantly with
+    // full S/R + votes — exactly like the index tiles.
+    prefetchCommodityBias().then(setCommodityDetail).catch(() => {})
     const onWake = () => { load(); loadNews(); loadGlobal(); loadLtps(); loadBias15() }
     window.addEventListener('focus', onWake)
     window.addEventListener('online', onWake)
@@ -97,6 +103,27 @@ export function IndiaMarkets({ refreshSignal = 0 }: { refreshSignal?: number }) 
 
   // Reload when the shared top Refresh button is pressed.
   useEffect(() => { if (refreshSignal) { load(); loadNews() } }, [refreshSignal]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Build the full bias quote for a commodity tile (uses the prefetched daily
+  // candles so the panel opens with S/R + votes, not the "no data" state).
+  function openCommodity(g: { symbol: string; ySymbol: string; price: number; changePct: number; decimals: number }) {
+    const def = GLOBAL_SYMBOLS.find((s) => s.symbol === g.symbol)
+    const detail = commodityDetail[g.symbol] ?? null
+    const arrow = (v: number) => (v > 0 ? '↑' : v < 0 ? '↓' : '–')
+    setSelected({
+      symbol: g.symbol,
+      ySymbol: def?.ySymbol ?? g.ySymbol ?? '',
+      price: g.price,
+      changePct: g.changePct,
+      decimals: g.decimals,
+      bias: detail?.label ?? 'Neutral',
+      biasDetail: detail ?? undefined,
+      biasVotes: detail
+        ? [`Daily bias: ${detail.label} (score ${detail.score >= 0 ? '+' : ''}${detail.score})`,
+           ...detail.votes.map((v) => `${arrow(v.value)} ${v.name} — ${v.detail}`)]
+        : undefined,
+    })
+  }
 
   // Merge Angel One live prices into the index quotes (same shape, fresher price).
   const quotes: IndiaQuote[] = (snap?.quotes ?? []).map((q) => {
@@ -175,9 +202,18 @@ export function IndiaMarkets({ refreshSignal = 0 }: { refreshSignal?: number }) 
             {quotes.map((x) => (
               <IndiaCard key={x.symbol} q={x} biasOverride={bias15[x.symbol]} live={!!ltps[x.symbol]} onOpen={() => setSelected(x)} />
             ))}
-            {(global?.quotes ?? []).filter((g) => ['CRUDE', 'GOLD', 'SILVER', 'NAT GAS'].includes(g.symbol) && g.price > 0).map((g) => (
-              <CommodityCard key={g.symbol} g={g} />
-            ))}
+            {(global?.quotes ?? []).filter((g) => ['CRUDE', 'GOLD', 'SILVER', 'NAT GAS'].includes(g.symbol) && g.price > 0).map((g) => {
+              const angelName = GLOBAL_SYMBOLS.find((s) => s.symbol === g.symbol)?.angel
+              const live = angelName ? ltps[angelName] : undefined
+              return (
+                <CommodityCard
+                  key={g.symbol}
+                  g={live ? { ...g, price: live.ltp, changePct: live.changePct ?? g.changePct } : g}
+                  ready={commodityDetail[g.symbol] != null}
+                  onOpen={() => openCommodity(g)}
+                />
+              )
+            })}
           </div>
         </>
       )}
@@ -208,6 +244,43 @@ export function IndiaMarkets({ refreshSignal = 0 }: { refreshSignal?: number }) 
 
 // 15-minute candles for the tile bias (60s cache, independent of the panel's).
 const cache15 = new Map<string, { at: number; candles: any[] }>()
+
+// Commodity daily candles + bias (prefetched once per session so tiles open
+// instantly). MCX names → Yahoo symbols come from GLOBAL_SYMBOLS.
+const commodityBiasCache = new Map<string, BiasResult | null>()
+async function prefetchCommodityBias(): Promise<Record<string, BiasResult | null>> {
+  const out: Record<string, BiasResult | null> = {}
+  await Promise.all(
+    GLOBAL_SYMBOLS
+      .filter((g) => ['CRUDE', 'GOLD', 'SILVER', 'NAT GAS'].includes(g.symbol))
+      .map(async (g) => {
+        if (commodityBiasCache.has(g.symbol)) {
+          out[g.symbol] = commodityBiasCache.get(g.symbol) ?? null
+          return
+        }
+        try {
+          const r = await corsFetch(yfDirectUrl(g.ySymbol, '1y'), { timeoutMs: 15000 })
+          if (!r.ok) throw new Error('commodity ' + g.symbol)
+          const j: any = await r.json()
+          const res = j?.chart?.result?.[0]
+          const ts: number[] = res?.timestamp || []
+          const q = res?.indicators?.quote?.[0] || {}
+          const candles: Candle[] = []
+          for (let i = 0; i < ts.length; i++) {
+            const o = q.open?.[i], h = q.high?.[i], l = q.low?.[i], c = q.close?.[i]
+            if ([o, h, l, c].every((v) => Number.isFinite(v))) candles.push({ t: ts[i] * 1000, o, h, l, c })
+          }
+          const detail = computeBias(candles) ?? null
+          commodityBiasCache.set(g.symbol, detail)
+          out[g.symbol] = detail
+        } catch {
+          commodityBiasCache.set(g.symbol, null)
+          out[g.symbol] = null
+        }
+      }),
+  )
+  return out
+}
 async function fetch15m(ySymbol: string): Promise<any[] | null> {
   const hit = cache15.get(ySymbol)
   if (hit && Date.now() - hit.at < 60000) return hit.candles
@@ -249,17 +322,28 @@ function IndiaCard({ q, biasOverride, live, onOpen }: { q: IndiaQuote; biasOverr
   )
 }
 
-function CommodityCard({ g }: { g: { symbol: string; price: number; changePct: number; decimals: number; live: boolean } }) {
+function CommodityCard({ g, ready, onOpen }: {
+  g: { symbol: string; price: number; changePct: number; decimals: number; live: boolean; ySymbol?: string }
+  ready?: boolean
+  onOpen?: () => void
+}) {
   const up = g.changePct >= 0
   return (
-    <div className="mkt-card mkt-clickable india" title={g.live ? 'Live MCX price (Angel One)' : 'Delayed price (Yahoo)'}>
+    <div
+      className="mkt-card mkt-clickable india"
+      role="button" tabIndex={0}
+      onClick={onOpen}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen?.() } }}
+      title={g.live ? 'Live MCX price (Angel One) — tap for the bias panel' : 'Delayed price (Yahoo) — tap for the bias panel'}
+    >
       <div className="mkt-sym">
         {g.symbol}{g.live && <span className="live-dot" style={{ marginLeft: 6 }} />}
+        <span className="mkt-chev" aria-hidden="true">›</span>
       </div>
       <div className="mkt-price">{fmtPrice(g.price, g.decimals)}</div>
       <div className="mkt-foot">
         <span className={'pill ' + (up ? 'up' : 'down')}>{fmtChg(g.changePct)}</span>
-        <span className="bias neu"><span className="bdot" />MCX</span>
+        <span className="bias neu"><span className="bdot" />{ready ? 'MCX' : '…'}</span>
       </div>
     </div>
   )

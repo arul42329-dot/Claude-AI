@@ -37,25 +37,39 @@ export const INDIA_INDICES: IndexDef[] = [
 const arrow = (v: BiasVote['value']) => (v > 0 ? '↑' : v < 0 ? '↓' : '–')
 
 async function fetchIndex(def: IndexDef): Promise<IndiaQuote> {
-  const r = await corsFetch(yfDirectUrl(def.ySymbol, '1y'), { timeoutMs: 12000 })
-  if (!r.ok) throw new Error('india ' + def.ySymbol)
-  const j: any = await r.json()
-  const res = j?.chart?.result?.[0]
-  if (!res?.meta) throw new Error('india-empty ' + def.ySymbol)
-  const meta = res.meta
+  // Fetch chart meta + candles. Some symbols (FIN NIFTY on Yahoo) intermittently
+  // return the price meta but an EMPTY candle array for one range — retry the
+  // neighbouring ranges before giving up so the bias panel always has data.
+  const ranges = ['1y', '2y', '6mo', '3mo']
+  let meta: any = null
+  let candles: Candle[] = []
+  let lastErr: unknown = null
+  for (const range of ranges) {
+    try {
+      const r = await corsFetch(yfDirectUrl(def.ySymbol, range), { timeoutMs: 12000 })
+      if (!r.ok) throw new Error('india ' + def.ySymbol)
+      const j: any = await r.json()
+      const res = j?.chart?.result?.[0]
+      if (!res?.meta) throw new Error('india-empty ' + def.ySymbol)
+      if (!meta) meta = res.meta
+      const ts: number[] = res.timestamp || []
+      const q = res.indicators?.quote?.[0] || {}
+      const cs: Candle[] = []
+      for (let i = 0; i < ts.length; i++) {
+        const o = q.open?.[i], h = q.high?.[i], l = q.low?.[i], c = q.close?.[i]
+        if ([o, h, l, c].every((v) => Number.isFinite(v))) cs.push({ t: ts[i] * 1000, o, h, l, c })
+      }
+      if (cs.length >= 60) { candles = cs; break }
+      if (cs.length > candles.length) candles = cs
+    } catch (e) { lastErr = e }
+  }
+  if (!meta) throw lastErr ?? new Error('india ' + def.ySymbol)
   const price = Number(meta.regularMarketPrice)
   const prev = Number(meta.chartPreviousClose ?? meta.previousClose)
   const changePct = Number.isFinite(meta.regularMarketChangePercent)
     ? Number(meta.regularMarketChangePercent)
     : prev ? ((price - prev) / prev) * 100 : 0
 
-  const ts: number[] = res.timestamp || []
-  const q = res.indicators?.quote?.[0] || {}
-  const candles: Candle[] = []
-  for (let i = 0; i < ts.length; i++) {
-    const o = q.open?.[i], h = q.high?.[i], l = q.low?.[i], c = q.close?.[i]
-    if ([o, h, l, c].every((v) => Number.isFinite(v))) candles.push({ t: ts[i] * 1000, o, h, l, c })
-  }
   const detail = computeBias(candles)
 
   return {

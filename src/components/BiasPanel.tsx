@@ -4,6 +4,9 @@ import { tradeCall, computeBias, aggregateCandles, type BiasResult, type KeyLeve
 import { getCandlesInterval } from '../candles'
 import { yahooSymbolFor } from '../market'
 import { fetchGlobal, readCachedGlobal, type GlobalSnapshot } from '../premarket'
+import { angelLinked, angelIndexToken, fetchAngelCandles } from '../angel'
+import { LiveChart } from './LiveChart'
+import { OptionChain } from './OptionChain'
 
 // Minimal shape the panel needs — satisfied by both forex Quote and IndiaQuote.
 export interface BiasQuote {
@@ -39,6 +42,13 @@ export function BiasPanel({ q, onClose }: { q: BiasQuote; onClose: () => void })
   const dec = q.decimals
   const [mtf, setMtf] = useState<{ '4H': TfLabel; '1H': TfLabel; '15m': TfLabel }>({ '4H': '…', '1H': '…', '15m': '…' })
   const [gSnap, setGSnap] = useState<GlobalSnapshot | null>(() => readCachedGlobal())
+  const [showChart, setShowChart] = useState(false)
+  const [showChain, setShowChain] = useState(false)
+
+  // Live chart + option chain — NSE indices with a SmartAPI token, only while
+  // the Angel One link is active (they are live-data features).
+  const chartTok = angelIndexToken(q.symbol)
+  const liveTools = !!chartTok && angelLinked()
 
   // Global drivers for the daily-bias confluence (India indices only): VIX,
   // USD/INR, US indices, crude — the pre-market dashboard inputs.
@@ -48,13 +58,36 @@ export function BiasPanel({ q, onClose }: { q: BiasQuote; onClose: () => void })
     fetchGlobal().then(setGSnap).catch(() => {})
   }, [isIndiaIndex, q.symbol]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Intraday bias for the multi-timeframe strip. The 1h feed powers both the
-  // 1H chip and the 4H chip (1h candles aggregated into 4h buckets); 15m is a
-  // separate fetch. Results are cached, so re-opening a panel is instant.
+  // Intraday bias for the multi-timeframe strip. Linked Angel One users get
+  // the candles from SmartAPI's historical feed (works for every index —
+  // Yahoo's intraday feed is patchy for FIN NIFTY); everyone else uses Yahoo.
+  // The 1h feed powers both the 1H chip and the 4H chip (1h candles
+  // aggregated into 4h buckets); 15m is a separate fetch.
   useEffect(() => {
+    let alive = true
+    const tok = angelIndexToken(q.symbol)
+    if (tok && angelLinked()) {
+      const now = new Date()
+      fetchAngelCandles(tok, 'ONE_HOUR', new Date(now.getTime() - 40 * 24 * 3600 * 1000), now)
+        .then((h1) => {
+          if (!alive) return
+          if (!h1.length) { setMtf((m) => ({ ...m, '4H': '—', '1H': '—' })); return }
+          const b1 = computeBias(h1)
+          const b4 = computeBias(aggregateCandles(h1, 4 * 60 * 60 * 1000))
+          setMtf((m) => ({ ...m, '1H': b1?.label ?? '—', '4H': b4?.label ?? '—' }))
+        })
+        .catch(() => { if (alive) setMtf((m) => ({ ...m, '4H': '—', '1H': '—' })) })
+      fetchAngelCandles(tok, 'FIFTEEN_MINUTE', new Date(now.getTime() - 7 * 24 * 3600 * 1000), now)
+        .then((m15) => {
+          if (!alive) return
+          const b15 = m15.length ? computeBias(m15) : null
+          setMtf((m) => ({ ...m, '15m': b15?.label ?? '—' }))
+        })
+        .catch(() => { if (alive) setMtf((m) => ({ ...m, '15m': '—' })) })
+      return () => { alive = false }
+    }
     const ySym = q.ySymbol ?? yahooSymbolFor(q.symbol)
     if (!ySym) { setMtf({ '4H': '—', '1H': '—', '15m': '—' }); return }
-    let alive = true
     getCandlesInterval(q.symbol, ySym, '1h', '3mo')
       .then((h1) => {
         if (!alive) return
@@ -77,6 +110,12 @@ export function BiasPanel({ q, onClose }: { q: BiasQuote; onClose: () => void })
   return (
     <Modal title={`${q.symbol} · Daily Bias`} onClose={onClose}
       footer={<span className="muted" style={{ fontSize: 11.5 }}>Rule-based · daily timeframe · educational, not financial advice.</span>}>
+      {liveTools && (
+        <div className="bp-actions">
+          <button className="btn primary sm" onClick={() => setShowChart(true)}>📈 Live chart</button>
+          <button className="btn sm" onClick={() => setShowChain(true)}>⛓ Option chain</button>
+        </div>
+      )}
       {!d ? (
         <div className="empty" style={{ border: 'none' }}>
           <div className="big">📊</div>
@@ -209,6 +248,12 @@ export function BiasPanel({ q, onClose }: { q: BiasQuote; onClose: () => void })
           <h4 className="bp-h">Trade call</h4>
           <TradeCallBox q={q} />
         </>
+      )}
+      {showChart && chartTok && (
+        <LiveChart symbol={q.symbol} token={chartTok} onClose={() => setShowChart(false)} />
+      )}
+      {showChain && chartTok && (
+        <OptionChain ocName={chartTok.ocName} spot={q.price} onClose={() => setShowChain(false)} />
       )}
     </Modal>
   )

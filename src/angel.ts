@@ -241,6 +241,182 @@ export async function fetchAngelLtps(): Promise<Record<string, AngelLtp>> {
   }
 }
 
+// ---------------- historical candles (live chart + intraday bias) ----------------
+
+export type AngelInterval = 'ONE_MINUTE' | 'FIVE_MINUTE' | 'FIFTEEN_MINUTE' | 'THIRTY_MINUTE' | 'ONE_HOUR' | 'ONE_DAY'
+export interface AngelCandle { t: number; o: number; h: number; l: number; c: number; v: number }
+
+// Wall-clock string in IST ("yyyy-MM-dd HH:mm") — the historical API takes
+// IST times regardless of the device's timezone.
+function istStr(d: Date): string {
+  const p = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Kolkata', hourCycle: 'h23',
+    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
+  }).formatToParts(d)
+  const m: Record<string, string> = {}
+  for (const x of p) m[x.type] = x.value
+  return `${m.year}-${m.month}-${m.day} ${m.hour}:${m.minute}`
+}
+
+// Historical candles via SmartAPI getCandleData. `from`/`to` are absolute
+// instants (converted to IST wall time for the request body); the response is
+// an array of [epochSeconds, open, high, low, close, volume].
+export async function fetchAngelCandles(
+  tok: { exchange: string; token: string },
+  interval: AngelInterval,
+  from: Date,
+  to: Date,
+): Promise<AngelCandle[]> {
+  const creds = getAngelCreds()
+  if (!creds) throw new Error('Angel One not linked')
+  const s = await getSession()
+  const r = await corsFetch(HOST + '/rest/secure/angelbroking/historical/v1/getCandleData', {
+    method: 'POST',
+    headers: headers(creds, s.jwt),
+    timeoutMs: 15000,
+    body: JSON.stringify({
+      exchange: tok.exchange,
+      symboltoken: tok.token,
+      interval,
+      fromdate: istStr(from),
+      todate: istStr(to),
+    }),
+  })
+  if (!r.ok) throw new Error('Angel candles HTTP ' + r.status)
+  const j: any = await r.json()
+  if (j?.status === false) throw new Error(j?.message || 'Angel candles unavailable')
+  const rows: any[] = Array.isArray(j?.data) ? j.data : []
+  const out: AngelCandle[] = []
+  for (const row of rows) {
+    // Some entries come back as strings — coerce defensively.
+    const t = Number(row[0]) * 1000
+    const o = Number(row[1]), h = Number(row[2]), l = Number(row[3]), c = Number(row[4]), v = Number(row[5] ?? 0)
+    if ([t, o, h, l, c].every((x) => Number.isFinite(x))) out.push({ t, o, h, l, c, v: Number.isFinite(v) ? v : 0 })
+  }
+  return out
+}
+
+// ---------------- FULL quotes (option chain: LTP + OI + volume) ----------------
+
+// Batch FULL-mode quote for arbitrary tokens. Returns token → raw row.
+export async function fetchAngelQuotesFull(
+  tokens: { exchange: string; token: string }[],
+): Promise<Record<string, any>> {
+  const creds = getAngelCreds()
+  if (!creds || tokens.length === 0) return {}
+  const s = await getSession()
+  const byExchange: Record<string, string[]> = {}
+  for (const t of tokens) (byExchange[t.exchange] = byExchange[t.exchange] || []).push(t.token)
+  const r = await corsFetch(HOST + '/rest/secure/angelbroking/market/v1/quote/', {
+    method: 'POST',
+    headers: headers(creds, s.jwt),
+    timeoutMs: 12000,
+    body: JSON.stringify({ mode: 'FULL', exchangeTokens: byExchange }),
+  })
+  if (!r.ok) throw new Error('quote/full HTTP ' + r.status)
+  const j: any = await r.json()
+  const out: Record<string, any> = {}
+  for (const row of j?.data?.fetched ?? []) {
+    const tok = String(row.symbolToken ?? '')
+    if (tok) out[tok] = row
+  }
+  return out
+}
+
+// ---------------- option chain ----------------
+
+export interface OptionMeta {
+  expiry: string // YYYY-MM-DD
+  strike: number
+  optionType: 'CE' | 'PE'
+  token: string
+  lotSize: number
+  exchange: string // NFO for index options
+}
+
+const OPT_KEY = 'edgefolio-angel-optuniverse-v1'
+const OPT_NAMES = ['NIFTY', 'BANKNIFTY', 'FINNIFTY']
+
+// The NFO index-option universe for NIFTY / BANKNIFTY / FINNIFTY from the
+// (public) scrip master — expiries, strikes, CE/PE tokens. Cached ~12h so the
+// big scrip master is downloaded at most twice a day.
+export async function optionUniverse(): Promise<Record<string, OptionMeta[]>> {
+  try {
+    const raw = JSON.parse(localStorage.getItem(OPT_KEY) || 'null')
+    if (raw?.at && Date.now() - raw.at < 12 * 3600 * 1000 && raw.rows) return raw.rows
+  } catch { /* re-download */ }
+  const r = await corsFetch(SCRIP_MASTER, { timeoutMs: 45000 })
+  if (!r.ok) throw new Error('scrip ' + r.status)
+  const all: any[] = await r.json()
+  const rows: Record<string, OptionMeta[]> = { NIFTY: [], BANKNIFTY: [], FINNIFTY: [] }
+  for (const row of all) {
+    if (row.exch_seg !== 'NFO' || (row.instrumenttype ?? '') !== 'OPTIDX') continue
+    const name = String(row.name ?? '').toUpperCase()
+    if (!OPT_NAMES.includes(name)) continue
+    const strike = Number(row.strike)
+    const expiry = String(row.expiry ?? '')
+    const opt = String(row.optiontype ?? row.instrumenttype ?? '').toUpperCase() === 'PE' ? 'PE' : 'CE'
+    if (!Number.isFinite(strike) || !/^\d{4}-\d{2}-\d{2}$/.test(expiry)) continue
+    rows[name].push({ expiry, strike, optionType: opt, token: String(row.token), lotSize: Number(row.lotsize ?? 0), exchange: 'NFO' })
+  }
+  // Keep only the nearest 6 expiries per index — weekly files get huge.
+  for (const name of OPT_NAMES) {
+    const expiries = [...new Set(rows[name].map((m) => m.expiry))].sort().slice(0, 6)
+    rows[name] = rows[name].filter((m) => expiries.includes(m.expiry))
+  }
+  try { localStorage.setItem(OPT_KEY, JSON.stringify({ at: Date.now(), rows })) } catch { /* quota — skip cache */ }
+  return rows
+}
+
+// Option greeks (IV, delta…) for a whole expiry — one call per name+expiry.
+export interface Greek { iv?: number; delta?: number; volume?: number }
+
+function toDDMMMYYYY(ymd: string): string {
+  const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
+  const [y, m, d] = ymd.split('-')
+  return String(Number(d)) + months[Number(m) - 1] + y
+}
+
+export async function fetchOptionGreeks(name: string, expiryYmd: string): Promise<Record<string, Greek>> {
+  const creds = getAngelCreds()
+  if (!creds) return {}
+  const s = await getSession()
+  const r = await corsFetch(HOST + '/rest/secure/angelbroking/marketData/v1/optionGreek', {
+    method: 'POST',
+    headers: headers(creds, s.jwt),
+    timeoutMs: 12000,
+    body: JSON.stringify({ name, expirydate: toDDMMMYYYY(expiryYmd) }),
+  })
+  if (!r.ok) return {} // non-fatal — the chain still shows LTP/OI
+  const j: any = await r.json()
+  const out: Record<string, Greek> = {}
+  for (const row of j?.data ?? []) {
+    const strike = Number(row.strikePrice)
+    const type = String(row.optionType ?? '').toUpperCase().includes('P') ? 'PE' : 'CE'
+    if (!Number.isFinite(strike)) continue
+    out[`${strike}|${type}`] = {
+      iv: Number.isFinite(Number(row.impliedVolatility)) ? Number(row.impliedVolatility) : undefined,
+      delta: Number.isFinite(Number(row.delta)) ? Number(row.delta) : undefined,
+      volume: Number.isFinite(Number(row.tradeVolume)) ? Number(row.tradeVolume) : undefined,
+    }
+  }
+  return out
+}
+
+// ---------------- index token lookup (chart + option chain entry points) ----------------
+
+// Static NSE index tokens — the symbols that get the live-chart + option-chain
+// buttons in the bias panel (SENSEX is BSE; no stable SmartAPI token handy).
+const ANGEL_INDEX_TOKENS: Record<string, { exchange: string; token: string; ocName: string }> = {
+  'NIFTY 50': { exchange: 'NSE', token: '26000', ocName: 'NIFTY' },
+  'BANK NIFTY': { exchange: 'NSE', token: '26009', ocName: 'BANKNIFTY' },
+  'FIN NIFTY': { exchange: 'NSE', token: '26037', ocName: 'FINNIFTY' },
+}
+
+export function angelIndexToken(symbol: string): { exchange: string; token: string; ocName: string } | null {
+  return ANGEL_INDEX_TOKENS[symbol] ?? null
+}
+
 // Test a set of credentials by logging in (Settings "Link" button).
 export async function testAngelLogin(creds: AngelCreds): Promise<void> {
   const saved = getAngelCreds()

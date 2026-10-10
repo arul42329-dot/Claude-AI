@@ -116,6 +116,19 @@ function writeState(s: TrendState): void {
   try { localStorage.setItem(STATE_KEY, JSON.stringify(s)) } catch { /* ignore */ }
 }
 
+// A flip only counts as NEWS if the candle that confirmed it closed recently.
+// Otherwise (app was closed for hours, the poller catches up on open) the new
+// trend is recorded silently — this is what made alerts arrive "late" or pop
+// the moment the app was opened.
+const FRESH_FLIP_MS = 16 * 60 * 1000
+
+function flipIsFresh(candles: Candle[]): boolean {
+  const closed = candles.slice(0, -1)
+  if (!closed.length) return false
+  const confirmAt = closed[closed.length - 1].t + 15 * 60 * 1000 // close of the last closed 15m candle
+  return Date.now() - confirmAt <= FRESH_FLIP_MS
+}
+
 // Container return — see newsAlerts.ts: resolving a promise with the plugin
 // proxy itself triggers a thenable check the stub rejects.
 async function loadPlugin(): Promise<{ LN: LocalNotificationsPlugin } | null> {
@@ -144,7 +157,9 @@ export async function checkIndexTrends(fire = true): Promise<number> {
     dirty = true
     if (prev && prev.trend !== trend) {
       flips++
-      if (LN) {
+      // Only ALERT for flips that just happened — a flip from hours ago (the
+      // app was closed) is absorbed silently so nothing pops on open.
+      if (LN && flipIsFresh(candles)) {
         try {
           await LN.schedule({
             notifications: [{
