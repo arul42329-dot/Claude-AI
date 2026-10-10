@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { fetchIndia, fetchIndiaVix, readCachedIndia, nseStatus, type IndiaQuote, type IndiaSnapshot } from '../india'
 import { fetchIndiaNews, readCachedIndiaNews, type NewsSnapshot } from '../indiaNews'
+import { fetchGlobal, readCachedGlobal, type GlobalSnapshot } from '../premarket'
+import { fetchAngelLtps, angelLinked } from '../angel'
+import { computeBias } from '../bias'
+import { corsFetch, yfDirectUrl, isNativePlatform } from '../candles'
 import { BiasPanel } from './BiasPanel'
 import { ComparisonTile } from './ComparisonTile'
 
@@ -25,6 +29,9 @@ export function IndiaMarkets({ refreshSignal = 0 }: { refreshSignal?: number }) 
   const [error, setError] = useState<string | null>(null)
   const [selected, setSelected] = useState<IndiaQuote | null>(null)
   const [vix, setVix] = useState<IndiaQuote | null>(null)
+  const [global, setGlobal] = useState<GlobalSnapshot | null>(() => readCachedGlobal())
+  const [ltps, setLtps] = useState<Record<string, { ltp: number; changePct?: number }>>({})
+  const [bias15, setBias15] = useState<Record<string, string>>({})
   const [, force] = useState(0)
 
   // Prices refresh fast (~5s); news is slow-moving so it loads on mount and only
@@ -53,13 +60,39 @@ export function IndiaMarkets({ refreshSignal = 0 }: { refreshSignal?: number }) 
     const id = window.setInterval(load, 5000) // live-ish auto refresh (~5s)
     const newsId = window.setInterval(loadNews, 180000) // news every 3 min
     const tick = window.setInterval(() => force((n) => n + 1), 1000)
-    const onWake = () => { load(); loadNews() }
+    // Pre-market dashboard (USD/INR, US indices, commodities) — every 15s.
+    const loadGlobal = () => { fetchGlobal().then(setGlobal).catch(() => {}) }
+    loadGlobal()
+    const gid = window.setInterval(loadGlobal, 15000)
+    // Angel One live LTPs (tick-like) when linked — every 3s.
+    const loadLtps = () => {
+      if (angelLinked() && isNativePlatform()) fetchAngelLtps().then(setLtps).catch(() => {})
+      else setLtps({})
+    }
+    loadLtps()
+    const lid = window.setInterval(loadLtps, 3000)
+    // 15-minute bias for the index tiles (60s refresh).
+    const loadBias15 = () => {
+      fetchIndia().then((s) => {
+        const out: Record<string, string> = {}
+        void Promise.all(s.quotes.map(async (q) => {
+          const c = await fetch15m(q.ySymbol)
+          if (c) { const b = computeBias(c); if (b) out[q.symbol] = b.label }
+        })).then(() => setBias15({ ...out }))
+      }).catch(() => {})
+    }
+    loadBias15()
+    const bid = window.setInterval(loadBias15, 60000)
+    const onWake = () => { load(); loadNews(); loadGlobal(); loadLtps(); loadBias15() }
     window.addEventListener('focus', onWake)
     window.addEventListener('online', onWake)
     return () => {
       window.clearInterval(id)
       window.clearInterval(newsId)
       window.clearInterval(tick)
+      window.clearInterval(gid)
+      window.clearInterval(lid)
+      window.clearInterval(bid)
       window.removeEventListener('focus', onWake)
       window.removeEventListener('online', onWake)
     }
@@ -68,7 +101,13 @@ export function IndiaMarkets({ refreshSignal = 0 }: { refreshSignal?: number }) 
   // Reload when the shared top Refresh button is pressed.
   useEffect(() => { if (refreshSignal) { load(); loadNews() } }, [refreshSignal]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const quotes = snap?.quotes ?? []
+  // Merge Angel One live prices into the index quotes (same shape, fresher price).
+  const quotes: IndiaQuote[] = (snap?.quotes ?? []).map((q) => {
+    const l = ltps[q.symbol]
+    if (!l) return q
+    return { ...q, price: l.ltp, changePct: l.changePct ?? q.changePct }
+  })
+  const anyLive = Object.keys(ltps).length > 0
   const status = useMemo(() => nseStatus(new Date()), [snap]) // eslint-disable-line react-hooks/exhaustive-deps
   const selectedLive = useMemo(
     () => (selected ? quotes.find((x) => x.symbol === selected.symbol) ?? selected : null),
@@ -101,6 +140,28 @@ export function IndiaMarkets({ refreshSignal = 0 }: { refreshSignal?: number }) 
         />
       </div>
 
+      {/* Pre-market check — what to read before opening an index trade */}
+      {global && global.quotes.some((q) => q.price > 0) && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <div className="row" style={{ justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
+            <h3 style={{ margin: 0 }}>🧭 Pre-market check</h3>
+            {anyLive && <span className="chip" style={{ color: 'var(--green)', borderColor: 'var(--green)' }}><span className="live-dot" /> LIVE · Angel One</span>}
+          </div>
+          <div className="premarket-grid">
+            {global.quotes.map((g) => (
+              <div key={g.symbol} className="premarket-row">
+                <span className="premarket-sym">{g.symbol}</span>
+                <span className="premarket-price">
+                  {g.price > 0 ? fmtPrice(g.price, g.decimals) : '—'}
+                  {g.live && <span className="live-dot" style={{ marginLeft: 6 }} />}
+                </span>
+                <span className={'pill ' + (g.changePct >= 0 ? 'up' : 'down')}>{g.price > 0 ? fmtChg(g.changePct) : ''}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Index prices */}
       {quotes.length > 0 && (
         <>
@@ -111,7 +172,12 @@ export function IndiaMarkets({ refreshSignal = 0 }: { refreshSignal?: number }) 
           )}
 
           <div className="mkt-grid">
-            {quotes.map((x) => <IndiaCard key={x.symbol} q={x} onOpen={() => setSelected(x)} />)}
+            {quotes.map((x) => (
+              <IndiaCard key={x.symbol} q={x} biasOverride={bias15[x.symbol]} live={!!ltps[x.symbol]} onOpen={() => setSelected(x)} />
+            ))}
+            {(global?.quotes ?? []).filter((g) => ['CRUDE', 'GOLD', 'SILVER', 'NAT GAS'].includes(g.symbol) && g.price > 0).map((g) => (
+              <CommodityCard key={g.symbol} g={g} />
+            ))}
           </div>
         </>
       )}
@@ -140,21 +206,60 @@ export function IndiaMarkets({ refreshSignal = 0 }: { refreshSignal?: number }) 
   )
 }
 
-function IndiaCard({ q, onOpen }: { q: IndiaQuote; onOpen?: () => void }) {
+// 15-minute candles for the tile bias (60s cache, independent of the panel's).
+const cache15 = new Map<string, { at: number; candles: any[] }>()
+async function fetch15m(ySymbol: string): Promise<any[] | null> {
+  const hit = cache15.get(ySymbol)
+  if (hit && Date.now() - hit.at < 60000) return hit.candles
+  try {
+    const r = await corsFetch(yfDirectUrl(ySymbol, '5d', '15m'), { timeoutMs: 12000 })
+    if (!r.ok) return hit ? hit.candles : null
+    const j: any = await r.json()
+    const res = j?.chart?.result?.[0]
+    const ts: number[] = res?.timestamp || []
+    const q = res?.indicators?.quote?.[0] || {}
+    const candles: any[] = []
+    for (let i = 0; i < ts.length; i++) {
+      const o = q.open?.[i], h = q.high?.[i], l = q.low?.[i], c = q.close?.[i]
+      if ([o, h, l, c].every((v) => Number.isFinite(v))) candles.push({ t: ts[i] * 1000, o, h, l, c })
+    }
+    if (candles.length) { cache15.set(ySymbol, { at: Date.now(), candles }); return candles }
+  } catch { /* fall back to cache */ }
+  return hit ? hit.candles : null
+}
+
+function IndiaCard({ q, biasOverride, live, onOpen }: { q: IndiaQuote; biasOverride?: string; live?: boolean; onOpen?: () => void }) {
   const up = q.changePct >= 0
+  const b = biasOverride || q.bias // the tile shows the 15-minute read
   return (
     <div className="mkt-card mkt-clickable india" role="button" tabIndex={0} onClick={onOpen}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen?.() } }}>
       <div className="mkt-sym">
-        {q.symbol}
+        {q.symbol}{live && <span className="live-dot" style={{ marginLeft: 6 }} />}
         <span className="mkt-chev" aria-hidden="true">›</span>
       </div>
       <div className="mkt-price">{fmtPrice(q.price, q.decimals)}</div>
       <div className="mkt-foot">
         <span className={'pill ' + (up ? 'up' : 'down')}>{fmtChg(q.changePct)}</span>
-        <span className={'bias ' + (q.bias === 'Bullish' ? 'bull' : q.bias === 'Bearish' ? 'bear' : 'neu')} title={q.biasVotes?.join('\n')}>
-          <span className="bdot" />{q.bias}
+        <span className={'bias ' + (b === 'Bullish' ? 'bull' : b === 'Bearish' ? 'bear' : 'neu')} title={'15-minute bias: ' + b + (q.biasVotes ? '\n\nDaily bias: ' + q.bias + '\n' + q.biasVotes.join('\n') : '')}>
+          <span className="bdot" />{b}
         </span>
+      </div>
+    </div>
+  )
+}
+
+function CommodityCard({ g }: { g: { symbol: string; price: number; changePct: number; decimals: number; live: boolean } }) {
+  const up = g.changePct >= 0
+  return (
+    <div className="mkt-card mkt-clickable india" title={g.live ? 'Live MCX price (Angel One)' : 'Delayed price (Yahoo)'}>
+      <div className="mkt-sym">
+        {g.symbol}{g.live && <span className="live-dot" style={{ marginLeft: 6 }} />}
+      </div>
+      <div className="mkt-price">{fmtPrice(g.price, g.decimals)}</div>
+      <div className="mkt-foot">
+        <span className={'pill ' + (up ? 'up' : 'down')}>{fmtChg(g.changePct)}</span>
+        <span className="bias neu"><span className="bdot" />MCX</span>
       </div>
     </div>
   )

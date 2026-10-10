@@ -3,6 +3,7 @@ import { Modal } from './Modal'
 import { tradeCall, computeBias, aggregateCandles, type BiasResult, type KeyLevel } from '../bias'
 import { getCandlesInterval } from '../candles'
 import { yahooSymbolFor } from '../market'
+import { fetchGlobal, readCachedGlobal, type GlobalSnapshot } from '../premarket'
 
 // Minimal shape the panel needs — satisfied by both forex Quote and IndiaQuote.
 export interface BiasQuote {
@@ -30,10 +31,22 @@ function fmtChg(n: number) {
 // the candles for that timeframe can't be fetched.
 type TfLabel = 'Bullish' | 'Bearish' | 'Neutral' | '…' | '—'
 
+// India index symbols that get the global-confluence section.
+const INDIA_INDEX_NAMES = ['NIFTY 50', 'BANK NIFTY', 'FIN NIFTY', 'NIFTY MIDCAP 50', 'SENSEX']
+
 export function BiasPanel({ q, onClose }: { q: BiasQuote; onClose: () => void }) {
   const d = q.biasDetail
   const dec = q.decimals
   const [mtf, setMtf] = useState<{ '4H': TfLabel; '1H': TfLabel; '15m': TfLabel }>({ '4H': '…', '1H': '…', '15m': '…' })
+  const [gSnap, setGSnap] = useState<GlobalSnapshot | null>(() => readCachedGlobal())
+
+  // Global drivers for the daily-bias confluence (India indices only): VIX,
+  // USD/INR, US indices, crude — the pre-market dashboard inputs.
+  const isIndiaIndex = INDIA_INDEX_NAMES.includes(q.symbol)
+  useEffect(() => {
+    if (!isIndiaIndex) return
+    fetchGlobal().then(setGSnap).catch(() => {})
+  }, [isIndiaIndex, q.symbol]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Intraday bias for the multi-timeframe strip. The 1h feed powers both the
   // 1H chip and the 4H chip (1h candles aggregated into 4h buckets); 15m is a
@@ -107,6 +120,39 @@ export function BiasPanel({ q, onClose }: { q: BiasQuote; onClose: () => void })
               return <span key={n} className={'bp-seg ' + (n < 0 ? 'neg' : 'pos') + (active ? ' on' : '')} />
             })}
           </div>
+
+          {/* Global confluence — the pre-market drivers behind the daily bias */}
+          {isIndiaIndex && gSnap && (() => {
+            const dir: Record<string, number> = {}
+            for (const g of gSnap.quotes) dir[g.symbol] = g.changePct > 0.05 ? 1 : g.changePct < -0.05 ? -1 : 0
+            const rows: { name: string; detail: string; value: number }[] = [
+              { name: 'US indices (Dow · Nasdaq · S&P)', detail: 'Global risk appetite', value: Math.sign(dir['DOW'] + dir['NASDAQ'] + dir['S&P 500']) },
+              { name: 'USD/INR', detail: 'Rupee strength (inverse for NIFTY)', value: -(dir['USD/INR'] || 0) },
+              { name: 'Crude oil', detail: 'India imports ~85% — inverse for indices', value: -(dir['CRUDE'] || 0) },
+              { name: 'Gold', detail: 'Safe-haven flows', value: -(dir['GOLD'] || 0) },
+            ].filter((r) => r.value !== 0)
+            const net = rows.reduce((a, r) => a + r.value, 0)
+            return (
+              <>
+                <h4 className="bp-h">Global confluence · daily bias confirmation</h4>
+                <div className="bp-votes">
+                  {rows.length === 0 && <div className="bp-vote"><span className="bp-vic neu">–</span><span className="bp-vname muted">Global drivers flat right now</span></div>}
+                  {rows.map((r) => (
+                    <div key={r.name} className="bp-vote">
+                      <span className={'bp-vic ' + (r.value > 0 ? 'pos' : 'neg')}>{r.value > 0 ? '↑' : '↓'}</span>
+                      <span className="bp-vname">{r.name}</span>
+                      <span className="bp-vdetail muted">{r.detail}</span>
+                    </div>
+                  ))}
+                </div>
+                {rows.length > 0 && (
+                  <div className={'mtf-note ' + (net > 0 ? 'bull' : net < 0 ? 'bear' : '')} style={{ marginTop: 10 }}>
+                    {net > 0 ? '▲' : net < 0 ? '▼' : '–'} Global backdrop {net > 0 ? 'supports' : net < 0 ? 'pressures' : 'is neutral on'} the {d.label.toLowerCase()} daily bias
+                  </div>
+                )}
+              </>
+            )
+          })()}
 
           {/* Main support & resistance */}
           <h4 className="bp-h">Key levels · S&amp;R</h4>

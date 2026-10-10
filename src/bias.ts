@@ -276,10 +276,37 @@ export function pivotPoints(h: number, l: number, c: number) {
   }
 }
 
+// A level the price has closed decisively beyond (0.12%) flips to the other
+// side of the ladder — a broken support acts as resistance and vice versa
+// (role reversal) — so the ladder MOVES with breakouts instead of showing
+// stale S1/S2 lines the market already left behind.
+const BROKEN_PCT = 0.0012
+
+export function flipBrokenLevels(levels: KeyLevel[], price: number): KeyLevel[] {
+  return levels
+    .map((lv) => {
+      const away = (price - lv.price) / lv.price
+      const brokenUp = away > BROKEN_PCT // price above the level → was support, now resistance
+      const brokenDown = away < -BROKEN_PCT // price below → was resistance, now support
+      if (!brokenUp && !brokenDown) return lv
+      const wasSupport = /^(S|PDL|Swing low)/.test(lv.label)
+      const wasResist = /^(R|PDH|Swing high|Pivot)/.test(lv.label)
+      if (brokenUp && wasSupport) return { ...lv, label: lv.label + ' → flipped R' }
+      if (brokenDown && wasResist) return { ...lv, label: lv.label + ' → flipped S' }
+      return lv
+    })
+    // Levels far on the WRONG side (e.g. S3 when price is far above R1) stop
+    // being useful — keep only the 5 nearest on each side of the price.
+    .sort((a, b) => Math.abs(a.price - price) - Math.abs(b.price - price))
+    .slice(0, 12)
+    .sort((a, b) => b.price - a.price)
+}
+
 // The main S/R ladder for a pair: daily pivots (R3..R1, Pivot, S1..S3), the
 // previous session's high/low and the nearest swing highs/lows — merged,
-// de-duplicated and sorted highest → lowest. This is what the tap-to-open
-// market panel shows when a pair is clicked.
+// de-duplicated, sorted highest → lowest, and re-anchored around the LIVE
+// price so broken levels flip sides after a breakout. This is what the
+// tap-to-open market panel shows when a pair is clicked.
 export function keyLevels(candles: Candle[], price: number): KeyLevel[] {
   if (!candles || candles.length < 2 || !Number.isFinite(price) || price <= 0) return []
   // The previous COMPLETED session: skip today's forming candle when present.
@@ -326,7 +353,7 @@ export function keyLevels(candles: Candle[], price: number): KeyLevel[] {
     }
     merged.push({ ...lv })
   }
-  return merged
+  return flipBrokenLevels(merged, price)
 }
 
 // Rejection wick near a level: wick > 2x body and > 40% of the candle's range,

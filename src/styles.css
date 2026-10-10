@@ -1,10 +1,12 @@
 :root {
   /* Graphite base — deep, cool, near-OLED */
+  /* Translucent surfaces — the animated sky (sun/moon/stars/birds) shines
+     through the panels, with enough opacity to keep text crisp */
   --bg: #08090c;
   --bg-2: #0c0e13;
-  --surface: #111319;
-  --surface-2: #171a22;
-  --surface-3: #1d212b;
+  --surface: rgba(17, 19, 25, 0.82);
+  --surface-2: rgba(23, 26, 34, 0.72);
+  --surface-3: rgba(29, 33, 43, 0.72);
 
   /* Hairlines — light-on-dark, never harsh gray */
   --border: rgba(255, 255, 255, 0.07);
@@ -1207,6 +1209,20 @@ tbody tr { transition: background 0.14s var(--ease); }
 .mkt-card.gold .mkt-sym { color: var(--accent-2); }
 .mkt-card.gold .mkt-price { color: #fff; }
 
+/* ---------------- Markets: pre-market check card ---------------- */
+.premarket-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 18px; }
+@media (max-width: 560px) { .premarket-grid { grid-template-columns: 1fr; } }
+.premarket-row {
+  display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 12px;
+  padding: 9px 4px; border-bottom: 1px solid var(--hairline); font-size: 13px;
+}
+.premarket-row:last-child { border-bottom: none; }
+.premarket-sym { color: var(--text-dim); font-weight: 600; letter-spacing: 0.2px; }
+.premarket-price {
+  font-family: var(--font-display); font-weight: 700; font-variant-numeric: tabular-nums;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+
 /* ---------------- Markets: Forex ⇄ India mode toggle ---------------- */
 .mode-toggle { width: 100%; }
 .mode-toggle button { flex: 1; font-size: 14px; padding: 10px 12px; }
@@ -1313,15 +1329,20 @@ tbody tr { transition: background 0.14s var(--ease); }
 html[data-amoled='on'] {
   --bg: #000000;
   --bg-2: #000000;
-  --surface: #050507;
-  --surface-2: #0b0b0f;
-  --surface-3: #131318;
+  --surface: rgba(5, 5, 7, 0.86);
+  --surface-2: rgba(11, 11, 15, 0.78);
+  --surface-3: rgba(19, 19, 24, 0.78);
   --shadow: 0 20px 50px -22px rgba(0, 0, 0, 0.95);
   --shadow-lift: 0 30px 70px -25px rgba(0, 0, 0, 1);
 }
 html[data-amoled='on'] body {
   background: #000;
 }
+/* The glass top bar / bottom nav were graphite — on the pure-black AMOLED
+   background they read as a lighter "normal theme" strip. Make them black
+   glass so the whole page stays true black. */
+html[data-amoled='on'] .topbar { background: rgba(0, 0, 0, 0.82); }
+html[data-amoled='on'] .mobile-nav { background: rgba(0, 0, 0, 0.82); }
 html[data-amoled='on'] .aurora { display: none; }
 
 /* ===== Trade form: screenshot thumbnails ===== */
@@ -1664,18 +1685,17 @@ html[data-amoled='on'] .aurora { display: none; }
   .trades-table, .trades-table tbody { display: block; width: 100%; }
   .trades-table thead { display: none; }
   .trades-table tr {
-    display: grid;
-    grid-template-columns: 28px minmax(0, 1fr) auto auto 28px;
+    display: flex;
     align-items: center;
-    column-gap: 9px;
+    gap: 9px;
     padding: 11px 12px;
     border-bottom: 1px solid var(--hairline);
   }
   .trades-table tr:last-child { border-bottom: none; }
-  .trades-table td { display: block; padding: 0; font-size: 13px; white-space: nowrap; }
+  .trades-table td { display: flex; align-items: center; padding: 0; font-size: 13px; white-space: nowrap; }
 
-  /* direction badge — always visible, colour-coded */
-  .trades-table .col-dir { grid-column: 1; }
+  /* direction badge — always visible, colour-coded, fixed slot */
+  .trades-table .col-dir { flex: 0 0 28px; justify-content: center; }
   .trades-table .col-dir .dir-buy, .trades-table .col-dir .dir-sell {
     display: inline-flex; align-items: center; justify-content: center;
     width: 28px; height: 28px; border-radius: 9px; font-size: 15px;
@@ -1683,8 +1703,9 @@ html[data-amoled='on'] .aurora { display: none; }
   .trades-table .col-dir .dir-buy { background: rgba(61, 220, 151, 0.13); }
   .trades-table .col-dir .dir-sell { background: rgba(255, 107, 129, 0.13); }
 
-  /* pair name + meta line */
-  .trades-table .pair-cell { grid-column: 2; min-width: 0; }
+  /* pair name + meta line (two lines — column-centered so the text block
+     sits exactly on the row's centre line, matching the badge/P/L/⋯) */
+  .trades-table .pair-cell { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; justify-content: center; }
   .trades-table .pair-cell strong {
     display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     font-size: 13.5px;
@@ -1694,12 +1715,11 @@ html[data-amoled='on'] .aurora { display: none; }
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
 
-  /* outcome, P/L, ⋯ — fixed columns, edges aligned across rows. The vw caps
-     keep the auto tracks bounded even if the browser inflates text, so the
-     row can never overflow sideways (values ellipsize instead). */
-  .trades-table .col-outcome { grid-column: 3; }
-  .trades-table .col-pnl { grid-column: 4; text-align: right; font-weight: 700; font-size: 13.5px; max-width: 34vw; overflow: hidden; text-overflow: ellipsis; }
-  .trades-table .col-more { display: block; grid-column: 5; text-align: center; }
+  /* outcome, P/L, ⋯ — right-aligned group; the vw caps keep the row from
+     overflowing sideways even if the browser inflates text. */
+  .trades-table .col-outcome { flex: 0 0 auto; }
+  .trades-table .col-pnl { flex: 0 1 auto; justify-content: flex-end; font-weight: 700; font-size: 13.5px; max-width: 34vw; overflow: hidden; }
+  .trades-table .col-more { display: flex; flex: 0 0 28px; justify-content: center; }
   .trades-table .col-more .icon-btn { font-size: 16px; padding: 5px 6px; }
   .trades-table .badge { font-size: 10px; padding: 3px 8px; max-width: 24vw; overflow: hidden; text-overflow: ellipsis; }
 

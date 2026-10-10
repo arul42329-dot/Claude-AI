@@ -27,6 +27,7 @@ import {
 } from '../newsAlerts'
 import { openNotificationSettings, openExactAlarmSettings, exactAlarmsAllowed } from '../biometric'
 import { isIndexAlertsEnabled, setIndexAlertsEnabled, startIndexAlertPolling, stopIndexAlertPolling } from '../indexAlerts'
+import { getAngelCreds, setAngelCreds, testAngelLogin, angelLinked, type AngelCreds } from '../angel'
 import { appVersion, checkForUpdate, openUpdateDownload, type UpdateInfo } from '../updates'
 
 const CURRENCIES = ['USD', 'EUR', 'GBP', 'JPY', 'INR', 'AUD', 'CAD', 'CHF', 'NZD', 'SGD', 'AED', 'ZAR']
@@ -265,6 +266,7 @@ export default function SettingsPage() {
         </div>
 
         <IndiaDefaultsCard />
+        <AngelCard />
 
         <DriveBackup />
 
@@ -538,6 +540,76 @@ function NewsAlertsCard() {
             <input type="checkbox" checked={indexOn} onChange={(e) => toggleIndex(e.target.checked)} />
             <span>📈 Index 15m trend flip <span className="muted" style={{ fontSize: 12 }}>(NIFTY · BANKNIFTY · SENSEX)</span></span>
           </label>
+        </>
+      )}
+    </div>
+  )
+}
+
+
+// Angel One SmartAPI link — live (tick-like) prices for indices, USDINR and
+// MCX commodities. Market data ONLY: Edgefolio never places orders.
+function AngelCard() {
+  const toast = useToast()
+  const { isIndia } = useAppMode()
+  const [creds, setCreds] = useState<AngelCreds>(() => getAngelCreds() ?? { apiKey: '', clientCode: '', pin: '', totpSecret: '' })
+  const [linked, setLinked] = useState(() => angelLinked())
+  const [busy, setBusy] = useState(false)
+  if (!isIndia) return null
+
+  async function link() {
+    if (!creds.apiKey.trim() || !creds.clientCode.trim() || !creds.pin.trim() || !creds.totpSecret.trim()) {
+      toast('Fill all four fields first')
+      return
+    }
+    setBusy(true)
+    try {
+      await testAngelLogin(creds)
+      setLinked(true)
+      toast('Angel One linked ✓ — live prices on the Markets tab')
+    } catch (e: any) {
+      setLinked(false)
+      toast(e?.message ? 'Link failed: ' + e.message : 'Link failed — check the details')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  function unlink() {
+    setAngelCreds(null)
+    setLinked(false)
+    toast('Angel One unlinked — back to delayed prices')
+  }
+
+  return (
+    <div className="card">
+      <h3>📈 Angel One · live prices</h3>
+      <p className="muted" style={{ marginTop: -6, fontSize: 12.5 }}>
+        {linked ? '✓ Linked — Markets shows live tick prices (LIVE badge)' : 'Link your Angel One account for live prices (market data only — never orders)'}
+      </p>
+      {linked ? (
+        <button className="btn danger" onClick={unlink}>Unlink</button>
+      ) : (
+        <>
+          <div className="form-grid" style={{ marginTop: 4 }}>
+            <div className="field">
+              <label>API key (SmartAPI app)</label>
+              <input className="input" value={creds.apiKey} onChange={(e) => setCreds({ ...creds, apiKey: e.target.value })} placeholder="From smartapi.angelbroking.com" />
+            </div>
+            <div className="field">
+              <label>Client code</label>
+              <input className="input" value={creds.clientCode} onChange={(e) => setCreds({ ...creds, clientCode: e.target.value })} placeholder="e.g. A12345" />
+            </div>
+            <div className="field">
+              <label>PIN</label>
+              <input className="input" type="password" value={creds.pin} onChange={(e) => setCreds({ ...creds, pin: e.target.value })} />
+            </div>
+            <div className="field">
+              <label>TOTP secret (the setup key, not the 6-digit code)</label>
+              <input className="input" type="password" value={creds.totpSecret} onChange={(e) => setCreds({ ...creds, totpSecret: e.target.value })} placeholder="e.g. JBSWY3DPEHPK3PXP" />
+            </div>
+          </div>
+          <button className="btn primary" style={{ marginTop: 12 }} onClick={link} disabled={busy}>{busy ? 'Linking…' : 'Link & test'}</button>
         </>
       )}
     </div>

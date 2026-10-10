@@ -188,10 +188,10 @@ export function Backdrop() {
         // fixed spot in the title band — same on EVERY tab: a small body in
         // a gently elliptical micro-orbit, clear of the topbar (above), the
         // second-row buttons and the stat cards (below), and every page name
-        const bodyR = Math.max(11, Math.min(13, W * 0.034))
-        const rx = 8
-        const ry = 4
-        const zx = Math.min(252, W - 68)
+        const bodyR = Math.max(14, Math.min(17, W * 0.046))
+        const rx = 10
+        const ry = 3.5
+        const zx = Math.min(258, W - 62)
         const zy = 92
         return { x: zx + Math.cos(a) * rx, y: zy + Math.sin(a) * ry, r: bodyR }
       }
@@ -199,8 +199,8 @@ export function Backdrop() {
       const margin = Math.max(14, W * 0.05)
       const zx = W - zoneR - margin
       const zy = 14 + zoneR
-      const bodyR = Math.max(15, Math.min(24, zoneR * 0.26))
-      const orbit = zoneR - bodyR - 5
+      const bodyR = Math.max(22, Math.min(30, zoneR * 0.34))
+      const orbit = zoneR - bodyR - 4
       return {
         x: zx + Math.cos(a) * orbit,
         y: zy + Math.sin(a) * orbit * 0.72, // gently elliptical

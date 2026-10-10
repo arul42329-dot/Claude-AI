@@ -4,6 +4,7 @@ import { useLiveQuery, fmtMoney, fmtNum, fmtPct } from '../util'
 import { useAccountScope, scopeTrades } from '../accounts'
 import { useAppMode, marketOf } from '../mode'
 import { computeStats, groupByPeriod, tradeDate, computeRStats, tradeR, type Period } from '../stats'
+import { exportExcelReport } from '../report'
 import { computeInsights } from '../insights'
 import { StatCard } from '../components/StatCard'
 import { PnlCalendar } from '../components/PnlCalendar'
@@ -24,7 +25,7 @@ const SCOPES: { value: Scope; label: string }[] = [
 export default function Analytics() {
   const allTrades = useLiveQuery(() => db.trades.toArray(), [], [])
   const { mode } = useAppMode()
-  const { activeId, account, currency } = useAccountScope()
+  const { activeId, account, currency, startingBalance } = useAccountScope()
   const [scope, setScope] = useState<Scope>('overall')
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
 
@@ -33,6 +34,15 @@ export default function Analytics() {
     [allTrades, activeId, mode],
   )
   const scopeName = activeId === 'all' ? 'All accounts' : account?.name ?? 'Account'
+  const [reportBusy, setReportBusy] = useState(false)
+
+  async function downloadReport() {
+    setReportBusy(true)
+    try {
+      await exportExcelReport(all, { mode, currency, startBalance: startingBalance ?? 0, cashflows: [], scopeName })
+    } catch { /* keep it silent — the button re-enables */ }
+    setReportBusy(false)
+  }
 
   // The granularity that drives the chart + breakdown table
   const chartPeriod: Period = scope === 'overall' ? 'monthly' : scope
@@ -122,10 +132,13 @@ export default function Analytics() {
         <div>
           <h1>Analytics</h1>
         </div>
-        <div className="seg">
-          {SCOPES.map((s) => (
-            <button key={s.value} className={scope === s.value ? 'active' : ''} onClick={() => pickScope(s.value)}>{s.label}</button>
-          ))}
+        <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>
+          <div className="seg">
+            {SCOPES.map((s) => (
+              <button key={s.value} className={scope === s.value ? 'active' : ''} onClick={() => pickScope(s.value)}>{s.label}</button>
+            ))}
+          </div>
+          <button className="btn primary" onClick={downloadReport} disabled={reportBusy}>{reportBusy ? 'Building…' : '📊 Excel report'}</button>
         </div>
       </div>
 
