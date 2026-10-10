@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { fetchIndia, readCachedIndia, nseStatus, type IndiaQuote, type IndiaSnapshot } from '../india'
 import { fetchIndiaNews, readCachedIndiaNews, type NewsSnapshot } from '../indiaNews'
-import { fetchGlobal, readCachedGlobal, GLOBAL_SYMBOLS, type GlobalSnapshot } from '../premarket'
-import { fetchAngelLtps, angelLinked } from '../angel'
+import { fetchGlobal, readCachedGlobal, GLOBAL_SYMBOLS, usdInrRate, usdToInrCommodity, commodityUnitLabel, type GlobalSnapshot } from '../premarket'
+import { fetchAngelLtps, angelLinked, resolveTokens, fetchAngelCandles } from '../angel'
 import { computeBias, type BiasResult } from '../bias'
 import { corsFetch, yfDirectUrl, isNativePlatform } from '../candles'
 import { BiasPanel } from './BiasPanel'
@@ -186,6 +186,7 @@ export function IndiaMarkets({ refreshSignal = 0 }: { refreshSignal?: number }) 
                     <span className="premarket-sym">{g.symbol}</span>
                     <span className="premarket-price">
                       {g.price > 0 ? fmtPrice(g.price, g.decimals) : '—'}
+                      {g.approx && <span className="muted" style={{ fontSize: 10, fontWeight: 600 }}> ≈</span>}
                       {g.live && <span className="live-dot" style={{ marginLeft: 6 }} />}
                     </span>
                     <span className={'pill ' + (g.changePct >= 0 ? 'up' : 'down')}>{g.price > 0 ? fmtChg(g.changePct) : ''}</span>
@@ -213,12 +214,14 @@ export function IndiaMarkets({ refreshSignal = 0 }: { refreshSignal?: number }) 
             {(global?.quotes ?? []).filter((g) => ['CRUDE', 'GOLD', 'SILVER', 'NAT GAS'].includes(g.symbol) && g.price > 0).map((g) => {
               const angelName = GLOBAL_SYMBOLS.find((s) => s.symbol === g.symbol)?.angel
               const live = angelName ? ltps[angelName] : undefined
+              // the tile AND the panel both get the live-merged quote
+              const shown = live ? { ...g, price: live.ltp, changePct: live.changePct ?? g.changePct, approx: false } : g
               return (
                 <CommodityCard
                   key={g.symbol}
-                  g={live ? { ...g, price: live.ltp, changePct: live.changePct ?? g.changePct } : g}
+                  g={shown}
                   ready={commodityDetail[g.symbol] != null}
-                  onOpen={() => openCommodity(g)}
+                  onOpen={() => openCommodity(shown)}
                 />
               )
             })}
@@ -254,8 +257,41 @@ export function IndiaMarkets({ refreshSignal = 0 }: { refreshSignal?: number }) 
 const cache15 = new Map<string, { at: number; candles: any[] }>()
 
 // Commodity daily candles + bias (prefetched once per session so tiles open
-// instantly). MCX names → Yahoo symbols come from GLOBAL_SYMBOLS.
+// instantly). With Angel One linked the MCX contract's own daily candles are
+// used — true MCX ₹ prices. Otherwise Yahoo's global futures are converted
+// onto the same ₹ scale (× USD/INR × unit factor), so the S/R ladder and the
+// trade call always read in Indian prices.
 const commodityBiasCache = new Map<string, BiasResult | null>()
+
+async function commodityCandles(g: { symbol: string; ySymbol: string; angel?: string }): Promise<Candle[] | null> {
+  // 1) Angel One MCX daily candles (linked users) — exact ₹ scale
+  if (g.angel && isNativePlatform()) {
+    try {
+      const tokens = await resolveTokens()
+      const tok = tokens[g.angel]
+      if (tok) {
+        const cs = await fetchAngelCandles(tok, 'ONE_DAY', new Date(Date.now() - 400 * 24 * 3600 * 1000), new Date())
+        if (cs && cs.length >= 60) return cs.map((c) => ({ t: c.t, o: c.o, h: c.h, l: c.l, c: c.c }))
+      }
+    } catch { /* fall back to Yahoo below */ }
+  }
+  // 2) Yahoo global futures, converted $ → ₹ (MCX scale)
+  const r = await corsFetch(yfDirectUrl(g.ySymbol, '1y'), { timeoutMs: 15000 })
+  if (!r.ok) throw new Error('commodity ' + g.symbol)
+  const j: any = await r.json()
+  const res = j?.chart?.result?.[0]
+  const ts: number[] = res?.timestamp || []
+  const q = res?.indicators?.quote?.[0] || {}
+  const rate = await usdInrRate()
+  const f = rate > 0 ? usdToInrCommodity(g.symbol, 1, rate) : 1
+  const candles: Candle[] = []
+  for (let i = 0; i < ts.length; i++) {
+    const o = q.open?.[i], h = q.high?.[i], l = q.low?.[i], c = q.close?.[i]
+    if ([o, h, l, c].every((v) => Number.isFinite(v))) candles.push({ t: ts[i] * 1000, o: o * f, h: h * f, l: l * f, c: c * f })
+  }
+  return candles.length ? candles : null
+}
+
 async function prefetchCommodityBias(): Promise<Record<string, BiasResult | null>> {
   const out: Record<string, BiasResult | null> = {}
   await Promise.all(
@@ -267,18 +303,8 @@ async function prefetchCommodityBias(): Promise<Record<string, BiasResult | null
           return
         }
         try {
-          const r = await corsFetch(yfDirectUrl(g.ySymbol, '1y'), { timeoutMs: 15000 })
-          if (!r.ok) throw new Error('commodity ' + g.symbol)
-          const j: any = await r.json()
-          const res = j?.chart?.result?.[0]
-          const ts: number[] = res?.timestamp || []
-          const q = res?.indicators?.quote?.[0] || {}
-          const candles: Candle[] = []
-          for (let i = 0; i < ts.length; i++) {
-            const o = q.open?.[i], h = q.high?.[i], l = q.low?.[i], c = q.close?.[i]
-            if ([o, h, l, c].every((v) => Number.isFinite(v))) candles.push({ t: ts[i] * 1000, o, h, l, c })
-          }
-          const detail = computeBias(candles) ?? null
+          const candles = await commodityCandles(g)
+          const detail = candles ? computeBias(candles) ?? null : null
           commodityBiasCache.set(g.symbol, detail)
           out[g.symbol] = detail
         } catch {
@@ -331,7 +357,7 @@ function IndiaCard({ q, biasOverride, live, onOpen }: { q: IndiaQuote; biasOverr
 }
 
 function CommodityCard({ g, ready, onOpen }: {
-  g: { symbol: string; price: number; changePct: number; decimals: number; live: boolean; ySymbol?: string }
+  g: { symbol: string; price: number; changePct: number; decimals: number; live: boolean; approx?: boolean; ySymbol?: string }
   ready?: boolean
   onOpen?: () => void
 }) {
@@ -342,13 +368,19 @@ function CommodityCard({ g, ready, onOpen }: {
       role="button" tabIndex={0}
       onClick={onOpen}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen?.() } }}
-      title={g.live ? 'Live MCX price (Angel One) — tap for the bias panel' : 'Delayed price (Yahoo) — tap for the bias panel'}
+      title={g.live
+        ? `Live MCX price (Angel One) · ${commodityUnitLabel(g.symbol)} — tap for the bias panel`
+        : `Global price converted to Indian rupees (≈) · ${commodityUnitLabel(g.symbol)} — link Angel One in Settings for the exact MCX price`}
     >
       <div className="mkt-sym">
         {g.symbol}{g.live && <span className="live-dot" style={{ marginLeft: 6 }} />}
         <span className="mkt-chev" aria-hidden="true">›</span>
       </div>
-      <div className="mkt-price">{fmtPrice(g.price, g.decimals)}</div>
+      <div className="mkt-price">
+        {fmtPrice(g.price, g.decimals)}
+        {g.approx && <span className="muted" style={{ fontSize: 13, fontWeight: 600 }}> ≈</span>}
+      </div>
+      <div className="muted" style={{ fontSize: 10, marginTop: -8, marginBottom: 8 }}>{commodityUnitLabel(g.symbol)}</div>
       <div className="mkt-foot">
         <span className={'pill ' + (up ? 'up' : 'down')}>{fmtChg(g.changePct)}</span>
         <span className="bias neu"><span className="bdot" />{ready ? 'MCX' : '…'}</span>

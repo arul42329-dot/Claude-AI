@@ -16,6 +16,53 @@ export interface GlobalQuote {
   changePct: number
   decimals: number
   live: boolean           // true = Angel One live feed
+  approx?: boolean        // true = converted from the global USD price to ₹ (not an exact MCX quote)
+}
+
+// The four MCX commodities. Yahoo's fallback futures are USD-denominated
+// (CRUDE $/bbl, GOLD $/troy oz, SILVER $/troy oz, NAT GAS $/mmBtu) — MCX
+// quotes INR (₹/bbl, ₹/10 g, ₹/kg, ₹/mmBtu). These factors move a USD price
+// onto the MCX scale once multiplied by the USD/INR rate.
+export const COMMODITY_SYMBOLS = ['CRUDE', 'GOLD', 'SILVER', 'NAT GAS']
+
+export function commodityUnitFactor(symbol: string): number {
+  if (symbol === 'GOLD') return 1 / 3.11035 // $/oz → ₹ per 10 g (1 oz = 31.1035 g)
+  if (symbol === 'SILVER') return 32.1507 // $/oz → ₹ per kg (1 kg = 32.1507 oz)
+  return 1 // CRUDE ₹/bbl and NAT GAS ₹/mmBtu are 1:1 with the USD quote
+}
+
+// MCX-style unit label shown next to converted prices.
+export function commodityUnitLabel(symbol: string): string {
+  if (symbol === 'GOLD') return '₹ / 10 g'
+  if (symbol === 'SILVER') return '₹ / kg'
+  if (symbol === 'CRUDE') return '₹ / bbl'
+  if (symbol === 'NAT GAS') return '₹ / mmBtu'
+  return ''
+}
+
+export function usdToInrCommodity(symbol: string, usdPrice: number, usdInr: number): number {
+  return usdPrice * usdInr * commodityUnitFactor(symbol)
+}
+
+// Best available USD/INR rate: Angel One (live) → recent cached quote → Yahoo.
+export async function usdInrRate(): Promise<number> {
+  if (isNativePlatform()) {
+    try {
+      const live = await fetchAngelLtps()
+      const l = live['USDINR']
+      if (l?.ltp) return l.ltp
+    } catch { /* fall through */ }
+  }
+  const cached = readCachedGlobal()
+  if (cached && Date.now() - cached.at < 24 * 3600 * 1000) {
+    const c = cached.quotes.find((q) => q.symbol === 'USD/INR')
+    if (c && c.price > 0) return c.price
+  }
+  try {
+    const y = await yahooOne('INR=X')
+    if (y?.price) return y.price
+  } catch { /* offline */ }
+  return 0
 }
 
 export const GLOBAL_SYMBOLS: { symbol: string; ySymbol: string; decimals: number; angel?: string }[] = [
@@ -68,13 +115,26 @@ export async function fetchGlobal(): Promise<GlobalSnapshot> {
   const live = isNativePlatform() ? await fetchAngelLtps() : {}
   const anyLive = Object.keys(live).length > 0
 
+  // USD/INR first — the commodity fallback prices below are USD and get
+  // converted onto the MCX ₹ scale with it.
+  let rate = live['USDINR']?.ltp ?? 0
+  if (!(rate > 0)) rate = cached?.quotes.find((q) => q.symbol === 'USD/INR')?.price ?? 0
+  if (!(rate > 0)) rate = (await yahooOne('INR=X'))?.price ?? 0
+
   const quotes = await Promise.all(
     GLOBAL_SYMBOLS.map(async (g) => {
       const l = g.angel ? live[g.angel] : undefined
       if (l) return { symbol: g.symbol, ySymbol: g.ySymbol, price: l.ltp, changePct: l.changePct ?? 0, decimals: g.decimals, live: true }
       if (!g.ySymbol) return { symbol: g.symbol, ySymbol: g.ySymbol, price: 0, changePct: 0, decimals: g.decimals, live: false }
       const y = await yahooOne(g.ySymbol)
-      if (y) return { symbol: g.symbol, ySymbol: g.ySymbol, price: y.price, changePct: y.changePct, decimals: g.decimals, live: false }
+      if (y) {
+        const isCom = COMMODITY_SYMBOLS.includes(g.symbol)
+        // Yahoo commodity futures are USD — move them to the MCX ₹ scale so
+        // the price reads like an Indian quote (marked ≈; percentages are
+        // unaffected by the conversion).
+        const price = isCom && rate > 0 ? usdToInrCommodity(g.symbol, y.price, rate) : y.price
+        return { symbol: g.symbol, ySymbol: g.ySymbol, price, changePct: y.changePct, decimals: g.decimals, live: false, approx: isCom && rate > 0 }
+      }
       const c = cached?.quotes.find((q) => q.symbol === g.symbol)
       return c ?? { symbol: g.symbol, ySymbol: g.ySymbol, price: 0, changePct: 0, decimals: g.decimals, live: false }
     }),
