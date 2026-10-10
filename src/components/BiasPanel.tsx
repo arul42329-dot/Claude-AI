@@ -59,51 +59,50 @@ export function BiasPanel({ q, onClose }: { q: BiasQuote; onClose: () => void })
   }, [isIndiaIndex, q.symbol]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Intraday bias for the multi-timeframe strip. Linked Angel One users get
-  // the candles from SmartAPI's historical feed (works for every index —
-  // Yahoo's intraday feed is patchy for FIN NIFTY); everyone else uses Yahoo.
+  // the candles from SmartAPI's historical feed first — but that feed often
+  // returns nothing for INDEX tokens, so it silently falls back to Yahoo.
   // The 1h feed powers both the 1H chip and the 4H chip (1h candles
   // aggregated into 4h buckets); 15m is a separate fetch.
   useEffect(() => {
     let alive = true
-    const tok = angelIndexToken(q.symbol)
-    if (tok && angelLinked()) {
-      const now = new Date()
-      fetchAngelCandles(tok, 'ONE_HOUR', new Date(now.getTime() - 40 * 24 * 3600 * 1000), now)
-        .then((h1) => {
-          if (!alive) return
-          if (!h1.length) { setMtf((m) => ({ ...m, '4H': '—', '1H': '—' })); return }
-          const b1 = computeBias(h1)
-          const b4 = computeBias(aggregateCandles(h1, 4 * 60 * 60 * 1000))
-          setMtf((m) => ({ ...m, '1H': b1?.label ?? '—', '4H': b4?.label ?? '—' }))
-        })
-        .catch(() => { if (alive) setMtf((m) => ({ ...m, '4H': '—', '1H': '—' })) })
-      fetchAngelCandles(tok, 'FIFTEEN_MINUTE', new Date(now.getTime() - 7 * 24 * 3600 * 1000), now)
-        .then((m15) => {
-          if (!alive) return
-          const b15 = m15.length ? computeBias(m15) : null
-          setMtf((m) => ({ ...m, '15m': b15?.label ?? '—' }))
-        })
-        .catch(() => { if (alive) setMtf((m) => ({ ...m, '15m': '—' })) })
-      return () => { alive = false }
-    }
-    const ySym = q.ySymbol ?? yahooSymbolFor(q.symbol)
-    if (!ySym) { setMtf({ '4H': '—', '1H': '—', '15m': '—' }); return }
-    getCandlesInterval(q.symbol, ySym, '1h', '3mo')
-      .then((h1) => {
-        if (!alive) return
-        if (!h1) { setMtf((m) => ({ ...m, '4H': '—', '1H': '—' })); return }
+    const setFrom = (h1: any[] | null, m15: any[] | null) => {
+      if (!alive) return
+      if (h1 && h1.length) {
         const b1 = computeBias(h1)
         const b4 = computeBias(aggregateCandles(h1, 4 * 60 * 60 * 1000))
         setMtf((m) => ({ ...m, '1H': b1?.label ?? '—', '4H': b4?.label ?? '—' }))
-      })
-      .catch(() => { if (alive) setMtf((m) => ({ ...m, '4H': '—', '1H': '—' })) })
-    getCandlesInterval(q.symbol, ySym, '15m', '1mo')
-      .then((m15) => {
-        if (!alive) return
-        const b15 = m15 ? computeBias(m15) : null
+      } else if (h1 === null) { /* leave as-is — the other fetch owns it */ }
+      else setMtf((m) => ({ ...m, '4H': '—', '1H': '—' }))
+      if (m15 && m15.length) {
+        const b15 = computeBias(m15)
         setMtf((m) => ({ ...m, '15m': b15?.label ?? '—' }))
+      } else if (m15 === null) { /* leave as-is */ }
+      else setMtf((m) => ({ ...m, '15m': '—' }))
+    }
+    const tok = angelIndexToken(q.symbol)
+    const viaYahoo = () => {
+      const ySym = q.ySymbol ?? yahooSymbolFor(q.symbol)
+      if (!ySym) { setMtf({ '4H': '—', '1H': '—', '15m': '—' }); return }
+      getCandlesInterval(q.symbol, ySym, '1h', '3mo')
+        .then((h1) => { if (alive) setFrom(h1 ?? [], null) })
+        .catch(() => { if (alive) setMtf((m) => ({ ...m, '4H': '—', '1H': '—' })) })
+      getCandlesInterval(q.symbol, ySym, '15m', '1mo')
+        .then((m15) => { if (alive) setFrom(null, m15 ?? []) })
+        .catch(() => { if (alive) setMtf((m) => ({ ...m, '15m': '—' })) })
+    }
+    if (tok && angelLinked()) {
+      const now = new Date()
+      Promise.all([
+        fetchAngelCandles(tok, 'ONE_HOUR', new Date(now.getTime() - 40 * 24 * 3600 * 1000), now).catch(() => [] as any[]),
+        fetchAngelCandles(tok, 'FIFTEEN_MINUTE', new Date(now.getTime() - 7 * 24 * 3600 * 1000), now).catch(() => [] as any[]),
+      ]).then(([h1, m15]) => {
+        if (!alive) return
+        if (h1.length >= 22 && m15.length >= 22) setFrom(h1, m15)
+        else viaYahoo()
       })
-      .catch(() => { if (alive) setMtf((m) => ({ ...m, '15m': '—' })) })
+      return () => { alive = false }
+    }
+    viaYahoo()
     return () => { alive = false }
   }, [q.symbol, q.ySymbol])
 
@@ -250,7 +249,7 @@ export function BiasPanel({ q, onClose }: { q: BiasQuote; onClose: () => void })
         </>
       )}
       {showChart && chartTok && (
-        <LiveChart symbol={q.symbol} token={chartTok} onClose={() => setShowChart(false)} />
+        <LiveChart symbol={q.symbol} ySymbol={q.ySymbol} token={chartTok} onClose={() => setShowChart(false)} />
       )}
       {showChain && chartTok && (
         <OptionChain ocName={chartTok.ocName} spot={q.price} onClose={() => setShowChain(false)} />

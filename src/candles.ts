@@ -89,7 +89,7 @@ export function proxyCandidates(url: string): string[] {
 }
 
 // Direct (unproxied) Yahoo chart URL; feed it to corsFetch.
-export function yfDirectUrl(ySymbol: string, range = '2y', interval: '1d' | '1h' | '15m' = '1d'): string {
+export function yfDirectUrl(ySymbol: string, range = '2y', interval: '1d' | '1h' | '15m' | '5m' = '1d'): string {
   return `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ySymbol)}?interval=${interval}&range=${range}`
 }
 

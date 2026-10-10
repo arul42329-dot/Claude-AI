@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 
 export function Modal({
@@ -15,21 +15,33 @@ export function Modal({
   /** 'sheet' docks to the bottom edge on phones (stays centred on desktop). */
   variant?: 'sheet'
 }) {
+  // onClose in a ref: parents (e.g. the Markets page) re-render every second
+  // and pass a NEW function identity — a plain effect dependency would re-run
+  // the scroll lock on every tick, re-capturing values and fighting the
+  // user's scroll (the "page stuck / can't swipe" bug). Mount-only below.
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
+
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onCloseRef.current()
     window.addEventListener('keydown', onKey)
-    // Lock background scroll while the dialog is open (restore prior value on close).
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  // Lock background scroll while the dialog is open. MOUNT-ONLY: captures the
+  // prior state once, restores it once on unmount. (Re-running this on parent
+  // re-renders restored stale values and scrolled the page back every second.)
+  useEffect(() => {
     const prevOverflow = document.body.style.overflow
     const prevScrollY = window.scrollY
     document.body.style.overflow = 'hidden'
     return () => {
-      window.removeEventListener('keydown', onKey)
       document.body.style.overflow = prevOverflow
       // Android WebView can leave the page offset after the keyboard closes —
       // restore the exact position the page had before the dialog opened.
       window.scrollTo(0, prevScrollY)
     }
-  }, [onClose])
+  }, [])
 
   // Portal to <body> so the fixed overlay is positioned against the viewport
   // (page-entrance transforms on ancestors would otherwise re-anchor `fixed`,
@@ -44,7 +56,7 @@ export function Modal({
         <div className="modal-body">{children}</div>
         {footer && <div className="modal-foot">{footer}</div>}
       </div>
-    </div>,
+    </div>, 
     document.body,
   )
 }

@@ -165,6 +165,48 @@ function readTokens(): TokenCache {
   try { return JSON.parse(localStorage.getItem(TOKENS_KEY) || '{}') || {} } catch { return {} }
 }
 
+// ---------------- shared scrip master (light) ----------------
+// The full scrip master is tens of MB of JSON. JSON.parse-ing the whole thing
+// builds a huge object graph and FREEZES the WebView (the "tabs stuck / can't
+// swipe" bug). Instead the file is downloaded once per app session, scanned as
+// TEXT for the segment rows we need (NFO options, MCX/CDS/NSEIFS futures) and
+// only those small rows are parsed. Both the token resolver and the option
+// chain share this one download.
+let scripRowsPromise: Promise<any[]> | null = null
+
+function extractSegmentRows(text: string): any[] {
+  const out: any[] = []
+  const re = /\{[^{}]*"exch_seg"[^{}]*\}/g
+  let m: RegExpExecArray | null
+  while ((m = re.exec(text))) {
+    // cheap pre-filter before paying for a JSON.parse
+    const s = m[0]
+    if (
+      s.indexOf('"NFO"') < 0 && s.indexOf('"MCX"') < 0 &&
+      s.indexOf('"CDS"') < 0 && s.indexOf('"NSEIFS"') < 0
+    ) continue
+    try {
+      const row = JSON.parse(s)
+      if (row && typeof row.exch_seg === 'string') out.push(row)
+    } catch { /* malformed row — skip */ }
+  }
+  return out
+}
+
+async function scripSegmentRows(): Promise<any[]> {
+  if (!scripRowsPromise) {
+    scripRowsPromise = (async () => {
+      const r = await corsFetch(SCRIP_MASTER, { timeoutMs: 90000 })
+      if (!r.ok) throw new Error('scrip ' + r.status)
+      const text = await r.text()
+      return extractSegmentRows(text)
+    })()
+    // a failed download may succeed later — don't cache the failure
+    scripRowsPromise.catch(() => { scripRowsPromise = null })
+  }
+  return scripRowsPromise
+}
+
 // Resolve MCX/CDS tokens from the scrip master (nearest expiry), then cache.
 export async function resolveTokens(): Promise<Record<string, AngelToken>> {
   const map: Record<string, AngelToken> = {}
@@ -178,9 +220,7 @@ export async function resolveTokens(): Promise<Record<string, AngelToken>> {
     return kept
   }
   try {
-    const r = await corsFetch(SCRIP_MASTER, { timeoutMs: 45000 })
-    if (!r.ok) throw new Error('scrip ' + r.status)
-    const rows: any[] = await r.json()
+    const rows = await scripSegmentRows()
     for (const w of WANTED) {
       const now = new Date()
       const cands = rows
@@ -338,16 +378,15 @@ const OPT_KEY = 'edgefolio-angel-optuniverse-v1'
 const OPT_NAMES = ['NIFTY', 'BANKNIFTY', 'FINNIFTY']
 
 // The NFO index-option universe for NIFTY / BANKNIFTY / FINNIFTY from the
-// (public) scrip master — expiries, strikes, CE/PE tokens. Cached ~12h so the
-// big scrip master is downloaded at most twice a day.
+// (public) scrip master — expiries, strikes, CE/PE tokens. Shares the single
+// per-session scrip download with the token resolver; the parsed subset is
+// cached ~12h in localStorage so later opens are instant.
 export async function optionUniverse(): Promise<Record<string, OptionMeta[]>> {
   try {
     const raw = JSON.parse(localStorage.getItem(OPT_KEY) || 'null')
     if (raw?.at && Date.now() - raw.at < 12 * 3600 * 1000 && raw.rows) return raw.rows
   } catch { /* re-download */ }
-  const r = await corsFetch(SCRIP_MASTER, { timeoutMs: 45000 })
-  if (!r.ok) throw new Error('scrip ' + r.status)
-  const all: any[] = await r.json()
+  const all = await scripSegmentRows()
   const rows: Record<string, OptionMeta[]> = { NIFTY: [], BANKNIFTY: [], FINNIFTY: [] }
   for (const row of all) {
     if (row.exch_seg !== 'NFO' || (row.instrumenttype ?? '') !== 'OPTIDX') continue

@@ -22,6 +22,17 @@ function timeAgo(ts: number) {
   return Math.round(m / 60) + 'h ago'
 }
 
+// Self-ticking "x ago" label. The whole page used to re-render every second
+// for these — now only this tiny component does (one big jank source gone).
+function TimeAgo({ ts }: { ts: number }) {
+  const [, tick] = useState(0)
+  useEffect(() => {
+    const id = window.setInterval(() => tick((n) => n + 1), 1000)
+    return () => window.clearInterval(id)
+  }, [])
+  return <>{timeAgo(ts)}</>
+}
+
 export function IndiaMarkets({ refreshSignal = 0 }: { refreshSignal?: number }) {
   const [snap, setSnap] = useState<IndiaSnapshot | null>(() => readCachedIndia())
   const [news, setNews] = useState<NewsSnapshot | null>(() => readCachedIndiaNews())
@@ -33,7 +44,6 @@ export function IndiaMarkets({ refreshSignal = 0 }: { refreshSignal?: number }) 
   const [ltps, setLtps] = useState<Record<string, { ltp: number; changePct?: number }>>({})
   const [bias15, setBias15] = useState<Record<string, string>>({})
   const [commodityDetail, setCommodityDetail] = useState<Record<string, BiasResult | null>>({})
-  const [, force] = useState(0)
 
   // Prices refresh fast (~5s); news is slow-moving so it loads on mount and only
   // every few minutes — otherwise the headline times would reset every 5s.
@@ -58,7 +68,6 @@ export function IndiaMarkets({ refreshSignal = 0 }: { refreshSignal?: number }) 
     loadNews()
     const id = window.setInterval(load, 5000) // live-ish auto refresh (~5s)
     const newsId = window.setInterval(loadNews, 180000) // news every 3 min
-    const tick = window.setInterval(() => force((n) => n + 1), 1000)
     // Pre-market dashboard (USD/INR, US indices, commodities) — every 15s.
     const loadGlobal = () => { fetchGlobal().then(setGlobal).catch(() => {}) }
     loadGlobal()
@@ -92,7 +101,6 @@ export function IndiaMarkets({ refreshSignal = 0 }: { refreshSignal?: number }) 
     return () => {
       window.clearInterval(id)
       window.clearInterval(newsId)
-      window.clearInterval(tick)
       window.clearInterval(gid)
       window.clearInterval(lid)
       window.clearInterval(bid)
@@ -144,7 +152,7 @@ export function IndiaMarkets({ refreshSignal = 0 }: { refreshSignal?: number }) 
         <span className={'nse-status' + (status.open ? ' open' : '')}>
           <span className="live-dot" /> {status.label}
         </span>
-        {snap && <span className="muted" style={{ fontSize: 12 }}>Updated {timeAgo(snap.at)}</span>}
+        {snap && <span className="muted" style={{ fontSize: 12 }}>Updated <TimeAgo ts={snap.at} /></span>}
       </div>
 
       {error && quotes.length === 0 && (
@@ -223,13 +231,13 @@ export function IndiaMarkets({ refreshSignal = 0 }: { refreshSignal?: number }) 
         <div className="card" style={{ marginTop: 20 }}>
           <div className="row" style={{ justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
             <h3 style={{ margin: 0 }}>📰 Market news</h3>
-            <span className="muted" style={{ fontSize: 12 }}>Updated {timeAgo(news.at)}</span>
+            <span className="muted" style={{ fontSize: 12 }}>Updated <TimeAgo ts={news.at} /></span>
           </div>
           <div className="news-list">
             {news.items.map((n, i) => (
               <a key={i} className="news-item" href={n.link} target="_blank" rel="noopener noreferrer">
                 <span className="news-item-title">{n.title}</span>
-                <span className="news-item-time">{timeAgo(n.at)}</span>
+                <span className="news-item-time"><TimeAgo ts={n.at} /></span>
               </a>
             ))}
           </div>

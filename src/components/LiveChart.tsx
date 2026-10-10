@@ -1,9 +1,11 @@
-// Live chart (Angel One) — 5-minute candles with an automatically drawn
-// trend line and breakout alerts.
+// Live chart — 5-minute candles with an automatically drawn trend line and
+// breakout alerts.
 //
-// * Candles come from SmartAPI's historical getCandleData (refreshed every
-//   minute so new closed candles appear automatically).
-// * The live price is polled every ~3s and updates the forming candle,
+// * Candles: Angel One's historical API first (linked users), with Yahoo's
+//   5-minute chart as the fallback — SmartAPI's history often returns nothing
+//   for INDEX tokens, and the chart must always draw.
+// * The live price is polled every ~3s through the same Angel LTP call the
+//   Markets tiles use (known-good on device) and updates the forming candle,
 //   the price line and the live dot.
 // * The trend line is a least-squares fit over the last 60 CLOSED candles
 //   (≈ the last 5 hours) — no configuration, it redraws itself.
@@ -12,10 +14,10 @@
 //   flash inside the chart); crossing back fires again in the other
 //   direction. Watching runs while the chart is open.
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Modal } from './Modal'
-import { fetchAngelCandles, fetchAngelQuotesFull, type AngelCandle } from '../angel'
-import { isNativePlatform } from '../candles'
+import { fetchAngelCandles, fetchAngelLtps, angelIndexToken, type AngelCandle } from '../angel'
+import { corsFetch, yfDirectUrl, isNativePlatform } from '../candles'
 
 const CANDLE_MS = 5 * 60 * 1000
 const TREND_WINDOW = 60 // closed candles used for the trend fit
@@ -33,6 +35,29 @@ function fmt(n: number, d = 2) {
 function hhmm(t: number) {
   const d = new Date(t)
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
+// Yahoo 5-minute candles (with range retries — some symbols return an empty
+// array for one range but work for the next).
+async function yahoo5m(ySymbol: string): Promise<AngelCandle[]> {
+  if (!ySymbol) return []
+  for (const range of ['5d', '1mo', '7d']) {
+    try {
+      const r = await corsFetch(yfDirectUrl(ySymbol, range, '5m'), { timeoutMs: 15000 })
+      if (!r.ok) continue
+      const j: any = await r.json()
+      const res = j?.chart?.result?.[0]
+      const ts: number[] = res?.timestamp || []
+      const q = res?.indicators?.quote?.[0] || {}
+      const out: AngelCandle[] = []
+      for (let i = 0; i < ts.length; i++) {
+        const o = q.open?.[i], h = q.high?.[i], l = q.low?.[i], c = q.close?.[i]
+        if ([o, h, l, c].every((v) => Number.isFinite(v))) out.push({ t: ts[i] * 1000, o, h, l, c, v: Number(q.volume?.[i]) || 0 })
+      }
+      if (out.length >= 2) return out.slice(-160)
+    } catch { /* try the next range */ }
+  }
+  return []
 }
 
 export interface Trend {
@@ -62,52 +87,58 @@ export function fitTrend(candles: AngelCandle[]): Trend | null {
 
 export function LiveChart({
   symbol,
+  ySymbol,
   token,
   onClose,
 }: {
   symbol: string
+  ySymbol?: string
   token: { exchange: string; token: string }
   onClose: () => void
 }) {
   const [candles, setCandles] = useState<AngelCandle[] | null>(null)
   const [ltp, setLtp] = useState<number | null>(null)
-  const [prevClose, setPrevClose] = useState<number | null>(null)
+  const [chgPct, setChgPct] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [flash, setFlash] = useState<{ dir: 'up' | 'down'; at: number; price: number } | null>(null)
   const sideRef = useRef<'above' | 'below' | null>(null)
   const [w, setW] = useState(340)
-  const boxRef = useRef<HTMLDivElement | null>(null)
 
-  // ---- size the SVG to its container (phones vs desktop) ----
+  // ---- size the SVG to its container (callback ref fires when it mounts) ----
+  const boxEl = useRef<HTMLDivElement | null>(null)
+  const boxRef = useCallback((el: HTMLDivElement | null) => {
+    boxEl.current = el
+    if (el) setW(Math.max(280, el.clientWidth))
+  }, [])
   useEffect(() => {
-    const measure = () => { if (boxRef.current) setW(Math.max(280, boxRef.current.clientWidth)) }
-    measure()
+    const measure = () => { if (boxEl.current) setW(Math.max(280, boxEl.current.clientWidth)) }
     window.addEventListener('resize', measure)
     return () => window.removeEventListener('resize', measure)
   }, [])
 
-  // ---- candles (initial + every 60s) ----
+  // ---- candles (initial + every 60s): Angel history first, Yahoo fallback ----
   useEffect(() => {
     let alive = true
     const load = async () => {
+      let cs: AngelCandle[] = []
       try {
         const to = new Date()
         const from = new Date(to.getTime() - 4 * 24 * 3600 * 1000) // ~2-3 trading days
-        const cs = await fetchAngelCandles(token, 'FIVE_MINUTE', from, to)
-        if (!alive) return
-        if (!cs.length) { setError('No candle data for ' + symbol); return }
-        setError(null)
-        setCandles(cs.slice(-160))
-        // re-anchor the breakout side to the (possibly moved) line — silently
-        sideRef.current = null
-      } catch (e: any) {
-        if (alive) setError(e?.message || 'Could not load candles')
-      }
+        cs = await fetchAngelCandles(token, 'FIVE_MINUTE', from, to)
+      } catch { /* Angel history unavailable — fall back */ }
+      if (!alive) return
+      if (cs.length < 2) cs = await yahoo5m(ySymbol || '')
+      if (!alive) return
+      if (cs.length < 2) { setError('No candle data for ' + symbol); return }
+      setError(null)
+      setCandles(cs.slice(-160))
+      // re-anchor the breakout side to the (possibly moved) line — silently
+      sideRef.current = null
     }
     load()
     const id = window.setInterval(load, 60000)
     return () => { alive = false; window.clearInterval(id) }
-  }, [symbol, token.exchange, token.token]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [symbol, ySymbol, token.exchange, token.token]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---- live LTP (every 3s) + breakout watch ----
   const trend = useMemo(() => (candles ? fitTrend(candles) : null), [candles])
@@ -124,12 +155,13 @@ export function LiveChart({
       const candles = candlesRef.current
       if (!trend || !candles) return
       try {
-        const rows = await fetchAngelQuotesFull([token])
-        const row = rows[token.token]
+        // the same LTP call the Markets tiles use — the known-good path
+        const ltps = await fetchAngelLtps()
+        const row = ltps[symbol] ?? (angelIndexToken(symbol) ? ltps[angelIndexToken(symbol)!.ocName] : undefined)
         const price = Number(row?.ltp)
         if (!Number.isFinite(price) || price <= 0) return
         setLtp(price)
-        if (Number.isFinite(Number(row.close)) && Number(row.close) > 0) setPrevClose(Number(row.close))
+        if (row?.changePct != null) setChgPct(row.changePct)
         // update the forming candle so the chart itself moves
         setCandles((cs) => {
           if (!cs || !cs.length) return cs
@@ -187,7 +219,6 @@ export function LiveChart({
     return () => window.clearTimeout(id)
   }, [flash])
 
-  const changePct = prevClose && ltp ? ((ltp - prevClose) / prevClose) * 100 : null
   const price = ltp ?? (candles?.length ? candles[candles.length - 1].c : null)
 
   return (
@@ -196,8 +227,8 @@ export function LiveChart({
       <div className="row" style={{ justifyContent: 'space-between', marginBottom: 10 }}>
         <div>
           <span className="lc-price">{price != null ? fmt(price) : '…'}</span>
-          {changePct != null && (
-            <span className={'pill ' + (changePct >= 0 ? 'up' : 'down')} style={{ marginLeft: 10 }}>{changePct >= 0 ? '+' : ''}{changePct.toFixed(2)}%</span>
+          {chgPct != null && (
+            <span className={'pill ' + (chgPct >= 0 ? 'up' : 'down')} style={{ marginLeft: 10 }}>{chgPct >= 0 ? '+' : ''}{chgPct.toFixed(2)}%</span>
           )}
         </div>
         {ltp != null && <span className="chip" style={{ color: 'var(--green)', borderColor: 'var(--green)' }}><span className="live-dot" /> LIVE</span>}

@@ -37,6 +37,8 @@ export function OptionChain({ ocName, spot, onClose }: { ocName: string; spot: n
   const [expiry, setExpiry] = useState<string | null>(null)
   const [rows, setRows] = useState<ChainRow[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [loadingContracts, setLoadingContracts] = useState(true)
+  const [retry, setRetry] = useState(0)
   const [at, setAt] = useState(0)
   const spotRef = useRef(spot)
   spotRef.current = spot
@@ -44,6 +46,8 @@ export function OptionChain({ ocName, spot, onClose }: { ocName: string; spot: n
   // ---- load the universe (expiries + strike tokens) ----
   useEffect(() => {
     let alive = true
+    setLoadingContracts(true)
+    setError(null)
     optionUniverse()
       .then((u) => {
         if (!alive) return
@@ -53,8 +57,18 @@ export function OptionChain({ ocName, spot, onClose }: { ocName: string; spot: n
         else setExpiry((e) => e ?? exps[0])
       })
       .catch((e) => { if (alive) setError(e?.message || 'Could not load the option chain') })
+      .finally(() => { if (alive) setLoadingContracts(false) })
     return () => { alive = false }
-  }, [ocName])
+  }, [ocName, retry]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const retryLoad = () => {
+    // drop any half-written cache and pull the contracts again
+    try { localStorage.removeItem('edgefolio-angel-optuniverse-v1') } catch { /* ignore */ }
+    setUniverse(null)
+    setRows(null)
+    setExpiry(null)
+    setRetry((n) => n + 1)
+  }
 
   const expiries = useMemo(() => (universe ? expiriesOf(universe, ocName).slice(0, 3) : []), [universe, ocName])
 
@@ -169,9 +183,17 @@ export function OptionChain({ ocName, spot, onClose }: { ocName: string; spot: n
       )}
 
       {error && !rows ? (
-        <div className="empty" style={{ border: 'none' }}><div className="big">⛓</div><p>{error}</p></div>
+        <div className="empty" style={{ border: 'none' }}>
+          <div className="big">⛓</div>
+          <p>{error}</p>
+          <button className="btn" onClick={retryLoad}>Try again</button>
+        </div>
       ) : !rows ? (
-        <div className="empty" style={{ border: 'none' }}><div className="big">⏳</div><p>Loading chain…</p></div>
+        <div className="empty" style={{ border: 'none' }}>
+          <div className="big">⏳</div>
+          <p>{loadingContracts ? 'Downloading option contracts…' : 'Loading chain…'}</p>
+          {loadingContracts && <p className="muted" style={{ fontSize: 12 }}>The first open downloads the contract list once — this can take up to a minute on mobile data.</p>}
+        </div>
       ) : (
         <div className="oc-scroll">
           <table className="oc-table">
