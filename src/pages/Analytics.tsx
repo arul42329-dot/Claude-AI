@@ -200,7 +200,7 @@ export default function Analytics() {
                 <YAxis stroke="#6a7180" fontSize={11} tickLine={false} width={64} tickFormatter={(v) => fmtMoney(v, currency)} />
                 <Tooltip
                   cursor={{ fill: 'rgba(255,255,255,0.04)' }}
-                  contentStyle={{ background: '#171a22', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, color: '#f3f5f9' }}
+                  contentStyle={{ background: 'var(--surface-3)', border: '1px solid var(--border-strong)', borderRadius: 12, color: 'var(--text)' }}
                   formatter={(v: number, n) => (n === 'pnl' ? [fmtMoney(v, currency), 'Net P/L'] : [v, n])}
                 />
                 <Bar
@@ -254,7 +254,7 @@ export default function Analytics() {
                           <Cell fill="#3a4150" />
                         </Pie>
                         <Tooltip
-                          contentStyle={{ background: '#171a22', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, color: '#f3f5f9' }}
+                          contentStyle={{ background: 'var(--surface-3)', border: '1px solid var(--border-strong)', borderRadius: 12, color: 'var(--text)' }}
                           formatter={(v: any, n: any) => [v, n]}
                         />
                       </PieChart>
@@ -283,7 +283,7 @@ export default function Analytics() {
                       <YAxis stroke="#6a7180" fontSize={11} tickLine={false} width={46} tickFormatter={(v: number) => v + 'R'} />
                       <ReferenceLine y={0} stroke="rgba(255,255,255,0.16)" strokeDasharray="4 4" />
                       <Tooltip
-                        contentStyle={{ background: '#171a22', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, color: '#f3f5f9' }}
+                        contentStyle={{ background: 'var(--surface-3)', border: '1px solid var(--border-strong)', borderRadius: 12, color: 'var(--text)' }}
                         formatter={(v: number) => [fmtNum(v, 2) + 'R', 'Cumulative']}
                       />
                       <Area type="monotone" dataKey="r" stroke="var(--accent-2)" strokeWidth={2.4} fill="url(#cumRFill)" />
@@ -313,7 +313,7 @@ export default function Analytics() {
                   <YAxis stroke="#6a7180" fontSize={11} tickLine={false} width={36} allowDecimals={false} />
                   <Tooltip
                     cursor={{ fill: 'rgba(255,255,255,0.04)' }}
-                    contentStyle={{ background: '#171a22', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, color: '#f3f5f9' }}
+                    contentStyle={{ background: 'var(--surface-3)', border: '1px solid var(--border-strong)', borderRadius: 12, color: 'var(--text)' }}
                     formatter={(v: number) => [v, 'Trades']}
                   />
                   <Bar dataKey="r" radius={[6, 6, 0, 0]}>

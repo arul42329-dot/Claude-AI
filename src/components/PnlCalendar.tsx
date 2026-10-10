@@ -1,8 +1,8 @@
 import { useMemo, useState, type CSSProperties } from 'react'
 import { netPnlOf } from '../stats'
 import {
-  startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval,
-  addMonths, format, isSameMonth, isToday,
+  startOfMonth, endOfMonth, eachDayOfInterval, getDay,
+  addMonths, format, isToday,
 } from 'date-fns'
 import type { Trade } from '../types'
 import { tradeDate } from '../stats'
@@ -25,11 +25,11 @@ export function PnlCalendar({ trades, currency }: { trades: Trade[]; currency: s
     return m
   }, [trades])
 
-  const days = useMemo(() => {
-    const gridStart = startOfWeek(startOfMonth(cursor), { weekStartsOn: 1 })
-    const gridEnd = endOfWeek(endOfMonth(cursor), { weekStartsOn: 1 })
-    return eachDayOfInterval({ start: gridStart, end: gridEnd })
-  }, [cursor])
+  // Sunday→Saturday grid, and ONLY the current month's days — no trailing
+  // dates from the previous/next month. Empty placeholder cells keep the
+  // weekday columns aligned.
+  const days = useMemo(() => eachDayOfInterval({ start: startOfMonth(cursor), end: endOfMonth(cursor) }), [cursor])
+  const leadBlanks = useMemo(() => getDay(startOfMonth(cursor)), [cursor]) // 0 = Sunday
 
   const monthStats = useMemo(() => {
     let pnl = 0, count = 0, greens = 0, reds = 0
@@ -69,16 +69,17 @@ export function PnlCalendar({ trades, currency }: { trades: Trade[]; currency: s
       </div>
 
       <div className="cal-grid">
-        {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => (
+        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
           <div key={d} className="cal-dow">{d}</div>
+        ))}
+        {Array.from({ length: leadBlanks }, (_, i) => (
+          <div key={'blank' + i} className="cal-day blank" aria-hidden="true" />
         ))}
         {days.map((d) => {
           const k = format(d, 'yyyy-MM-dd')
           const e = byDay.get(k)
-          const inMonth = isSameMonth(d, cursor)
           let cls = 'cal-day'
           let style: CSSProperties = {}
-          if (!inMonth) cls += ' out'
           if (e) {
             const intensity = 0.18 + 0.55 * Math.min(1, Math.abs(e.pnl) / maxAbs)
             if (e.pnl > 0) style.background = `rgba(61, 220, 151, ${intensity})`

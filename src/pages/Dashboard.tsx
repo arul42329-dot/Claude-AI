@@ -162,7 +162,7 @@ export default function Dashboard() {
                 <ReferenceLine y={startBal} stroke="rgba(255,255,255,0.16)" strokeDasharray="4 4" />
               )}
               <Tooltip
-                contentStyle={{ background: '#171a22', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, color: '#f3f5f9' }}
+                contentStyle={{ background: 'var(--surface-3)', border: '1px solid var(--border-strong)', borderRadius: 12, color: 'var(--text)' }}
                 formatter={(v: number) => [fmtMoney(v, currency), 'Balance']}
               />
               <Area type="monotone" dataKey="balance" stroke="var(--accent-2)" strokeWidth={2.4} fill="url(#eq)" />
